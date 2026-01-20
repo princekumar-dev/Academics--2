@@ -206,7 +206,7 @@ export default async function handler(req, res) {
             const startDateStr = new Date(request.startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
             const endDateStr = new Date(request.endDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 
-            // Build a compact message (PDF will be sent as a document attachment first)
+            // Build a compact message. PDF will be sent as a document attachment first
             const message = `Hello! 📋
 
 Your leave request for ${request.studentDetails.name} (Reg: ${request.studentDetails.regNumber}) has been approved.
@@ -215,7 +215,7 @@ Your leave request for ${request.studentDetails.name} (Reg: ${request.studentDet
 📝 Reason: ${request.reason}
 ✅ Status: Approved by HOD
 
-The leave approval letter is attached to this message.
+The leave approval letter is attached to the previous message. Download: ${leavePdfUrl || leaveImageUrl || 'Not available'}
 
 Best regards,
 MSEC Academics Department`
@@ -228,8 +228,9 @@ MSEC Academics Department`
               // If we have a publicly-accessible PDF URL, send it as a document first (keeps ordering consistent)
               if (leavePdfUrl) {
                 try {
-                  await evolutionApi.sendMediaMessage(parentPhone, leavePdfUrl, '', 'document')
-                  console.log('✅ Leave PDF sent as document')
+                  // Send the PDF document first with a clear caption
+                  await evolutionApi.sendMediaMessage(parentPhone, leavePdfUrl, 'Leave Letter', 'document')
+                  console.log('✅ Leave PDF sent as document with caption')
                 } catch (docErr) {
                   console.warn('⚠️ Failed to send leave PDF as document:', docErr && docErr.message)
                 }
@@ -239,17 +240,21 @@ MSEC Academics Department`
               } else if (leaveImageUrl) {
                 // Fallback: send an image representation if PDF isn't accessible
                 try {
-                  await evolutionApi.sendMediaMessage(parentPhone, leaveImageUrl, `Leave Approval Letter - ${request.studentDetails.name}`, 'image')
-                  console.log('✅ Leave image sent')
+                  await evolutionApi.sendMediaMessage(parentPhone, leaveImageUrl, 'Leave Letter', 'image')
+                  console.log('✅ Leave image sent with caption')
                 } catch (imgErr) {
                   console.warn('⚠️ Failed to send leave image:', imgErr && imgErr.message)
                 }
                 await new Promise(r => setTimeout(r, 800))
               }
 
-              // Send the textual notification after any media
-              await evolutionApi.sendTextMessage(parentPhone, message)
-              console.log('✅ Leave approval text sent successfully via Evolution API')
+              // Send the textual notification after any media. Include a download link
+              try {
+                await evolutionApi.sendTextMessage(parentPhone, message)
+                console.log('✅ Leave approval text sent successfully via Evolution API')
+              } catch (textErr) {
+                console.warn('⚠️ Failed to send leave approval text message:', textErr && textErr.message)
+              }
             } catch (err) {
               console.error('❌ WhatsApp send failed:', err && err.message)
               console.error('❌ Full error:', err)
