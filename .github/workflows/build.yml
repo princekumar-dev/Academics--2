@@ -1,0 +1,29 @@
+name: Build (produce .br/.gz)
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+      - name: Install dependencies
+        run: npm ci
+      - name: Build with compression
+        run: npm run build:ci
+      - name: Verify compressed artifacts
+        run: |
+          echo "Compressed files:"
+          find dist -type f \( -name '*.br' -o -name '*.gz' \) -maxdepth 3 -print || true
+      - name: Upload dist as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
