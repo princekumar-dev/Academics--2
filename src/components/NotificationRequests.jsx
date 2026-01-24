@@ -37,6 +37,18 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     return () => window.removeEventListener('authStateChanged', onAuthChange)
   }, [isOpen])
 
+  // Listen for global notification/marksheet updates so modal stays fresh
+  useEffect(() => {
+    if (!isOpen) return
+    const handler = () => fetchRequests({ force: true })
+    window.addEventListener('notificationsUpdated', handler)
+    window.addEventListener('marksheetsUpdated', handler)
+    return () => {
+      window.removeEventListener('notificationsUpdated', handler)
+      window.removeEventListener('marksheetsUpdated', handler)
+    }
+  }, [isOpen])
+
   // Real-time push notifications - only listen when modal is open
   usePushNotifications(isOpen ? {
     'late_arrival': () => {
@@ -92,7 +104,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
         console.log('[NotificationRequests] Leave API URL:', leaveApiUrl)
         
         try {
-          const getOpts = force ? { cache: false, dedupe: false } : {}
+            const getOpts = force ? { cache: false, dedupe: false } : {}
           const [staffData, leaveData] = await Promise.all([
             apiClient.get(staffApiUrl, getOpts),
             apiClient.get(leaveApiUrl, getOpts)
@@ -154,12 +166,12 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
             setRequests(allRequests)
             // Update header unread count if provided
             if (setUnreadCount) {
-              try {
-                setUnreadCount(allRequests.filter(r => r.data?.status === 'pending' || !r.read).length)
-              } catch (e) {
-                setUnreadCount(allRequests.length)
+                try {
+                  setUnreadCount(allRequests.filter(r => r.data?.status === 'pending' || !r.read).length)
+                } catch (e) {
+                  setUnreadCount(allRequests.length)
+                }
               }
-            }
         } catch (error) {
           console.error('[NotificationRequests] Error fetching requests:', error)
           setRequests([])
