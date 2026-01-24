@@ -244,6 +244,14 @@ function ApprovalRequests() {
       }
       
       closeModal()
+      // Optimistically remove the processed marksheet so UI updates immediately
+      try {
+        setPendingRequests(prev => prev.filter(m => m._id !== actionModal.marksheet._id))
+      } catch (e) {}
+      // Notify header and other listeners to refresh counts and marksheet lists
+      try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
+      try { window.dispatchEvent(new Event('marksheetsUpdated')) } catch (e) {}
+      // Ensure a backend-backed refresh (force) to reconcile state
       await fetchPendingRequests(true)
     } catch (err) {
       setActionError(err.message || 'Unexpected error')
@@ -300,6 +308,12 @@ function ApprovalRequests() {
         showError('Bulk Action Failed', errorMsg)
       }
 
+      // Optimistically clear processed items from UI
+      try {
+        setPendingRequests(prev => prev.filter(m => !(targetRequests.some(t => t._id === m._id))))
+      } catch (e) {}
+      try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
+      try { window.dispatchEvent(new Event('marksheetsUpdated')) } catch (e) {}
       await fetchPendingRequests(true)
     } catch (err) {
       setActionError(err.message || `Failed to perform bulk ${actionType}`)
