@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes" />
+    <meta name="theme-color" content="#d39a33" />
+    <meta name="msapplication-TileColor" content="#d39a33" />
+    <meta name="msapplication-TileImage" content="/images/android-chrome-192x192.png" />
+    <meta name="description" content="MSEC Academics - Modern academic management system for marksheets and reports" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    
+    <!-- Favicon for all browsers -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    
+    <!-- PNG favicons for modern browsers - properly sized -->
+    <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/images/android-chrome-192x192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/images/android-chrome-512x512.png" />
+    
+    <!-- Apple Touch Icon for iOS -->
+    <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon.png" />
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    
+    <!-- Preload critical background image for auth pages (prefer AVIF) -->
+    <link rel="preload" as="image" href="/images/campus.avif" fetchpriority="high" />
+    
+    <!-- Preconnect to font providers for faster loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Ensure CSS loads with high priority -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+
+  <title>MSEC Academics</title>
+    <style>
+      /* Apply backdrop immediately for auth pages - before React loads */
+      body {
+        margin: 0;
+        padding: 0;
+        /* Fallback for older browsers */
+        background-image: url('/images/campus.jpeg');
+        background-size: cover;
+        background-position: center;
+        background-attachment: fixed;
+        background-repeat: no-repeat;
+      }
+
+      /* Use image-set when supported to prefer AVIF/WebP implicitly */
+      @supports ((background-image: -webkit-image-set(url('/images/campus.avif') type('image/avif') 1x)) or (background-image: image-set(url('/images/campus.avif') type('image/avif') 1x))) {
+        body {
+          background-image: -webkit-image-set(url('/images/campus.avif') type('image/avif') 1x, url('/images/campus.webp') type('image/webp') 1x, url('/images/campus.jpeg') 1x);
+          background-image: image-set(url('/images/campus.avif') type('image/avif') 1x, url('/images/campus.webp') type('image/webp') 1x, url('/images/campus.jpeg') 1x);
+        }
+      }
+      
+      .wave-text {
+        background: linear-gradient(90deg, #3d99f5, #c0c0c0, #3d99f5, #c0c0c0);
+        background-size: 300% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: wave-animation 3s ease-in-out infinite;
+        transition: all 0.3s ease;
+      }
+      
+      @keyframes wave-animation {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/js/index-a36099b1.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/js/react-vendor-ad4d5528.js">
+    <link rel="stylesheet" href="/assets/css/index-bf022edd.css">
+    <script type="module">import.meta.url;import("_").catch(()=>1);async function* g(){};if(location.protocol!="file:"){window.__vite_is_modern_browser=true}</script>
+    <script type="module">!function(){if(window.__vite_is_modern_browser)return;console.warn("vite: loading legacy chunks, syntax error above and the same error below should be ignored");var e=document.getElementById("vite-legacy-polyfill"),n=document.createElement("script");n.src=e.src,n.onload=function(){System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))},document.body.appendChild(n)}();</script>
+  </head>
+  <body>
+    <div id="root"></div>
+    
+    <script nomodule>!function(){var e=document,t=e.createElement("script");if(!("noModule"in t)&&"onbeforeload"in t){var n=!1;e.addEventListener("beforeload",(function(e){if(e.target===t)n=!0;else if(!e.target.hasAttribute("nomodule")||!n)return;e.preventDefault()}),!0),t.type="module",t.src=".",e.head.appendChild(t),t.remove()}}();</script>
+    <script nomodule crossorigin id="vite-legacy-polyfill" src="/assets/js/polyfills-legacy-e462778a.js"></script>
+    <script nomodule crossorigin id="vite-legacy-entry" data-src="/assets/js/index-legacy-9eeb83db.js">System.import(document.getElementById('vite-legacy-entry').getAttribute('data-src'))</script>
+  </body>
+</html>

@@ -1,0 +1,594 @@
+/* ========================================
+   60FPS PERFORMANCE OPTIMIZATIONS
+   Smooth animations without lag
+   ======================================== */
+
+:root {
+  --perf-target-frame: 16ms;
+  --perf-transition-fast: 140ms;
+  --perf-transition-base: 180ms;
+  --perf-transition-rich: 240ms;
+  --perf-animation-distance: 12px;
+  --perf-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@media (max-width: 768px) {
+  :root {
+    --perf-transition-fast: 120ms;
+    --perf-transition-base: 150ms;
+    --perf-animation-distance: 8px;
+  }
+}
+
+@media (min-width: 769px) {
+  :root {
+    --perf-transition-rich: 260ms;
+    --perf-animation-distance: 16px;
+  }
+}
+
+/* ========================================
+   1. GPU ACCELERATION
+   ======================================== */
+
+/* Enable hardware acceleration for common elements */
+/* Exclude header, modals, and dropdowns from aggressive GPU acceleration */
+.glass-card:not(.header):not(.modal):not([role="dialog"]),
+.responsive-card,
+.responsive-button,
+button:not(.header button):not(.modal button),
+a:not(.header a):not(.modal a) {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Optimize hover and transition elements - exclude interactive UI */
+[class*="hover:"]:not(.header *):not(.modal *),
+[class*="transition"]:not(.header *):not(.modal *),
+[class*="animate"]:not(.header *):not(.modal *) {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+/* ========================================
+   2. SMOOTH SCROLLING & FRAME LOCK
+   ======================================== */
+
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--perf-transition-base) var(--perf-timing-function);
+}
+
+/* Optimize scroll containers */
+.overflow-auto,
+.overflow-y-auto,
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Utility to lock sections to smooth scroll pacing */
+.smooth-scroll-lock {
+  scroll-snap-type: y proximity;
+  scroll-behavior: smooth;
+}
+
+.smooth-scroll-lock > * {
+  scroll-snap-align: start;
+}
+
+/* ========================================
+   3. IMAGE & MEDIA OPTIMIZATION
+   ======================================== */
+
+img,
+video,
+svg,
+picture {
+  content-visibility: auto;
+  contain: layout style paint;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Lazy loading optimization */
+img[loading="lazy"] {
+  content-visibility: auto;
+}
+
+/* ========================================
+   4. OPTIMIZED ANIMATIONS
+   ======================================== */
+
+/* Use GPU-accelerated transforms */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -20px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg) translateZ(0);
+  }
+  to {
+    transform: rotate(360deg) translateZ(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale3d(1, 1, 1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale3d(1.05, 1.05, 1);
+  }
+}
+
+/* Apply optimized animations */
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.4s ease-out;
+}
+
+.animate-slideDown {
+  animation: slideDown 0.4s ease-out;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+  transform: translateZ(0);
+}
+
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ========================================
+   5. TRANSITION OPTIMIZATION
+   ======================================== */
+
+/* Use cubic-bezier for smooth transitions */
+* {
+  transition-timing-function: var(--perf-timing-function);
+}
+
+/* Optimize common transitions */
+.transition-all {
+  transition-property: all;
+  transition-duration: var(--perf-transition-base);
+}
+
+.transition-colors {
+  transition-property: color, background-color, border-color;
+  transition-duration: var(--perf-transition-base);
+}
+
+.transition-transform {
+  transition-property: transform;
+  transition-duration: var(--perf-transition-base);
+}
+
+.transition-opacity {
+  transition-property: opacity;
+  transition-duration: var(--perf-transition-fast);
+}
+
+.transition-rich {
+  transition-property: transform, opacity, filter;
+  transition-duration: var(--perf-transition-rich);
+}
+
+/* ========================================
+   6. MOBILE PERFORMANCE
+   ======================================== */
+
+@media (max-width: 768px) {
+  /* Reduce heavy animations on mobile for better performance */
+  .no-mobile-anim,
+  .no-mobile-anim * {
+    animation-duration: 0.2s !important;
+    transition-duration: 0.15s !important;
+  }
+  
+  /* Disable expensive animations on mobile */
+  .glass-card:hover,
+  .desktop-hover:hover,
+  .motion-rich-only {
+    transform: none !important;
+    animation: none !important;
+    filter: none !important;
+  }
+
+  /* Optimize touch interactions */
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+  
+  /* Reduce blur effects on mobile */
+  .glass-card {
+    backdrop-filter: blur(8px) !important;
+    -webkit-backdrop-filter: blur(8px) !important;
+  }
+  
+  /* Optimize shadows on mobile */
+  .shadow-lg,
+  .shadow-xl {
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
+  }
+  
+  /* Keep essential animations but make them faster */
+  .animate-spin,
+  .loading-spinner {
+    animation-duration: 0.8s !important;
+  }
+  
+  .animate-pulse {
+    animation-duration: 1.5s !important;
+  }
+
+  .mobile-motion-selective .animation-heavy,
+  .mobile-motion-selective [data-anim="rich"] {
+    animation: none !important;
+    transition: opacity var(--perf-transition-fast) var(--perf-timing-function);
+  }
+
+  .mobile-motion-selective .animation-essential,
+  .mobile-motion-selective [data-anim="essential"] {
+    animation-duration: var(--perf-transition-base) !important;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .desktop-motion-rich .glass-card,
+  .desktop-motion-rich .responsive-card,
+  .desktop-motion-rich [data-anim="rich"],
+  .desktop-motion-rich .motion-rich-only {
+    transition-duration: var(--perf-transition-rich);
+    animation-duration: var(--perf-transition-rich);
+    transform: translate3d(0, var(--perf-animation-distance), 0);
+  }
+
+  .desktop-motion-rich .motion-rich-only.animate-fadeIn,
+  .desktop-motion-rich .motion-rich-only.animate-slideUp,
+  .desktop-motion-rich [data-anim="rich"].animate-slideUp {
+    animation-fill-mode: both;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  .motion-rich-only,
+  .desktop-only-anim,
+  .glass-card.motion-intensive,
+  .settings-modal .motion-intensive {
+    animation: none !important;
+    transition: opacity var(--perf-transition-fast) var(--perf-timing-function) !important;
+  }
+
+  .header,
+  .settings-modal,
+  .settings-panel,
+  .settings-drawer {
+    will-change: auto;
+    contain: none;
+  }
+}
+
+/* ========================================
+   7. LAYOUT OPTIMIZATION
+   ======================================== */
+
+/* Prevent layout shifts - exclude header and modals */
+.contain-layout {
+  contain: layout;
+}
+
+.contain-paint {
+  contain: paint;
+}
+
+.contain-strict {
+  contain: strict;
+}
+
+/* Grid and flex optimization - exclude header and navigation */
+.grid:not(.header *):not(.modal *):not(nav *),
+.flex:not(.header *):not(.modal *):not(nav *) {
+  contain: layout style;
+}
+
+/* ========================================
+   8. LOADING STATES
+   ======================================== */
+
+/* Optimized loading spinner */
+.loading-spinner {
+  animation: spin 1s linear infinite;
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* Skeleton loading */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.2) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ========================================
+   9. WILL-CHANGE OPTIMIZATION
+   ======================================== */
+
+/* Only use will-change on elements that actually animate */
+.will-change-transform {
+  will-change: transform;
+}
+
+.will-change-opacity {
+  will-change: opacity;
+}
+
+.will-change-auto {
+  will-change: auto;
+}
+
+/* Remove will-change after animation */
+.animation-ended {
+  will-change: auto;
+}
+
+/* ========================================
+   10. FONT RENDERING
+   ======================================== */
+
+body,
+input,
+button,
+select,
+textarea {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ========================================
+   11. REDUCE MOTION (Accessibility)
+   ======================================== */
+
+@media (prefers-reduced-motion: reduce) {
+  /* Only reduce decorative animations, not functional ones */
+  .animate-fadeIn,
+  .animate-slideUp,
+  .animate-slideDown,
+  .animate-pulse,
+  .wave-text,
+  .glass-card:hover,
+  .desktop-hover:hover,
+  [class*="hover:"],
+  .transition-transform {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  /* Disable scroll behavior changes */
+  html,
+  body {
+    scroll-behavior: auto !important;
+  }
+
+  /* Keep critical loading indicators spinning even when motion is reduced */
+  .animate-spin,
+  .loading-spinner {
+    animation-duration: 1s !important;
+    animation-iteration-count: infinite !important;
+  }
+}
+
+/* ========================================
+   12. PERFORMANCE HINTS
+   ======================================== */
+
+/* Optimize rendering for cards and containers - exclude header */
+.glass-card:not(.header):not(.modal):not([role="dialog"]),
+.responsive-card {
+  contain: layout style paint;
+  content-visibility: auto;
+}
+
+/* Optimize modal/overlay rendering - but allow proper stacking */
+.modal-overlay,
+.backdrop {
+  isolation: isolate;
+}
+
+/* Header and navigation should not be contained */
+.header,
+header,
+nav,
+[role="navigation"],
+[role="dialog"],
+.modal,
+.dropdown,
+[role="menu"] {
+  contain: none !important;
+  content-visibility: visible !important;
+}
+
+/* ========================================
+   13. BUTTON OPTIMIZATION
+   ======================================== */
+
+button,
+.btn,
+.responsive-button {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+
+/* Only apply transform on non-header/modal buttons */
+button:not(.header button):not(.modal button),
+.btn:not(.header .btn):not(.modal .btn),
+.responsive-button:not(.header .responsive-button):not(.modal .responsive-button) {
+  transform: translateZ(0);
+}
+
+button:active:not(.header button):not(.modal button),
+.btn:active:not(.header .btn):not(.modal .btn),
+.responsive-button:active:not(.header .responsive-button):not(.modal .responsive-button) {
+  transform: scale(0.98) translateZ(0);
+}
+
+/* ========================================
+   14. INPUT OPTIMIZATION
+   ======================================== */
+
+input:not([type="checkbox"]):not([type="radio"]),
+select,
+textarea {
+  touch-action: manipulation;
+}
+
+/* Don't remove native appearance from all inputs */
+input[type="text"],
+input[type="email"],
+input[type="password"],
+input[type="number"],
+input[type="search"],
+select,
+textarea {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* Prevent zoom on iOS */
+@media screen and (max-width: 768px) {
+  input[type="text"],
+  input[type="email"],
+  input[type="password"],
+  input[type="number"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* ========================================
+   15. PREVENT LAYOUT SHIFTS
+   ======================================== */
+
+/* Reserve space for images */
+img[width][height] {
+  height: auto;
+}
+
+/* Aspect ratio boxes */
+.aspect-ratio-16-9 {
+  aspect-ratio: 16 / 9;
+}
+
+.aspect-ratio-4-3 {
+  aspect-ratio: 4 / 3;
+}
+
+.aspect-ratio-1-1 {
+  aspect-ratio: 1 / 1;
+}
+
+/* ========================================
+   16. COMPOSITING LAYERS
+   ======================================== */
+
+/* Create compositing layers for frequently animated elements */
+.layer-promote {
+  transform: translateZ(0);
+  will-change: transform;
+  isolation: isolate;
+}
+
+/* ========================================
+   17. PASSIVE EVENT LISTENERS
+   ======================================== */
+
+/* Hint for passive scroll listeners */
+.passive-scroll {
+  touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ========================================
+   18. CRITICAL RENDERING PATH
+   ======================================== */
+
+/* Above-the-fold content */
+.above-fold {
+  content-visibility: visible;
+  contain-intrinsic-size: auto 500px;
+}
+
+/* Below-the-fold content */
+.below-fold {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
+}

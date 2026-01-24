@@ -1,0 +1,2583 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ========================================
+   GLOBAL SMOOTH SCROLLING & PERFORMANCE
+   ======================================== */
+
+/* Smooth scrolling for all devices */
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Reduce animations for users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Performance optimizations for all devices */
+* {
+  /* Prevent layout shifts */
+  box-sizing: border-box;
+  /* Improve text rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Optimize scrolling performance */
+body {
+  margin: 0;
+  font-family: 'Inter', 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  overflow-x: hidden;
+  /* Removed overscroll-behavior-y and -webkit-overflow-scrolling to fix Edge scroll freeze */
+  scroll-behavior: smooth;
+}
+
+/* Optimize animations globally */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Mobile-specific optimizations */
+@media (max-width: 768px) {
+  /* Reduce complex animations on mobile */
+  .glass-card {
+    backdrop-filter: blur(8px) !important; /* Reduced from higher values */
+    -webkit-backdrop-filter: blur(8px) !important;
+  }
+
+  /* Simplify transitions on mobile */
+  * {
+    transition-duration: 0.2s !important; /* Faster transitions */
+  }
+
+  /* Optimize touch scrolling */
+  body, html, .layout-container, .layout-content-container {
+    /* Removed -webkit-overflow-scrolling, touch-action, and overscroll-behavior for Edge compatibility */
+  }
+
+  /* Reduce shadow complexity */
+  .shadow-lg, .shadow-xl, .shadow-2xl {
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1) !important;
+  }
+
+  /* Disable expensive effects on mobile */
+  .hover\:scale-105:hover,
+  .hover\:-translate-y-1:hover,
+  .hover\:shadow-xl:hover {
+    transform: none !important;
+    box-shadow: inherit !important;
+  }
+}
+
+/* Desktop enhancements */
+@media (min-width: 769px) {
+  /* Smooth hover effects */
+  .hover\:scale-105 {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .hover\:-translate-y-1 {
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* Enhanced glass effect on desktop */
+  .glass-card {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+}
+
+/* Optimize GPU acceleration for animated elements */
+.animate-spin,
+.animate-pulse,
+[class*="animate-"] {
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+}
+
+/* Remove will-change after animation completes */
+.animate-none {
+  will-change: auto;
+}
+
+/* Smooth scroll utility class */
+.smooth-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Optimize card transitions */
+.glass-card {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: auto; /* Only add will-change when hovering */
+}
+
+.glass-card:hover {
+  will-change: transform, box-shadow;
+}
+
+/* Copied from cm/src/index.css for consistent styling and responsiveness */
+/* Ultra-smooth mobile scroll for booking form */
+@media (max-width: 640px) {
+  .mobile-smoothest-scroll {
+    /* Avoid forcing GPU compositing on parent containers which can cause jank */
+    -webkit-transform: none;
+  transform: none;
+  -webkit-backface-visibility: visible;
+  backface-visibility: visible;
+  -webkit-perspective: none;
+  perspective: none;
+  will-change: auto;
+  }
+
+.toggle-touch-area {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 9999px;
+}
+
+@media (max-width: 640px) {
+  .toggle-touch-area {
+    padding: 0.35rem;
+  }
+}
+}
+
+/* Nudge certain absolute dropdowns slightly right on desktop to align visually with header avatar */
+@media (min-width: 1024px) {
+  .desktop-offset {
+    /* move right by 8px; use translateX for smooth GPU-accelerated rendering */
+    transform: translateX(8px);
+    -webkit-transform: translateX(8px);
+  }
+}
+
+/* Mobile centered modal adjustments */
+@media (max-width: 1023px) {
+  /* make sure modal inner panel is vertically centered and not glued to top */
+  .no-mobile-backdrop > .bg-white {
+    margin: 0 auto;
+    max-height: 90vh;
+    border-radius: 14px;
+  }
+}
+
+/* Full-width mobile settings panel that sits below the header */
+@media (max-width: 768px) {
+  .mobile-fullwidth-settings {
+    position: fixed;
+    left: 0;
+    right: 0;
+    width: 100%;
+    /* default top will be set inline from JS to match header height + small gap */
+    background: transparent; /* wrapper is transparent; inner panel handles visual */
+    z-index: 60;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0;
+  }
+
+  .mobile-fullwidth-settings .inner-panel {
+    width: 100%;
+    border-radius: 0.5rem;
+    max-height: calc(100vh - var(--header-offset, 56px) - env(safe-area-inset-bottom));
+    overflow-y: auto;
+    box-shadow: 0 -6px 30px rgba(2,6,23,0.08);
+    background: #ffffff;
+    border-top-left-radius: 0.75rem;
+    border-top-right-radius: 0.75rem;
+  }
+}
+/* Mobile smooth scroll for booking form */
+@media (max-width: 640px) {
+  .mobile-smooth-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+  }
+}
+body {
+  margin: 0;
+  font-family: 'Inter', 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Cross-browser text-size adjust and selection fallbacks */
+html, body {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Also apply to :host for Shadow DOM contexts and ensure unprefixed variant is present */
+:host, html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Improve print color handling in WebKit based browsers */
+img, svg {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Ensure form controls print colors correctly in WebKit/Chromium browsers */
+select, option {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Ensure consistent user-select behavior where used */
+* {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* --- END OF SHARED STYLES FROM CM --- */
+/* Ultra-smooth mobile scroll for booking form */
+@media (max-width: 640px) {
+  .mobile-smoothest-scroll {
+    /* Avoid forcing GPU compositing on parent containers which can cause jank */
+    -webkit-transform: none;
+    transform: none;
+    -webkit-backface-visibility: visible;
+    backface-visibility: visible;
+    -webkit-perspective: none;
+    perspective: none;
+    will-change: auto;
+  }
+}
+
+/* Nudge certain absolute dropdowns slightly right on desktop to align visually with header avatar */
+@media (min-width: 1024px) {
+  .desktop-offset {
+    /* move right by 8px; use translateX for smooth GPU-accelerated rendering */
+    transform: translateX(8px);
+    -webkit-transform: translateX(8px);
+  }
+}
+
+/* Mobile centered modal adjustments */
+@media (max-width: 1023px) {
+  /* make sure modal inner panel is vertically centered and not glued to top */
+  .no-mobile-backdrop > .bg-white {
+    margin: 0 auto;
+    max-height: 90vh;
+    border-radius: 14px;
+  }
+}
+
+/* Full-width mobile settings panel that sits below the header */
+@media (max-width: 768px) {
+  .mobile-fullwidth-settings {
+    position: fixed;
+    left: 0;
+    right: 0;
+    width: 100%;
+    /* default top will be set inline from JS to match header height + small gap */
+    background: transparent; /* wrapper is transparent; inner panel handles visual */
+    z-index: 60;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 0;
+  }
+
+  .mobile-fullwidth-settings .inner-panel {
+    width: 100%;
+    border-radius: 0.5rem;
+    max-height: calc(100vh - var(--header-offset, 56px) - env(safe-area-inset-bottom));
+    overflow-y: auto;
+    box-shadow: 0 -6px 30px rgba(2,6,23,0.08);
+    background: #ffffff;
+    border-top-left-radius: 0.75rem;
+    border-top-right-radius: 0.75rem;
+  }
+}
+/* Mobile smooth scroll for booking form */
+@media (max-width: 640px) {
+  .mobile-smooth-scroll {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    overscroll-behavior: contain;
+  }
+}
+body {
+  margin: 0;
+  font-family: 'Inter', 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Cross-browser text-size adjust and selection fallbacks */
+html, body {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Also apply to :host for Shadow DOM contexts and ensure unprefixed variant is present */
+:host, html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Improve print color handling in WebKit based browsers */
+img, svg {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Ensure form controls print colors correctly in WebKit/Chromium browsers */
+select, option {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+/* Ensure consistent user-select behavior where used */
+* {
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.wave-text {
+  background: linear-gradient(90deg, var(--theme-gold-600), var(--theme-gold-300), var(--theme-gold-600), var(--theme-gold-300));
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: wave-animation 3s ease-in-out infinite;
+  transition: all 0.3s ease;
+}
+
+@keyframes wave-animation {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.wave-text:hover {
+  animation-duration: 1s;
+  transform: scale(1.1);
+}
+
+.wave-login-btn {
+  background: linear-gradient(90deg, var(--theme-gold-600), var(--theme-gold-300), var(--theme-gold-600), var(--theme-gold-300)) !important;
+  background-size: 300% 100% !important;
+  animation: wave-animation 3s ease-in-out infinite !important;
+  border: none !important;
+  transition: all 0.3s ease !important;
+}
+
+.wave-login-btn:hover {
+  animation-duration: 1.5s !important;
+}
+
+.wave-login-btn:disabled {
+  opacity: 0.7 !important;
+  cursor: not-allowed !important;
+}
+
+/* Notification Modal Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes shrink {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.3s ease-out;
+}
+
+.animate-slideInRight {
+  animation: slideInRight 0.3s ease-out;
+}
+/* Enhanced Responsive Utilities */
+/* Mobile First Approach */
+@media (max-width: 640px) {
+  .responsive-padding {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+  
+  .hide-on-mobile {
+    display: none !important;
+  }
+  
+  /* Mobile-specific text sizing */
+  .mobile-text-sm { font-size: 0.875rem !important; }
+  .mobile-text-base { font-size: 1rem !important; }
+  .mobile-text-lg { font-size: 1.125rem !important; }
+  
+  /* Mobile spacing */
+  .mobile-p-2 { padding: 0.5rem !important; }
+  .mobile-p-4 { padding: 1rem !important; }
+  .mobile-mb-4 { margin-bottom: 1rem !important; }
+  
+  /* Mobile grid adjustments */
+  .mobile-grid-1 { grid-template-columns: 1fr !important; }
+  .mobile-gap-2 { gap: 0.5rem !important; }
+  .mobile-gap-4 { gap: 1rem !important; }
+}
+
+/* Tablet breakpoint */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .tablet-grid-2 { grid-template-columns: repeat(2, 1fr) !important; }
+  .tablet-grid-3 { grid-template-columns: repeat(3, 1fr) !important; }
+  .tablet-text-lg { font-size: 1.125rem !important; }
+  .tablet-text-xl { font-size: 1.25rem !important; }
+  .tablet-p-6 { padding: 1.5rem !important; }
+  .tablet-gap-6 { gap: 1.5rem !important; }
+  
+  /* Tablet-specific optimizations */
+  .tablet-card {
+    padding: 1.5rem;
+    margin: 0.75rem;
+    border-radius: 1rem;
+  }
+  
+  .tablet-btn {
+    padding: 0.875rem 1.75rem;
+    font-size: 1.125rem;
+    border-radius: 0.75rem;
+  }
+  
+  .tablet-nav {
+    gap: 1.5rem;
+    padding: 0 1.5rem;
+  }
+  
+  /* Tablet form improvements */
+  .tablet-form-input {
+    padding: 1rem;
+    font-size: 1.125rem;
+    border-radius: 0.75rem;
+  }
+}
+
+/* Desktop breakpoint */
+@media (min-width: 1025px) {
+  .desktop-grid-4 { grid-template-columns: repeat(4, 1fr) !important; }
+  .desktop-text-2xl { font-size: 1.5rem !important; }
+  .desktop-text-3xl { font-size: 1.875rem !important; }
+  .desktop-p-8 { padding: 2rem !important; }
+  .desktop-gap-8 { gap: 2rem !important; }
+  
+  /* Desktop-specific optimizations */
+  .desktop-card {
+    padding: 2rem;
+    margin: 1rem;
+    border-radius: 1.25rem;
+  }
+  
+  .desktop-btn {
+    padding: 1rem 2rem;
+    font-size: 1.125rem;
+    border-radius: 1rem;
+  }
+  
+  .desktop-nav {
+    gap: 2rem;
+    padding: 0 2rem;
+  }
+  
+  /* Desktop form improvements */
+  .desktop-form-input {
+    padding: 1.25rem;
+    font-size: 1.125rem;
+    border-radius: 1rem;
+  }
+  
+  /* Desktop hover effects */
+  .desktop-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+    transition: all 0.3s ease;
+  }
+}
+
+/* Prevent horizontal scroll */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+/* Ensure images are responsive */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Enhanced touch targets and mobile optimizations */
+@media (max-width: 640px) {
+  button, a, input, select, textarea {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Improved mobile navigation */
+  .mobile-nav-item {
+    padding: 0.75rem 1rem;
+    font-size: 1rem;
+    line-height: 1.5;
+  }
+  
+  /* Mobile form improvements */
+  .mobile-form-input {
+    font-size: 16px; /* Prevents zoom on iOS */
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+  }
+  
+  /* Mobile card improvements */
+  .mobile-card {
+    margin: 0.5rem;
+    padding: 1rem;
+    border-radius: 0.75rem;
+  }
+  
+  /* Mobile button improvements */
+  .mobile-btn {
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    border-radius: 0.5rem;
+    min-height: 44px;
+  }
+}
+
+/* Remove tap highlight on mobile */
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+
+/* Better scrolling on iOS */
+.overflow-y-auto, .overflow-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Optimized smooth scroll for better performance */
+.smooth-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  will-change: scroll-position;
+  /* Hardware acceleration for smoother scrolling */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+/* Ultra-smooth mobile scroll for booking form */
+@media (max-width: 640px) {
+  .mobile-smoothest-scroll {
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    -webkit-perspective: 1000;
+    perspective: 1000;
+    will-change: scroll-position, transform;
+    /* Reduce scroll complexity on mobile */
+    scroll-behavior: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+}
+
+/* Performance-optimized smooth scrolling */
+.ultra-smooth-scroll {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  /* Hardware acceleration */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  will-change: scroll-position;
+  /* Optimize for 60fps */
+  animation-fill-mode: both;
+  animation-timing-function: ease-out;
+}
+
+/* Mobile-specific ultra-smooth scrolling */
+@media (max-width: 640px) {
+  .ultra-smooth-scroll {
+    /* Use native scrolling for better performance on mobile */
+    scroll-behavior: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    /* Reduce GPU load */
+    -webkit-transform: none;
+    transform: none;
+    will-change: auto;
+  }
+}
+
+/* Mobile form optimizations */
+.mobile-form-optimized {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  -webkit-perspective: 1000;
+  perspective: 1000;
+}
+
+/* Enhanced mobile form performance */
+@media (max-width: 640px) {
+  .mobile-form-optimized {
+    /* Disable backdrop blurs and heavy shadows on mobile to improve scroll performance */
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04) !important;
+    /* Reduce form animations */
+    .glass-card {
+      transition: none !important;
+      -webkit-backdrop-filter: none !important;
+      backdrop-filter: none !important;
+    }
+    /* Optimize form grid */
+    .grid {
+      gap: 1rem !important;
+    }
+    /* Reduce spacing for mobile */
+    .space-y-8 > * + * {
+      margin-top: 1.5rem !important;
+    }
+  }
+
+  /* Optimize form inputs (selectors expanded to avoid nested-rule parsing issues) */
+  .mobile-form-optimized input,
+  .mobile-form-optimized select,
+  .mobile-form-optimized textarea {
+    font-size: 16px !important; /* Prevents zoom on iOS */
+    padding: 0.75rem !important;
+    border-radius: 0.5rem !important;
+    min-height: 44px !important;
+    transition: none !important; /* Remove transitions for better performance */
+  }
+}
+
+/* Settings modal optimizations */
+.settings-modal {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  will-change: transform;
+  overflow-x: hidden;
+}
+
+/* Prevent horizontal scrollbars in settings content */
+.settings-modal .overflow-y-auto {
+  overflow-x: hidden !important;
+  max-width: 100%;
+}
+
+/* Custom scrollbar styling for settings */
+.settings-content::-webkit-scrollbar {
+  width: 6px;
+}
+
+.settings-content::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.settings-content::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 3px;
+}
+
+.settings-content::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Firefox scrollbar */
+.settings-content {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+/* Ensure proper text wrapping and visibility */
+.settings-modal .truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Fix flex layout issues - allow text to wrap */
+.settings-modal .flex-1 {
+  min-width: 0;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: calc(100% - 60px); /* Ensure space for toggle switches */
+}
+
+/* Improve text readability in settings */
+.settings-modal p {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  line-height: 1.4;
+}
+
+/* Ensure toggle switches don't overlap text */
+.settings-modal .flex-shrink-0 {
+  min-width: 50px;
+  flex-shrink: 0;
+}
+
+/* Better spacing for notification cards */
+.settings-modal .space-y-3 > * + * {
+  margin-top: 0.75rem;
+}
+
+/* Ensure proper text spacing */
+.settings-modal .pr-3 {
+  padding-right: 0.75rem;
+}
+
+/* Inner content alignment fixes */
+.settings-content {
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+}
+
+/* Ensure consistent card heights */
+.settings-modal .min-h-\[52px\] {
+  min-height: 52px;
+}
+
+/* Better section spacing */
+.settings-modal .space-y-3 {
+  gap: 0.75rem;
+}
+
+/* Fix any overflow issues */
+.settings-content * {
+  box-sizing: border-box;
+}
+
+/* Theme overrides: replace blue palette with gold */
+:root {
+  --theme-gold-50: #fffcf3;
+  --theme-gold-100: #fef3d7;
+  --theme-gold-200: #fde7af;
+  --theme-gold-300: #f9d585;
+  --theme-gold-400: #f3c463;
+  --theme-gold-500: #e9b247;
+  --theme-gold-600: #d39a33;
+  --theme-gold-700: #b67f26;
+  --theme-gold-800: #945f1a;
+  --theme-gold-900: #6f4510;
+}
+
+.bg-theme-gold { background-color: var(--theme-gold-600) !important; }
+.hover\:bg-theme-gold-500:hover { background-color: var(--theme-gold-500) !important; }
+.text-theme-gold { color: var(--theme-gold-600) !important; }
+.hover\:text-theme-gold-500:hover { color: var(--theme-gold-500) !important; }
+.group:hover .group-hover\:text-theme-gold { color: var(--theme-gold-500) !important; }
+.bg-theme-gold-gradient { background-image: linear-gradient(135deg, var(--theme-gold-600), var(--theme-gold-400)) !important; }
+
+.bg-blue-50, .bg-indigo-50 { background-color: var(--theme-gold-50) !important; }
+.bg-blue-100, .bg-indigo-100 { background-color: var(--theme-gold-100) !important; }
+.bg-blue-200, .bg-indigo-200 { background-color: var(--theme-gold-200) !important; }
+.bg-blue-300, .bg-indigo-300 { background-color: var(--theme-gold-300) !important; }
+.bg-blue-400, .bg-indigo-400 { background-color: var(--theme-gold-400) !important; }
+.bg-blue-500, .bg-indigo-500 { background-color: var(--theme-gold-500) !important; }
+.bg-blue-600, .bg-indigo-600 { background-color: var(--theme-gold-600) !important; }
+.bg-blue-700, .bg-indigo-700 { background-color: var(--theme-gold-700) !important; }
+.bg-blue-800, .bg-indigo-800 { background-color: var(--theme-gold-800) !important; }
+.bg-blue-900, .bg-indigo-900 { background-color: var(--theme-gold-900) !important; }
+
+.text-blue-400, .text-indigo-400 { color: var(--theme-gold-400) !important; }
+.text-blue-500, .text-indigo-500 { color: var(--theme-gold-500) !important; }
+.text-blue-600, .text-indigo-600 { color: var(--theme-gold-600) !important; }
+.text-blue-700, .text-indigo-700 { color: var(--theme-gold-700) !important; }
+.text-blue-800, .text-indigo-800 { color: var(--theme-gold-800) !important; }
+.text-blue-900, .text-indigo-900 { color: var(--theme-gold-900) !important; }
+
+.border-blue-100, .border-indigo-100 { border-color: var(--theme-gold-100) !important; }
+.border-blue-200, .border-indigo-200 { border-color: var(--theme-gold-200) !important; }
+.border-blue-300, .border-indigo-300 { border-color: var(--theme-gold-300) !important; }
+.border-blue-400, .border-indigo-400 { border-color: var(--theme-gold-400) !important; }
+.border-blue-500, .border-indigo-500 { border-color: var(--theme-gold-500) !important; }
+.border-blue-600, .border-indigo-600 { border-color: var(--theme-gold-600) !important; }
+.border-blue-700, .border-indigo-700 { border-color: var(--theme-gold-700) !important; }
+
+.from-blue-50 {
+  --tw-gradient-from: var(--theme-gold-50) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(255, 252, 243, 0)) !important;
+}
+.via-blue-50, .via-blue-100 {
+  --tw-gradient-stops: var(--tw-gradient-from), var(--theme-gold-100), var(--tw-gradient-to, rgba(254, 243, 215, 0)) !important;
+}
+.to-indigo-50, .to-blue-100 {
+  --tw-gradient-to: var(--theme-gold-200) !important;
+}
+
+.shadow-blue-500\/50 { box-shadow: 0 0 0 3px rgba(233, 178, 71, 0.35) !important; }
+
+/* Prevent pull-to-refresh on mobile when scrolling modals */
+body {
+  overscroll-behavior-y: contain;
+}
+
+/* Optimized Smooth Scrolling for Better Performance */
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Remove global smooth scrolling to reduce lag */
+body {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Mobile-optimized smooth scrolling with reduced animations */
+@media (max-width: 640px) {
+  html, body {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scroll-padding-top: 80px;
+    /* Reduce animations for better performance */
+    animation-duration: 0.2s !important;
+    transition-duration: 0.2s !important;
+  }
+  
+  /* Optimize scrollable containers for mobile */
+  .overflow-y-auto, .overflow-auto, .overflow-x-auto {
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    /* Hardware acceleration for smoother scrolling */
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+    will-change: scroll-position;
+  }
+  
+  /* Disable hover effects on mobile (touch devices) */
+  .glass-card:hover {
+    transform: none !important;
+  }
+  
+  /* Simplify button interactions - use opacity instead of transform for better performance */
+  button:active, .btn:active {
+    opacity: 0.85 !important;
+    transition: opacity 0.1s ease-out !important;
+  }
+  
+  /* Optimize touch targets */
+  button, a, input[type="button"], input[type="submit"] {
+    min-height: 44px !important;
+    min-width: 44px !important;
+  }
+}
+
+/* Enhanced Glassmorphism utilities */
+
+/* Global mobile performance overrides: disable expensive effects on small screens */
+@media (max-width: 640px) {
+  /* Turn off backdrop filters globally on mobile */
+  * {
+    --_original-backdrop: initial;
+  }
+
+  /* Catch utility classes like backdrop-blur-sm / backdrop-blur-md etc */
+  /* Ensure Safari/WebKit picks up backdrop blur utilities */
+  [class*="backdrop-blur"] {
+    -webkit-backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia) !important;
+    backdrop-filter: var(--tw-backdrop-blur) var(--tw-backdrop-brightness) var(--tw-backdrop-contrast) var(--tw-backdrop-grayscale) var(--tw-backdrop-hue-rotate) var(--tw-backdrop-invert) var(--tw-backdrop-opacity) var(--tw-backdrop-saturate) var(--tw-backdrop-sepia) !important;
+  }
+
+  /* Reduce shadow complexity on mobile */
+  [class*="shadow-lg"], [class*="shadow-xl"], [class*="shadow-2xl"] {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+  }
+  .glass-card, .glass-input, .glass-button, .notification-card, .modal, .settings-modal, .mobile-form-optimized, .subscription-dashboard, .calendar-modal {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04) !important;
+    transform: none !important;
+    will-change: auto !important;
+    transition: none !important;
+  }
+
+  /* Reduce heavy shadows globally */
+  .shadow-2xl, .shadow-lg, .shadow-md {
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04) !important;
+  }
+
+  /* Prevent forcing GPU compositing on large containers */
+  .mobile-smoothest-scroll, .smooth-scroll, .ultra-smooth-scroll, .mobile-form-optimized {
+    -webkit-transform: none !important;
+    transform: none !important;
+    -webkit-backface-visibility: visible !important;
+    backface-visibility: visible !important;
+    -webkit-perspective: none !important;
+    perspective: none !important;
+    will-change: auto !important;
+  }
+
+  /* Optimize animations site-wide for mobile - but allow desktop to be normal */
+
+  /* Restore wave-text animation timing specifically so header/company wordmark animates at intended speed on mobile */
+  .wave-text {
+    animation-duration: 3s !important;
+    animation-timing-function: ease-in-out !important;
+  }
+
+  /* Simplify hover transforms (most mobiles don't use hover)
+     and ensure no expensive transforms on interactive elements */
+  .glass-card:hover, .desktop-hover:hover, .group:hover .glass-card {
+    transform: none !important;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04) !important;
+  }
+
+  /* Inputs: keep them responsive but avoid repaints */
+  input, select, textarea, button {
+    -webkit-backface-visibility: visible !important;
+    backface-visibility: visible !important;
+    transform: none !important;
+  }
+}
+
+/* Element-level helper: attach to any element that should explicitly disable blur/shadows on mobile */
+@media (max-width: 640px) {
+  .no-mobile-backdrop {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04) !important;
+    transform: none !important;
+    will-change: auto !important;
+    transition: none !important;
+  }
+
+  /* Also clear text shadows and filters for children to neutralize inline styles on mobile */
+  .no-mobile-backdrop, .no-mobile-backdrop * {
+    text-shadow: none !important;
+    -webkit-filter: none !important;
+    filter: none !important;
+  }
+
+  /* Prevent hover/scale/transform on child elements for touch devices */
+  .no-mobile-backdrop :where(*:hover) {
+    transform: none !important;
+  }
+
+  /* Helper to explicitly disable animations/transitions on mobile for specific elements */
+  .no-mobile-anim, .no-mobile-anim * {
+    transition: none !important;
+    animation-duration: 0.1s !important;
+    animation-delay: 0s !important;
+    transform: none !important;
+    will-change: auto !important;
+  }
+}
+.glass-card {
+  background: rgba(255, 255, 255, 0.75);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 20px 40px rgba(17, 17, 23, 0.1), 0 8px 16px rgba(17, 17, 23, 0.06);
+  border-radius: 20px;
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 25px 50px rgba(17, 17, 23, 0.15), 0 12px 24px rgba(17, 17, 23, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Home hero: keep only the frosted backdrop effect, remove motion */
+.home-hero {
+  /* keep the frosted glass look */
+  -webkit-backdrop-filter: blur(12px) saturate(130%);
+  backdrop-filter: blur(12px) saturate(130%);
+  /* Prevent any transitions/animations/movement on the hero */
+  -webkit-transition: none !important;
+  transition: none !important;
+  -webkit-transform: none !important;
+  transform: none !important;
+  animation: none !important;
+  /* Fix the background so it doesn't animate or shift */
+  background-position: center center !important;
+  background-size: cover !important;
+}
+
+/* Ensure child elements don't contribute motion */
+.home-hero > * {
+  -webkit-transition: none !important;
+  transition: none !important;
+  animation: none !important;
+}
+
+.glass-button {
+  background: rgba(255, 255, 255, 0.7);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 8px 20px rgba(17, 17, 23, 0.1);
+  transition: all 0.3s ease;
+}
+
+.glass-button:hover {
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 12px 24px rgba(17, 17, 23, 0.15);
+  transform: translateY(-1px);
+}
+
+.glass-input {
+  background: rgba(255, 255, 255, 0.8);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 4px 12px rgba(17, 17, 23, 0.08);
+}
+
+.glass-modal {
+  background: rgba(255, 255, 255, 0.9);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 32px 64px rgba(17, 17, 23, 0.2);
+}
+
+.heading-xl { font-family: 'Inter', sans-serif; font-weight: 800; letter-spacing: -0.02em; }
+.heading-lg { font-family: 'Inter', sans-serif; font-weight: 800; letter-spacing: -0.02em; }
+.heading-md { font-family: 'Inter', sans-serif; font-weight: 700; }
+.text-secondary { color: #60758a; }
+.muted { color: #6b7280; }
+
+
+/* Focus visible for accessibility */
+*:focus-visible {
+  outline: 2px solid var(--theme-gold-500);
+  outline-offset: 2px;
+}
+
+/* Container queries for better component-level responsiveness */
+@container (max-width: 400px) {
+  .container-sm {
+    padding: 0.5rem;
+    font-size: 0.875rem;
+  }
+}
+
+@container (min-width: 401px) and (max-width: 800px) {
+  .container-md {
+    padding: 1rem;
+    font-size: 1rem;
+  }
+}
+
+@container (min-width: 801px) {
+  .container-lg {
+    padding: 1.5rem;
+    font-size: 1.125rem;
+  }
+}
+
+/* Utility: width stretch fallback for browsers that need WebKit's fill-available */
+.w-stretch {
+  width: -webkit-fill-available;
+  width: stretch;
+}
+
+/* Landscape orientation optimizations */
+@media (orientation: landscape) and (max-height: 500px) {
+  .landscape-compact {
+    padding: 0.5rem;
+    margin: 0.25rem;
+  }
+  
+  .landscape-nav {
+    flex-direction: row;
+    gap: 1rem;
+  }
+}
+
+/* High DPI display optimizations */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .high-dpi {
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+  }
+}
+
+/* Reduced motion preferences - handled in performance.css with more selective rules */
+
+/* Performance optimizations for mobile devices */
+@media (max-width: 640px) {
+  /* Reduce animations on mobile for better performance */
+  .animate-spin {
+    animation-duration: 1s !important;
+  }
+  
+  /* Optimize specific transitions for mobile */
+  .glass-card,
+  .responsive-button,
+  button:not(.wave-login-btn) {
+    transition-duration: 0.15s !important;
+  }
+  
+  /* Keep wave animation smooth */
+  .wave-text {
+    animation-duration: 3s !important;
+    transition-duration: 0.3s !important;
+  }
+  
+  .animate-pulse {
+    animation-duration: 2s !important;
+  }
+  
+  .animate-fadeIn {
+    animation-duration: 0.15s !important;
+  }
+  
+  .animate-slideUp {
+    animation-duration: 0.2s !important;
+  }
+  
+  .animate-slideInRight {
+    animation-duration: 0.2s !important;
+  }
+  
+  /* Optimize glass effects for mobile */
+  .glass-card {
+    -webkit-backdrop-filter: blur(5px) !important;
+    backdrop-filter: blur(5px) !important;
+    transition: all 0.2s ease !important;
+  }
+  
+  /* Reduce complex shadows on mobile */
+  .shadow-lg, .shadow-xl, .shadow-2xl {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  }
+  
+  /* Disable scale transforms on mobile for better performance */
+  .hover\:scale-105:hover {
+    transform: none !important;
+  }
+  
+  .hover\:shadow-2xl:hover {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  }
+  
+  /* Keep essential transitions smooth but brief */
+  .transition-all {
+    transition: all 0.2s ease !important;
+  }
+  
+  .transition-colors {
+    transition: color 0.2s ease, background-color 0.2s ease !important;
+  }
+  
+  .transition-transform {
+    transition: transform 0.2s ease !important;
+  }
+  
+  /* Reduce max heights for mobile */
+  .max-h-96 {
+    max-height: 50vh !important;
+  }
+  
+  /* Mobile venue card optimizations */
+  .mobile-venue-card {
+    transition: all 0.2s ease !important;
+    transform: none !important;
+  /* Optimize backdrop effects */
+  -webkit-backdrop-filter: blur(5px) !important;
+  backdrop-filter: blur(5px) !important;
+    /* Reduce shadow complexity */
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1) !important;
+  }
+  
+  .mobile-venue-card:hover {
+    transform: none !important;
+    transition: none !important;
+  }
+  
+  /* Optimize venue images on mobile */
+  .mobile-venue-card img {
+    transition: none !important;
+    transform: none !important;
+  }
+  
+  /* Reduce gradient overlays on mobile */
+  .mobile-venue-card .absolute.inset-0 {
+    background: linear-gradient(to top, rgba(0,0,0,0.3), transparent) !important;
+  }
+  
+  /* Mobile venues page optimizations */
+  .mobile-venues-optimized {
+    /* Reduce page-level animations */
+    .glass-card {
+      -webkit-backdrop-filter: blur(5px) !important;
+      backdrop-filter: blur(5px) !important;
+      transition: none !important;
+    }
+    
+    /* Optimize search bar */
+    .glass-card input {
+      font-size: 16px !important;
+      transition: none !important;
+    }
+    
+    /* Reduce grid complexity */
+    .grid {
+      gap: 1rem !important;
+    }
+    
+    /* Optimize venue cards container */
+    .responsive-grid {
+      gap: 1rem !important;
+    }
+  }
+}
+
+/* Stronger specificity to ensure wave-text keeps intended timing on mobile even if generic rules shorten animations */
+@media (max-width: 640px) {
+  .wave-text, .no-mobile-anim .wave-text, .glass-card .wave-text {
+    animation-duration: 3s !important;
+    animation-timing-function: ease-in-out !important;
+    transition-duration: 0.3s !important;
+  }
+}
+
+/* Dark mode support (if needed in future) */
+@media (prefers-color-scheme: dark) {
+  .dark-mode {
+    background-color: #1a1a1a;
+    color: #ffffff;
+  }
+}
+
+/* React Big Calendar Custom Styles */
+.rbc-calendar {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.rbc-header {
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-weight: 600;
+  color: #374151;
+  padding: 12px 8px;
+}
+
+.rbc-today {
+  background-color: #eff6ff;
+}
+
+.rbc-event {
+  background: var(--theme-gold-600) !important;
+  border: none !important;
+  border-radius: 4px;
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.rbc-event:hover {
+  background: var(--theme-gold-500) !important;
+}
+
+.rbc-selected {
+  background-color: #dbeafe !important;
+}
+
+.rbc-slot-selection {
+  background-color: rgba(233, 178, 71, 0.12) !important;
+  border: 1px solid var(--theme-gold-500) !important;
+}
+
+.rbc-toolbar {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.rbc-toolbar button {
+  background: #f8fafc;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.rbc-toolbar button:hover {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+}
+
+.rbc-toolbar button.rbc-active {
+  background: var(--theme-gold-600);
+  color: white;
+  border-color: var(--theme-gold-600);
+}
+
+.rbc-toolbar-label {
+  font-size: 18px;
+  font-weight: 700;
+  color: #111827;
+}
+
+/* Photo View Custom Styles */
+.photo-view__overlay {
+  background: rgba(0, 0, 0, 0.9) !important;
+}
+
+.photo-view__container {
+  background: transparent !important;
+}
+
+.photo-view__image {
+  border-radius: 8px;
+}
+
+/* Universal Button Hover Effects - White background with original color text */
+/* Button elements with theme-gold background - Desktop only */
+@media (min-width: 641px) {
+  button:hover,
+  [role="button"]:hover,
+  .btn:hover {
+    transition: background-color 0.25s ease-in-out, color 0.25s ease-in-out, border-color 0.25s ease-in-out !important;
+  }
+}
+
+/* Gold/Amber themed buttons */
+.bg-theme-gold:hover,
+.bg-theme-gold-500:hover,
+.bg-theme-gold-600:hover,
+.bg-amber-500:hover,
+.bg-amber-600:hover,
+.bg-yellow-500:hover,
+.bg-yellow-600:hover {
+  background-color: white !important;
+  color: var(--theme-gold-600) !important;
+  border-color: var(--theme-gold-600) !important;
+}
+
+/* Blue themed buttons (but mapped to gold in theme overrides) */
+.bg-blue-500:hover,
+.bg-blue-600:hover,
+.bg-indigo-500:hover,
+.bg-indigo-600:hover {
+  background-color: white !important;
+  color: var(--theme-gold-600) !important;
+  border-color: var(--theme-gold-600) !important;
+}
+
+/* Green themed buttons */
+.bg-green-500:hover,
+.bg-green-600:hover,
+.bg-emerald-500:hover,
+.bg-emerald-600:hover {
+  background-color: white !important;
+  color: #22c55e !important;
+  border-color: #22c55e !important;
+}
+
+/* Red themed buttons */
+.bg-red-500:hover,
+.bg-red-600:hover,
+.bg-rose-500:hover,
+.bg-rose-600:hover {
+  background-color: white !important;
+  color: #ef4444 !important;
+  border-color: #ef4444 !important;
+}
+
+/* Purple themed buttons */
+.bg-purple-500:hover,
+.bg-purple-600:hover,
+.bg-violet-500:hover,
+.bg-violet-600:hover {
+  background-color: white !important;
+  color: #8b5cf6 !important;
+  border-color: #8b5cf6 !important;
+}
+
+/* Pink themed buttons */
+.bg-pink-500:hover,
+.bg-pink-600:hover {
+  background-color: white !important;
+  color: #ec4899 !important;
+  border-color: #ec4899 !important;
+}
+
+/* Orange themed buttons */
+.bg-orange-500:hover,
+.bg-orange-600:hover {
+  background-color: white !important;
+  color: #f97316 !important;
+  border-color: #f97316 !important;
+}
+
+/* Gray themed buttons */
+.bg-gray-500:hover,
+.bg-gray-600:hover,
+.bg-slate-500:hover,
+.bg-slate-600:hover {
+  background-color: white !important;
+  color: #6b7280 !important;
+  border-color: #6b7280 !important;
+}
+
+/* Specific classes for buttons with gradients */
+.bg-theme-gold-gradient:hover {
+  background: white !important;
+  color: var(--theme-gold-600) !important;
+  border-color: var(--theme-gold-600) !important;
+}
+
+/* Link buttons and anchor elements that look like buttons */
+a.bg-theme-gold:hover,
+a.bg-blue-500:hover,
+a.bg-green-500:hover,
+a.bg-red-500:hover,
+a.bg-purple-500:hover,
+a.bg-pink-500:hover,
+a.bg-orange-500:hover,
+a.bg-gray-500:hover {
+  text-decoration: none !important;
+}
+
+/* Ensure smooth transitions for all button-like elements - Desktop */
+button,
+[role="button"],
+.btn,
+a[class*="bg-"]:not([class*="hover"]) {
+  transition: background-color 0.25s ease-in-out, color 0.25s ease-in-out, border-color 0.25s ease-in-out !important;
+}
+
+/* Mobile-optimized button transitions - faster and GPU-accelerated */
+@media (max-width: 640px) {
+  button,
+  [role="button"],
+  .btn,
+  a[class*="bg-"]:not([class*="hover"]) {
+    /* Use only color/background transitions on mobile - avoid transform */
+    transition: background-color 0.2s ease-out, color 0.2s ease-out !important;
+    /* Remove border-color transition on mobile for better performance */
+    will-change: background-color, color;
+  }
+  
+  /* Disable hover effects on mobile (touch devices) */
+  button:hover,
+  [role="button"]:hover,
+  .btn:hover {
+    transition: none !important;
+  }
+  
+  /* Use active state instead of hover for touch feedback */
+  button:active,
+  [role="button"]:active,
+  .btn:active {
+    opacity: 0.9;
+    transition: opacity 0.1s ease-out !important;
+  }
+  
+  /* Optimize specific button color transitions on mobile */
+  .bg-theme-gold:active,
+  .bg-blue-500:active,
+  .bg-green-500:active,
+  .bg-red-500:active {
+    filter: brightness(0.95);
+    transition: filter 0.1s ease-out !important;
+  }
+  
+  /* Disable all hover color changes on mobile */
+  .bg-theme-gold:hover,
+  .bg-theme-gold-500:hover,
+  .bg-theme-gold-600:hover,
+  .bg-blue-500:hover,
+  .bg-blue-600:hover,
+  .bg-green-500:hover,
+  .bg-red-500:hover {
+    background-color: inherit !important;
+    color: inherit !important;
+    border-color: inherit !important;
+  }
+}
+
+/* Override any existing hover styles that might conflict */
+.hover\:bg-theme-gold-500:hover {
+  background-color: white !important;
+  color: var(--theme-gold-600) !important;
+}
+
+/* ============================================
+   COMPREHENSIVE RESPONSIVE DESIGN SYSTEM
+   ============================================ */
+
+/* Container Responsive System */
+.responsive-container {
+  width: 100%;
+  margin: 0 auto;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-container {
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .responsive-container {
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-container {
+    max-width: 1024px;
+    padding-left: 2rem;
+    padding-right: 2rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .responsive-container {
+    max-width: 1280px;
+    padding-left: 2.5rem;
+    padding-right: 2.5rem;
+  }
+}
+
+@media (min-width: 1536px) {
+  .responsive-container {
+    max-width: 1536px;
+    padding-left: 3rem;
+    padding-right: 3rem;
+  }
+}
+
+/* Professional Grid System */
+.responsive-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 640px) {
+  .responsive-grid {
+    gap: 1.25rem;
+  }
+  .responsive-grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 768px) {
+  .responsive-grid {
+    gap: 1.5rem;
+  }
+  .responsive-grid-3 {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-grid {
+    gap: 2rem;
+  }
+  .responsive-grid-4 {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+@media (min-width: 1280px) {
+  .responsive-grid {
+    gap: 2.5rem;
+  }
+  .responsive-grid-5 {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+/* Professional Spacing System */
+.responsive-spacing {
+  padding: 1rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-spacing {
+    padding: 1.5rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .responsive-spacing {
+    padding: 2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-spacing {
+    padding: 2.5rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .responsive-spacing {
+    padding: 3rem;
+  }
+}
+
+/* Professional Card System */
+.responsive-card {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: all 0.2s ease-in-out;
+}
+
+@media (min-width: 640px) {
+  .responsive-card {
+    border-radius: 1rem;
+    padding: 1.25rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .responsive-card {
+    border-radius: 1.25rem;
+    padding: 1.5rem;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-card {
+    border-radius: 1.5rem;
+    padding: 2rem;
+  }
+}
+
+.responsive-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* Professional Typography System */
+.responsive-heading-1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-bottom: 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-heading-1 {
+    font-size: 1.875rem;
+    margin-bottom: 1rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .responsive-heading-1 {
+    font-size: 2.25rem;
+    margin-bottom: 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-heading-1 {
+    font-size: 2.5rem;
+    margin-bottom: 1.5rem;
+  }
+}
+
+.responsive-heading-2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.3;
+  margin-bottom: 0.5rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-heading-2 {
+    font-size: 1.5rem;
+    margin-bottom: 0.75rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .responsive-heading-2 {
+    font-size: 1.75rem;
+    margin-bottom: 1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-heading-2 {
+    font-size: 2rem;
+    margin-bottom: 1.25rem;
+  }
+}
+
+.responsive-text {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+@media (min-width: 640px) {
+  .responsive-text {
+    font-size: 1rem;
+    line-height: 1.6;
+  }
+}
+
+@media (min-width: 768px) {
+  .responsive-text {
+    font-size: 1.125rem;
+    line-height: 1.7;
+  }
+}
+
+/* Professional Button System Enhancement */
+.responsive-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  transition: all 0.2s ease-in-out;
+  border: none;
+  cursor: pointer;
+  text-decoration: none;
+  min-height: 2.25rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-button {
+    padding: 0.625rem 1rem;
+    border-radius: 0.625rem;
+    font-size: 0.9375rem;
+    min-height: 2.5rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .responsive-button {
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.75rem;
+    font-size: 1rem;
+    min-height: 2.75rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-button {
+    padding: 0.875rem 1.5rem;
+    border-radius: 0.875rem;
+    font-size: 1.0625rem;
+    min-height: 3rem;
+  }
+}
+
+/* Professional Form System */
+.responsive-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+@media (min-width: 640px) {
+  .responsive-form {
+    gap: 1.25rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .responsive-form {
+    gap: 1.5rem;
+  }
+}
+
+.responsive-input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  background-color: #ffffff;
+  transition: all 0.2s ease-in-out;
+}
+
+@media (min-width: 640px) {
+  .responsive-input {
+    padding: 0.875rem;
+    border-radius: 0.625rem;
+    font-size: 0.9375rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .responsive-input {
+    padding: 1rem;
+    border-radius: 0.75rem;
+    font-size: 1rem;
+  }
+}
+
+.responsive-input:focus {
+  outline: none;
+  border-color: var(--theme-gold-500);
+  box-shadow: 0 0 0 3px rgba(233, 178, 71, 0.1);
+}
+
+/* Professional Table System */
+.responsive-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.responsive-table th,
+.responsive-table td {
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+@media (min-width: 640px) {
+  .responsive-table th,
+  .responsive-table td {
+    padding: 1rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .responsive-table th,
+  .responsive-table td {
+    padding: 1.25rem;
+  }
+}
+
+.responsive-table th {
+  background-color: var(--theme-gold-50);
+  font-weight: 600;
+  color: var(--theme-gold-800);
+}
+
+.responsive-table tbody tr:hover {
+  background-color: #f9fafb;
+}
+
+/* Professional Modal System */
+.responsive-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 50;
+}
+
+.responsive-modal-content {
+  background: white;
+  border-radius: 1rem;
+  padding: 1.5rem;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+}
+
+@media (min-width: 640px) {
+  .responsive-modal {
+    padding: 2rem;
+  }
+  .responsive-modal-content {
+    padding: 2rem;
+    border-radius: 1.25rem;
+    max-width: 80vw;
+  }
+}
+
+@media (min-width: 768px) {
+  .responsive-modal-content {
+    padding: 2.5rem;
+    border-radius: 1.5rem;
+    max-width: 70vw;
+  }
+}
+
+@media (min-width: 1024px) {
+  .responsive-modal-content {
+    padding: 3rem;
+    max-width: 60vw;
+  }
+}
+
+/* Professional Status Indicators */
+.status-indicator {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+@media (min-width: 640px) {
+  .status-indicator {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .status-indicator {
+    padding: 0.5rem 1rem;
+    font-size: 0.875rem;
+  }
+}
+
+/* Responsive Navigation Enhancement */
+@media (max-width: 1023px) {
+  .mobile-nav-enhanced {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 40;
+  }
+  
+  .mobile-nav-content {
+    position: absolute;
+    top: 0;
+    right: 0;
+    height: 100vh;
+    width: 85%;
+    max-width: 400px;
+    background: white;
+    transform: translateX(100%);
+    transition: transform 0.3s ease-in-out;
+  }
+  
+  .mobile-nav-content.open {
+    transform: translateX(0);
+  }
+}
+
+/* Professional Loading States */
+.loading-spinner {
+  width: 1.5rem;
+  height: 1.5rem;
+  border: 2px solid #e5e7eb;
+  border-top: 2px solid var(--theme-gold-500);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@media (min-width: 768px) {
+  .loading-spinner {
+    width: 2rem;
+    height: 2rem;
+    border-width: 3px;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Professional Animations */
+.fade-in {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+.slide-up {
+  animation: slideUp 0.4s ease-out;
+}
+
+.scale-in {
+  animation: scaleIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* Enhanced Notification Animations */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideInFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes slideInFromTop {
+  from {
+    opacity: 0;
+    transform: translateY(-100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes slideInFromBottom {
+  from {
+    opacity: 0;
+    transform: translateY(100%) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes progress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+@keyframes pulse-notification {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.02);
+  }
+}
+
+/* Notification positioning and responsive styles */
+.notification-container {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.notification-container > * {
+  pointer-events: auto;
+}
+
+.notification-card {
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Desktop notification styles */
+@media (min-width: 640px) {
+  .notification-container {
+    max-width: 28rem;
+  }
+
+  .notification-top-right {
+    top: 1.5rem;
+    right: 1.5rem;
+    animation: slideInFromRight 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .notification-top-left {
+    top: 1.5rem;
+    left: 1.5rem;
+    animation: slideInFromLeft 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .notification-top-center {
+    top: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    animation: slideInFromTop 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .notification-bottom-right {
+    bottom: 1.5rem;
+    right: 1.5rem;
+    animation: slideInFromRight 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .notification-bottom-left {
+    bottom: 1.5rem;
+    left: 1.5rem;
+    animation: slideInFromLeft 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .notification-bottom-center {
+    bottom: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    animation: slideInFromBottom 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+/* Mobile notification styles */
+@media (max-width: 639px) {
+  .notification-container {
+    left: 1rem !important;
+    right: 1rem !important;
+    width: auto !important;
+    max-width: none !important;
+  }
+  
+  .notification-top-right,
+  .notification-top-left,
+  .notification-top-center {
+    top: 0.5rem !important;
+    left: 1rem !important;
+    right: 1rem !important;
+    animation: slideInFromTop 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .notification-bottom-right,
+  .notification-bottom-left,
+  .notification-bottom-center {
+    bottom: 0.5rem !important;
+    left: 0 !important;
+    right: 0 !important;
+    animation: slideInFromBottom 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  
+  .notification-center {
+    top: 50% !important;
+    left: 0 !important;
+    right: 0 !important;
+    transform: translateY(-50%) !important;
+    animation: slideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .notification-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+  }
+}
+
+/* Enhanced interaction for notifications */
+.notification-interactive {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.notification-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Dark mode support for notifications */
+@media (prefers-color-scheme: dark) {
+  .glass-notification {
+    background: linear-gradient(135deg, 
+      rgba(30, 30, 30, 0.95), 
+      rgba(20, 20, 20, 0.85)
+    );
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: white;
+  }
+
+  .glass-notification .alert-title {
+    color: #f8fafc;
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
+  }
+
+  .glass-notification .alert-message {
+    color: #e2e8f0;
+    text-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+  }
+}
+
+/* Notification interaction states */
+.notification-interactive {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.notification-interactive:focus-within,
+.notification-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 25px 45px rgba(2, 6, 23, 0.35),
+    0 8px 30px rgba(2, 6, 23, 0.25);
+}
+
+@keyframes slideInFromRight {
+  from {
+    transform: translateY(-2px) scale(1.02);
+    box-shadow: 
+      0 12px 40px rgba(0, 0, 0, 0.15),
+      0 6px 20px rgba(0, 0, 0, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+  to {
+    transform: translateY(0) scale(1);
+    box-shadow: 
+      0 20px 45px rgba(15, 17, 32, 0.25),
+      0 6px 20px rgba(15, 17, 32, 0.18);
+  }
+}
+
+/* Mobile touch optimization */
+@media (max-width: 639px) {
+  .notification-interactive:active {
+    transform: scale(0.98);
+  }
+  
+  .notification-interactive:hover {
+    transform: none;
+  }
+}
+
+/* Enhanced Toggle Switch Styles */
+.toggle-switch {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0.125rem;
+  width: 2.5rem; /* w-10 */
+  height: 1.5rem; /* h-6 */
+  border-radius: 9999px;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  outline: none;
+  border: none;
+  padding: 0;
+}
+
+.toggle-switch:focus-visible {
+  outline: 2px solid var(--theme-gold-500);
+  outline-offset: 2px;
+}
+
+.toggle-switch.enabled {
+  background-color: var(--theme-gold-600);
+  box-shadow: 0 0 0 1px rgba(233, 178, 71, 0.3);
+  justify-content: flex-end;
+}
+
+.toggle-switch.enabled:hover {
+  background-color: var(--theme-gold-500);
+  box-shadow: 0 0 0 2px rgba(233, 178, 71, 0.4);
+  transform: scale(1.05);
+}
+
+.toggle-switch.disabled {
+  background-color: #e5e7eb; /* gray-200 */
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
+  justify-content: flex-start;
+}
+
+.toggle-switch.disabled:hover {
+  background-color: #d1d5db; /* gray-300 */
+  transform: scale(1.05);
+}
+
+.toggle-switch:active {
+  transform: scale(0.95);
+}
+
+.toggle-knob {
+  position: relative;
+  width: 1rem; /* 16px */
+  height: 1rem; /* 16px */
+  background-color: white;
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transform-origin: center;
+}
+
+.toggle-knob.enabled {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.toggle-knob.disabled {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+/* Loading state for toggle */
+.toggle-loading {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.toggle-loading .toggle-knob {
+  animation: pulse-toggle 1s ease-in-out infinite;
+}
+
+@keyframes pulse-toggle {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.9);
+  }
+}
+
+/* Mobile toggle enhancements */
+@media (max-width: 640px) {
+  .toggle-switch {
+    width: 2.75rem;
+    height: 1.75rem;
+  }
+  
+  .toggle-knob {
+    width: 1.125rem;
+    height: 1.125rem;
+  }
+  
+  .toggle-switch.enabled {
+    padding-right: 0.2rem;
+  }
+  
+  .toggle-switch.disabled {
+    padding-left: 0.2rem;
+  }
+}
+
+/* Settings Modal Glass Card - Independent from Header */
+.settings-glass-card {
+  background: rgba(255, 255, 255, 0.75);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  backdrop-filter: saturate(180%) blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 20px 40px rgba(17, 17, 23, 0.1), 0 8px 16px rgba(17, 17, 23, 0.06);
+  border-radius: 20px;
+  transition: all 0.3s ease;
+}
+
+.settings-glass-card:hover {
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 25px 50px rgba(17, 17, 23, 0.15), 0 12px 24px rgba(17, 17, 23, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Settings modal now only uses settings-glass-card class for consistent behavior */
+
+/* Combined Hover Effect - When hovering settings modal, only header hovers (not all glass cards) */
+body:has(.settings-glass-card:hover) header .glass-card {
+  background: rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 0 25px 50px rgba(17, 17, 23, 0.15), 0 12px 24px rgba(17, 17, 23, 0.1) !important;
+  transform: translateY(-2px) !important;
+}
+
+/* Fallback for browsers that don't support :has() - only target header */
+.settings-hover-active header .glass-card {
+  background: rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 0 25px 50px rgba(17, 17, 23, 0.15), 0 12px 24px rgba(17, 17, 23, 0.1) !important;
+  transform: translateY(-2px) !important;
+}
+
+/* Bidirectional hover - when hovering header, settings modal also hovers */
+body:has(header .glass-card:hover) .settings-glass-card {
+  background: rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 0 25px 50px rgba(17, 17, 23, 0.15), 0 12px 24px rgba(17, 17, 23, 0.1) !important;
+  transform: translateY(-2px) !important;
+}
+
+/* Fallback for bidirectional hover */
+.header-hover-active .settings-glass-card {
+  background: rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 0 25px 50px rgba(17, 17, 23, 0.15), 0 12px 24px rgba(17, 17, 23, 0.1) !important;
+  transform: translateY(-2px) !important;
+}
+
+/* Disable hover effects on mobile to prevent issues with touch */
+@media (max-width: 768px) {
+  .settings-glass-card:hover {
+    transform: none !important;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04) !important;
+  }
+  
+  body:has(.settings-glass-card:hover) header .glass-card {
+    transform: none !important;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04) !important;
+  }
+  
+  .settings-hover-active header .glass-card {
+    transform: none !important;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04) !important;
+  }
+  
+  body:has(header .glass-card:hover) .settings-glass-card {
+    transform: none !important;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04) !important;
+  }
+  
+  .header-hover-active .settings-glass-card {
+    transform: none !important;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.04) !important;
+  }
+}
