@@ -62,6 +62,12 @@ function Header() {
       } catch (err) {}
     };
     window.addEventListener('authStateChanged', handleAuthChange);
+    const handleNotificationsUpdated = () => {
+      try {
+        if (isLoggedIn && userEmail && userRole) fetchUnreadCount(userEmail, userRole, true)
+      } catch (e) {}
+    }
+    window.addEventListener('notificationsUpdated', handleNotificationsUpdated);
     if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     pollIntervalRef.current = setInterval(() => {
       if (isLoggedIn && userEmail && (userRole === 'hod' || userRole === 'staff' || userRole === 'admin')) {
@@ -78,6 +84,7 @@ function Header() {
     }, 30000);
     return () => {
       window.removeEventListener('authStateChanged', handleAuthChange);
+      window.removeEventListener('notificationsUpdated', handleNotificationsUpdated);
       window.removeEventListener('resize', updateViewport);
       window.removeEventListener('orientationchange', updateViewport);
       if (resizeTimeoutRef.current) { clearTimeout(resizeTimeoutRef.current); resizeTimeoutRef.current = null; }
@@ -156,7 +163,7 @@ function Header() {
     }
   }
 
-  const fetchUnreadCount = async (email, role) => {
+  const fetchUnreadCount = async (email, role, force = false) => {
     try {
       if (role === 'hod') {
         // HOD: Count pending staff approval requests + leave requests
@@ -165,9 +172,10 @@ function Header() {
         const department = auth?.department || auth.user?.department
         
         if (hodId && department) {
+          const opts = force ? { cache: false, dedupe: false } : {}
           const [staffData, leaveData] = await Promise.all([
-            apiClient.get(`/api/staff-approval?action=pending&hodId=${hodId}`),
-            apiClient.get(`/api/leaves?department=${department}&type=leave`)
+            apiClient.get(`/api/staff-approval?action=pending&hodId=${hodId}`, opts),
+            apiClient.get(`/api/leaves?department=${department}&type=leave`, opts)
           ])
           
           let staffCount = 0
@@ -193,7 +201,7 @@ function Header() {
         let totalCount = 0
         
         // Check account approval status
-        const notificationData = await apiClient.get(`/api/notifications?userEmail=${email}`)
+        const notificationData = await apiClient.get(`/api/notifications?userEmail=${email}`, force ? { cache: false, dedupe: false } : {})
         if (notificationData?.success) {
           const ownRequest = notificationData.notifications.find(
             n => n.type === 'staff_account_approval' && 
@@ -207,7 +215,7 @@ function Header() {
         // Check late arrival requests
         if (year && section && department) {
           try {
-            const lateData = await apiClient.get(`/api/leaves?department=${department}&type=late&status=requested`)
+            const lateData = await apiClient.get(`/api/leaves?department=${department}&type=late&status=requested`, force ? { cache: false, dedupe: false } : {})
             
             if (lateData.success && lateData.requests) {
               const lateCount = (lateData.requests || [])
@@ -223,7 +231,7 @@ function Header() {
         setUnreadCount(totalCount)
       } else if (role === 'admin') {
         // Admin: count unread notifications stored for the admin account
-        const data = await apiClient.get(`/api/notifications?userEmail=${encodeURIComponent(email)}`)
+        const data = await apiClient.get(`/api/notifications?userEmail=${encodeURIComponent(email)}`, force ? { cache: false, dedupe: false } : {})
         if (data?.success && Array.isArray(data.notifications)) {
           const unread = data.notifications.filter(n => !n.read).length
           setUnreadCount(unread)

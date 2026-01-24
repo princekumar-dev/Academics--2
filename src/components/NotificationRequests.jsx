@@ -151,7 +151,15 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
           }
           
           console.log('[NotificationRequests] Total requests:', allRequests.length)
-          setRequests(allRequests)
+            setRequests(allRequests)
+            // Update header unread count if provided
+            if (setUnreadCount) {
+              try {
+                setUnreadCount(allRequests.filter(r => r.data?.status === 'pending' || !r.read).length)
+              } catch (e) {
+                setUnreadCount(allRequests.length)
+              }
+            }
         } catch (error) {
           console.error('[NotificationRequests] Error fetching requests:', error)
           setRequests([])
@@ -259,7 +267,11 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
         try {
           await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=acknowledge`, { staffId })
           // Remove from list
-          setRequests(prev => prev.filter(r => r._id !== request._id))
+          setRequests(prev => {
+            const next = prev.filter(r => r._id !== request._id)
+            if (setUnreadCount) setUnreadCount(next.filter(n => !n.read).length)
+            return next
+          })
           console.log('✅ Late arrival recorded, waiting for student confirmation')
         } catch (err) {
           console.error('Error recording late arrival:', err)
@@ -281,16 +293,19 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
       let response
 
       try {
-        if (request.type === 'staff_account_approval') {
+          if (request.type === 'staff_account_approval') {
           await apiClient.patch('/api/staff-approval', { requestId: request.data.requestId, action: 'approve', hodId }, { timeout: 20000, retry: 1 })
           // Successfully approved staff account — refresh list
           await fetchRequests({ force: true })
+          // Notify header and other listeners that notifications changed
+          try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
         } else if (request.type === 'leave_request') {
           // Leave approvals can trigger longer server-side tasks (PDF gen / WhatsApp).
           // Increase timeout so the client doesn't abort while server works.
           await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=approve`, { hodId }, { timeout: 60000, retry: 1 })
           // Server processed the approval — refresh list to reflect change and show success
           await fetchRequests({ force: true })
+          try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
         }
         // Optionally log success
         console.log('[NotificationRequests] Request approved:', request._id)
@@ -334,7 +349,11 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
           await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=reject`, { hodId, reason })
         }
         // Remove from list
-        setRequests(prev => prev.filter(r => r._id !== request._id))
+        setRequests(prev => {
+          const next = prev.filter(r => r._id !== request._id)
+          if (setUnreadCount) setUnreadCount(next.filter(n => !n.read).length)
+          return next
+        })
       } catch (err) {
         console.error('Error rejecting request:', err)
       }
