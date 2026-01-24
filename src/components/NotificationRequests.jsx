@@ -78,18 +78,23 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
         return new Promise((resolve) => {
           fetchTimerRef.current = setTimeout(async () => {
             try { await fetchRequests({ force }) } catch (e) {}
+            try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
             resolve()
           }, 200)
         })
       }
       fetchInFlightRef.current = true
-      return fetchRequests({ force }).finally(() => { fetchInFlightRef.current = false })
+      return fetchRequests({ force }).finally(() => { fetchInFlightRef.current = false }).then((v) => {
+        try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
+        return v
+      })
     } else {
       if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
       fetchTimerRef.current = setTimeout(async () => {
         if (fetchInFlightRef.current) return
         fetchInFlightRef.current = true
         try { await fetchRequests({ force }) } catch (e) {}
+        try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
         fetchInFlightRef.current = false
       }, 150)
       return Promise.resolve()
