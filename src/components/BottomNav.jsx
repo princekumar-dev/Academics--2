@@ -56,10 +56,10 @@ function BottomNav() {
       if (!auth) return
       
       const authData = JSON.parse(auth)
-      const userId = authData._id || authData.id
-      if (!userId) return
+      const userEmail = encodeURIComponent(authData.email || authData.user?.email || '')
+      if (!userEmail) return
       const opts = force ? { cache: false, dedupe: false } : undefined
-      const data = await apiClient.get(`/api/notifications?userId=${userId}&unreadOnly=true`, opts)
+      const data = await apiClient.get(`/api/notifications?userEmail=${userEmail}&unreadOnly=true`, opts)
       if (data?.success) {
         setUnreadNotifications(data.notifications?.length || 0)
       }
