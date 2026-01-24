@@ -94,6 +94,22 @@ function ApprovalRequests() {
     } else {
       setLoading(false)
     }
+    // Listen for auth updates (e.g., signature saved) and refresh userData + lists
+    const onAuthChange = () => {
+      try {
+        const auth = localStorage.getItem('auth')
+        const parsed = auth ? JSON.parse(auth) : null
+        setUserData(parsed)
+        if (parsed?.role === 'hod') {
+          fetchPendingRequests(true)
+          fetchLeaveRequests(true)
+        }
+      } catch (e) {
+        console.error('[ApprovalRequests] authStateChanged handler error:', e)
+      }
+    }
+    window.addEventListener('authStateChanged', onAuthChange)
+    return () => window.removeEventListener('authStateChanged', onAuthChange)
   }, [userData])
 
   // Real-time push notifications
@@ -121,18 +137,19 @@ function ApprovalRequests() {
     fetchLeaveRequests()
   })
 
-  const fetchPendingRequests = async () => {
+  const fetchPendingRequests = async (force = false) => {
     if (!userData) return
     setLoading(true)
     try {
       // If logged-in HOD is HNS, they should see first-year requests across all departments
       let data
+      const getOpts = force ? { cache: false, dedupe: false } : {}
       if (userData.department === 'HNS') {
         console.log('[ApprovalRequests] HNS HOD detected — fetching Year I pending requests across departments')
-        data = await apiClient.get(`/api/marksheets?year=I&status=dispatch_requested`)
+        data = await apiClient.get(`/api/marksheets?year=I&status=dispatch_requested`, getOpts)
       } else {
         console.log('[ApprovalRequests] Fetching with department:', userData.department)
-        data = await apiClient.get(`/api/marksheets?department=${userData.department}&status=dispatch_requested`)
+        data = await apiClient.get(`/api/marksheets?department=${userData.department}&status=dispatch_requested`, getOpts)
       }
       console.log('[ApprovalRequests] Response:', data)
       if (data && data.success) {
@@ -227,7 +244,7 @@ function ApprovalRequests() {
       }
       
       closeModal()
-      await fetchPendingRequests()
+      await fetchPendingRequests(true)
     } catch (err) {
       setActionError(err.message || 'Unexpected error')
       showError('Action Failed', err.message || 'Could not process the request')
@@ -283,7 +300,7 @@ function ApprovalRequests() {
         showError('Bulk Action Failed', errorMsg)
       }
 
-      await fetchPendingRequests()
+      await fetchPendingRequests(true)
     } catch (err) {
       setActionError(err.message || `Failed to perform bulk ${actionType}`)
     } finally {
