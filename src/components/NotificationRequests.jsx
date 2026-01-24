@@ -48,7 +48,8 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     }
   } : {})
 
-  const fetchRequests = async () => {
+  const fetchRequests = async (opts = {}) => {
+    const { force = false } = opts
     try {
       console.log('[NotificationRequests] fetchRequests called')
       setLoading(true)
@@ -82,9 +83,10 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
         console.log('[NotificationRequests] Leave API URL:', leaveApiUrl)
         
         try {
+          const getOpts = force ? { cache: false, dedupe: false } : {}
           const [staffData, leaveData] = await Promise.all([
-            apiClient.get(staffApiUrl),
-            apiClient.get(leaveApiUrl)
+            apiClient.get(staffApiUrl, getOpts),
+            apiClient.get(leaveApiUrl, getOpts)
           ])
           
           console.log('[NotificationRequests] Staff Data:', staffData)
@@ -147,7 +149,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
         }
       } else if (userRole === 'staff') {
         // For Staff: Check approval status from notifications + late requests
-        const data = await apiClient.get(`/api/notifications?userEmail=${auth?.email || auth.user?.email}`)
+        const data = await apiClient.get(`/api/notifications?userEmail=${auth?.email || auth.user?.email}`, force ? { cache: false, dedupe: false } : {})
         
         let allRequests = []
         
@@ -171,7 +173,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
         // Fetch late arrival requests for staff's year/section
         if (auth?.year && auth?.section && auth?.department) {
           try {
-            const lateData = await apiClient.get(`/api/leaves?department=${auth.department}&type=late&status=requested`)
+            const lateData = await apiClient.get(`/api/leaves?department=${auth.department}&type=late&status=requested`, force ? { cache: false, dedupe: false } : {})
             
             if (lateData.success && lateData.requests) {
               const lateRequests = (lateData.requests || [])
@@ -208,7 +210,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
         if (!email) {
           setRequests([])
         } else {
-          const data = await apiClient.get(`/api/notifications?userEmail=${encodeURIComponent(email)}`)
+          const data = await apiClient.get(`/api/notifications?userEmail=${encodeURIComponent(email)}`, force ? { cache: false, dedupe: false } : {})
           if (data.success && Array.isArray(data.notifications)) {
             const normalized = data.notifications.map(n => ({
               _id: n._id,
@@ -273,13 +275,13 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
         if (request.type === 'staff_account_approval') {
           await apiClient.patch('/api/staff-approval', { requestId: request.data.requestId, action: 'approve', hodId }, { timeout: 20000, retry: 1 })
           // Successfully approved staff account — refresh list
-          await fetchRequests()
+          await fetchRequests({ force: true })
         } else if (request.type === 'leave_request') {
           // Leave approvals can trigger longer server-side tasks (PDF gen / WhatsApp).
           // Increase timeout so the client doesn't abort while server works.
           await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=approve`, { hodId }, { timeout: 60000, retry: 1 })
           // Server processed the approval — refresh list to reflect change and show success
-          await fetchRequests()
+          await fetchRequests({ force: true })
         }
         // Optionally log success
         console.log('[NotificationRequests] Request approved:', request._id)
@@ -289,7 +291,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
         if (err && (err.name === 'AbortError' || (err.message && err.message.includes('aborted')))) {
           console.warn('[NotificationRequests] Approve request aborted locally; refreshing requests to reflect server state')
           try {
-            await fetchRequests()
+            await fetchRequests({ force: true })
           } catch (refreshErr) {
             console.error('Error refreshing requests after abort:', refreshErr)
           }
