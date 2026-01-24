@@ -235,9 +235,10 @@ function Marksheets() {
 
     try {
       const staffId = userData._id || userData.id || localStorage.getItem('userId')
-      
+
+      let createResp = null
       try {
-        const data = await apiClient.post('/api/examinations', {
+        createResp = await apiClient.post('/api/examinations', {
           examinationName: examinationDetails.examinationName,
           year: examinationDetails.year,
           semester: examinationDetails.semester,
@@ -246,8 +247,8 @@ function Marksheets() {
           examinationYear: examinationDetails.examinationYear,
           staffId: staffId
         })
-        if (!data || !data.success) {
-          setErrors([data?.error || 'Failed to create examination'])
+        if (!createResp || !createResp.success) {
+          setErrors([createResp?.error || 'Failed to create examination'])
           return
         }
       } catch (error) {
@@ -257,7 +258,7 @@ function Marksheets() {
       }
 
       // Store the created examination details
-      setCreatedExamination(data.examination)
+      setCreatedExamination(createResp.examination)
       
       // Show success message and proceed to import section
       setShowImportSection(true)
