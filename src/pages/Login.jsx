@@ -106,16 +106,27 @@ function Login() {
       }
     } catch (error) {
       console.error('Login error:', error)
-      let errorMsg
-      if (error.message?.includes('fetch') || error.message?.includes('network')) {
-        errorMsg = '🌐 Connection failed. Check your internet connection and try again.'
-      } else if (error.message?.includes('timeout')) {
-        errorMsg = '⏱️ Request timed out. The server is slow to respond. Please try again.'
+      // apiClient throws an Error with `.status` and `.data` when HTTP status !== 2xx
+      const apiErrMsg = error && error.data && (error.data.error || error.data.message)
+      if (apiErrMsg) {
+        // If server returned a pending-approval message, show it verbatim
+        setError(apiErrMsg)
+        showError('Login Failed', apiErrMsg)
       } else {
-        errorMsg = '❌ Login failed: ' + (error.message || 'Unknown error. Please try again or contact support.')
+        let errorMsg
+        if (error.message?.includes('fetch') || error.message?.includes('network')) {
+          errorMsg = '🌐 Connection failed. Check your internet connection and try again.'
+        } else if (error.message?.includes('timeout')) {
+          errorMsg = '⏱️ Request timed out. The server is slow to respond. Please try again.'
+        } else if (error.message && error.message.startsWith('HTTP')) {
+          // Generic HTTP error without parsed body
+          errorMsg = '❌ Login failed: ' + error.message
+        } else {
+          errorMsg = '❌ Login failed: ' + (error.message || 'Unknown error. Please try again or contact support.')
+        }
+        setError(errorMsg)
+        showError('Error', errorMsg)
       }
-      setError(errorMsg)
-      showError('Error', errorMsg)
     } finally {
       setIsLoading(false)
     }
