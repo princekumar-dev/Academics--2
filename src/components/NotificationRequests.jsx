@@ -266,19 +266,34 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     try {
       const auth = JSON.parse(localStorage.getItem('auth') || '{}')
       const hodId = auth?.id || auth.user?.id
-      
+
       let response
-      
+
       try {
         if (request.type === 'staff_account_approval') {
-          await apiClient.patch('/api/staff-approval', { requestId: request.data.requestId, action: 'approve', hodId })
+          await apiClient.patch('/api/staff-approval', { requestId: request.data.requestId, action: 'approve', hodId }, { timeout: 20000, retry: 1 })
+          // Successfully approved staff account — refresh list
+          await fetchRequests()
         } else if (request.type === 'leave_request') {
-          await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=approve`, { hodId })
+          // Leave approvals can trigger longer server-side tasks (PDF gen / WhatsApp).
+          // Increase timeout so the client doesn't abort while server works.
+          await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=approve`, { hodId }, { timeout: 60000, retry: 1 })
+          // Server processed the approval — refresh list to reflect change and show success
+          await fetchRequests()
         }
-        // Remove from list
-        setRequests(prev => prev.filter(r => r._id !== request._id))
+        // Optionally log success
+        console.log('[NotificationRequests] Request approved:', request._id)
       } catch (err) {
         console.error('Error approving request:', err)
+        // If request was aborted due to client timeout, try fetching latest state
+        if (err && (err.name === 'AbortError' || (err.message && err.message.includes('aborted')))) {
+          console.warn('[NotificationRequests] Approve request aborted locally; refreshing requests to reflect server state')
+          try {
+            await fetchRequests()
+          } catch (refreshErr) {
+            console.error('Error refreshing requests after abort:', refreshErr)
+          }
+        }
       }
     } catch (error) {
       console.error('Error approving request:', error)
