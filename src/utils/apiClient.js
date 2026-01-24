@@ -20,6 +20,10 @@ async function request(method, url, opts = {}) {
     headers,
     raw = false,
     responseType = 'json',
+    // dispatch: whether to dispatch client-side events after non-GET mutations
+    // dispatchEvent: string or array of events to dispatch (overrides auto-mapping)
+    dispatch = true,
+    dispatchEvent = null,
   } = opts;
 
   const bodyKey = body && !(body instanceof FormData) && !raw ? JSON.stringify(body) : (body instanceof FormData ? '[FormData]' : '');
@@ -83,6 +87,32 @@ async function request(method, url, opts = {}) {
 
         if (useCache && responseType === 'json') {
           cache.set(key, { ts: Date.now(), data, ttl });
+        }
+
+        // After successful mutations (non-GET), optionally dispatch client-side events
+        try {
+          if (method !== 'GET' && dispatch) {
+            // Determine events to dispatch
+            let events = []
+            if (dispatchEvent) {
+              events = Array.isArray(dispatchEvent) ? dispatchEvent : [dispatchEvent]
+            } else {
+              const lower = buildUrl(url).toLowerCase()
+              if (lower.includes('/api/marksheets')) events.push('marksheetsUpdated')
+              if (lower.includes('/api/leaves')) events.push('notificationsUpdated')
+              if (lower.includes('/api/staff-approval')) events.push('notificationsUpdated')
+              if (lower.includes('/api/notifications')) events.push('notificationsUpdated')
+              if (lower.includes('/api/whatsapp-dispatch')) events.push('marksheetsUpdated', 'notificationsUpdated')
+            }
+
+            // Dispatch unique events
+            Array.from(new Set(events)).forEach(ev => {
+              try { window.dispatchEvent(new Event(ev)) } catch (e) { /* ignore */ }
+            })
+          }
+        } catch (e) {
+          // Non-fatal
+          console.debug('apiClient dispatch error', e)
         }
 
         return data;
