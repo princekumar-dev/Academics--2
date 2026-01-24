@@ -92,6 +92,18 @@ function Header() {
     };
   }, [isLoggedIn, userEmail, userRole]);
 
+  // Expose a global helper so other pages can directly request immediate refresh
+  useEffect(() => {
+    try {
+      window.refreshNotificationCount = () => {
+        try { if (isLoggedIn && userEmail && userRole) fetchUnreadCount(userEmail, userRole, true) } catch (e) {}
+      }
+    } catch (e) {}
+    return () => {
+      try { delete window.refreshNotificationCount } catch (e) {}
+    }
+  }, [isLoggedIn, userEmail, userRole]);
+
   // Service worker status for admin users
   useEffect(() => {
     if (typeof navigator !== 'undefined' && navigator.serviceWorker) {

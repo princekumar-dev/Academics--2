@@ -251,6 +251,7 @@ function ApprovalRequests() {
       // Notify header and other listeners to refresh counts and marksheet lists
       try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
       try { window.dispatchEvent(new Event('marksheetsUpdated')) } catch (e) {}
+      try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
       // Ensure a backend-backed refresh (force) to reconcile state
       await fetchPendingRequests(true)
     } catch (err) {
@@ -314,6 +315,7 @@ function ApprovalRequests() {
       } catch (e) {}
       try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
       try { window.dispatchEvent(new Event('marksheetsUpdated')) } catch (e) {}
+      try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
       await fetchPendingRequests(true)
     } catch (err) {
       setActionError(err.message || `Failed to perform bulk ${actionType}`)
