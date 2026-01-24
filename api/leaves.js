@@ -127,6 +127,15 @@ export default async function handler(req, res) {
             body: `${student.name} (${student.regNumber}) requested leave`,
             data: { leaveId: doc._id.toString(), type: 'leave' }
           })
+          try {
+            await sendBroadcastNotification(
+              '🔔 New Leave Request',
+              `${student.name} (${student.regNumber}) requested leave`,
+              { type: 'leave_request', leaveId: doc._id.toString(), department: student.department }
+            )
+          } catch (bErr) {
+            /* ignore broadcast errors */
+          }
         }
       } else {
         const staff = await User.findOne({ role: 'staff', department: student.department, year: student.year, section: student.section }).lean()
@@ -137,6 +146,15 @@ export default async function handler(req, res) {
             body: `${student.name} expects to arrive late`,
             data: { leaveId: doc._id.toString(), type: 'late' }
           })
+          try {
+            await sendBroadcastNotification(
+              '🔔 Late Arrival',
+              `${student.name} expects to arrive late`,
+              { type: 'late_arrival', leaveId: doc._id.toString(), department: student.department }
+            )
+          } catch (bErr) {
+            /* ignore broadcast errors */
+          }
         }
       }
 
