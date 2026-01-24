@@ -19,12 +19,19 @@ function Records() {
   useEffect(() => {
     if (userData?.role === 'staff' || userData?.role === 'hod') {
       fetchAllMarksheets()
+      const handler = () => fetchAllMarksheets(true)
+      window.addEventListener('marksheetsUpdated', handler)
+      window.addEventListener('notificationsUpdated', handler)
+      return () => {
+        window.removeEventListener('marksheetsUpdated', handler)
+        window.removeEventListener('notificationsUpdated', handler)
+      }
     } else {
       setLoading(false)
     }
   }, [userData])
 
-  const fetchAllMarksheets = async () => {
+  const fetchAllMarksheets = async (force = false) => {
     if (!userData) return
     setLoading(true)
     try {
@@ -34,24 +41,25 @@ function Records() {
       const yearParam = params.get('year')
       const includeAllParam = params.get('includeAll') === 'true'
       const departmentParam = params.get('department')
+      const opts = force ? { cache: false, dedupe: false } : {}
 
       // If HNS HOD and no explicit params provided, default to Year I across all departments
       if (userData.role === 'hod' && userData.department === 'HNS' && !yearParam && !departmentParam) {
         // treat as year=I & includeAll=true
-        response = await apiClient.get(`/api/marksheets?year=I&includeAll=true`)
+        response = await apiClient.get(`/api/marksheets?year=I&includeAll=true`, opts)
       } else {
 
       if (userData.role === 'staff') {
         const staffId = userData?._id || userData?.id || localStorage.getItem('userId')
-        response = await apiClient.get(`/api/marksheets?staffId=${staffId}&includeAll=true`)
+        response = await apiClient.get(`/api/marksheets?staffId=${staffId}&includeAll=true`, opts)
       } else if (userData.role === 'hod') {
         // If query explicitly requests a year and includeAll, use that (useful for HNS HOD)
         if (yearParam && includeAllParam) {
-          response = await apiClient.get(`/api/marksheets?year=${encodeURIComponent(yearParam)}&includeAll=true`)
+          response = await apiClient.get(`/api/marksheets?year=${encodeURIComponent(yearParam)}&includeAll=true`, opts)
         } else if (departmentParam) {
-          response = await apiClient.get(`/api/marksheets?department=${encodeURIComponent(departmentParam)}&includeAll=true`)
+          response = await apiClient.get(`/api/marksheets?department=${encodeURIComponent(departmentParam)}&includeAll=true`, opts)
         } else {
-          response = await apiClient.get(`/api/marksheets?department=${encodeURIComponent(userData.department)}&includeAll=true`)
+          response = await apiClient.get(`/api/marksheets?department=${encodeURIComponent(userData.department)}&includeAll=true`, opts)
         }
       }
       // end else block for default HNS handling

@@ -20,6 +20,21 @@ function StudentDashboard() {
     } catch (e) {
       console.error('Invalid auth data', e)
     }
+    const handler = () => {
+      try {
+        const authRaw2 = localStorage.getItem('auth')
+        if (!authRaw2) return
+        const auth2 = JSON.parse(authRaw2)
+        if (auth2.role !== 'student') return
+        fetchMarksheets(auth2, true)
+      } catch (e) {}
+    }
+    window.addEventListener('marksheetsUpdated', handler)
+    window.addEventListener('notificationsUpdated', handler)
+    return () => {
+      window.removeEventListener('marksheetsUpdated', handler)
+      window.removeEventListener('notificationsUpdated', handler)
+    }
   }, [])
 
   const fetchStudentData = async (auth) => {
@@ -42,14 +57,15 @@ function StudentDashboard() {
     }
   }
 
-  const fetchMarksheets = async (auth) => {
+  const fetchMarksheets = async (auth, force = false) => {
     setIsLoading(true)
     try {
       const queryParams = new URLSearchParams()
       if (auth.id) queryParams.set('studentId', auth.id)
       if (auth.regNumber) queryParams.set('regNumber', auth.regNumber)
       if (auth.phoneNumber) queryParams.set('phoneNumber', auth.phoneNumber)
-      const data = await apiClient.get(`/api/marksheets?${queryParams.toString()}`)
+      const opts = force ? { cache: false, dedupe: false } : {}
+      const data = await apiClient.get(`/api/marksheets?${queryParams.toString()}`, opts)
       if (data.success) {
         const dispatchedOnly = (data.marksheets || []).filter(ms => ms.status === 'dispatched')
         setMarksheets(dispatchedOnly)

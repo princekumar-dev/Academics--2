@@ -145,10 +145,11 @@ function Marksheets() {
     )
   }
 
-  const fetchMarksheets = async () => {
+  const fetchMarksheets = async (force = false) => {
     try {
       const staffId = userData?._id || userData?.id || localStorage.getItem('userId')
-      const data = await apiClient.get(`/api/marksheets?staffId=${staffId}`)
+      const opts = force ? { cache: false, dedupe: false } : {}
+      const data = await apiClient.get(`/api/marksheets?staffId=${staffId}`, opts)
       if (data.success) {
         setMarksheets(data.marksheets)
       }
@@ -159,10 +160,11 @@ function Marksheets() {
     }
   }
 
-  const fetchExaminations = async () => {
+  const fetchExaminations = async (force = false) => {
     try {
       const staffId = userData?._id || userData?.id || localStorage.getItem('userId')
-      const data = await apiClient.get(`/api/examinations?staffId=${staffId}`)
+      const opts = force ? { cache: false, dedupe: false } : {}
+      const data = await apiClient.get(`/api/examinations?staffId=${staffId}`, opts)
       if (data?.success) {
         setExaminations(data.examinations)
       }
@@ -170,6 +172,26 @@ function Marksheets() {
       console.error('Error fetching examinations:', error)
     }
   }
+
+  // Listen for external events that indicate marksheets changed elsewhere
+  useEffect(() => {
+    const handler = () => {
+      try {
+        if (userData && userData.role === 'staff') {
+          // Force-fetch to bypass apiClient cache/dedupe
+          const opts = { cache: false, dedupe: false }
+          fetchMarksheets(true)
+          fetchExaminations(true)
+        }
+      } catch (e) {}
+    }
+    window.addEventListener('marksheetsUpdated', handler)
+    window.addEventListener('notificationsUpdated', handler)
+    return () => {
+      window.removeEventListener('marksheetsUpdated', handler)
+      window.removeEventListener('notificationsUpdated', handler)
+    }
+  }, [userData])
 
   // Confirmation modal state for deleting an examination
   const [confirmOpen, setConfirmOpen] = useState(false)
