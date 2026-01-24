@@ -150,6 +150,29 @@ export default async function handler(req, res) {
             }
 
             await storeNotification(staffNotification)
+              try {
+                const { subscriptions } = await getUserSubscriptions(approvalRequest.email)
+                const activeSubs = (subscriptions || []).filter(s => s.active === true || s.status === 'active')
+                if (activeSubs && activeSubs.length > 0) {
+                  const payload = JSON.stringify({
+                    title: staffNotification.title,
+                    body: staffNotification.body,
+                    icon: '/images/android-chrome-192x192.png',
+                    badge: '/images/favicon-32x32.png',
+                    tag: 'msec-academics',
+                    data: { type: staffNotification.type, ...staffNotification.data }
+                  })
+                  await Promise.all(activeSubs.map(async (sub) => {
+                    try {
+                      await webpush.sendNotification(sub.subscription, payload)
+                    } catch (e) {
+                      // non-fatal
+                    }
+                  }))
+                }
+              } catch (pushErr) {
+                // ignore push errors
+              }
           } catch (err) {
             console.error('Error sending staff approval notification:', err)
           }
@@ -196,6 +219,29 @@ export default async function handler(req, res) {
             }
 
             await storeNotification(staffNotification)
+            try {
+              const { subscriptions } = await getUserSubscriptions(approvalRequest.email)
+              const activeSubs = (subscriptions || []).filter(s => s.active === true || s.status === 'active')
+              if (activeSubs && activeSubs.length > 0) {
+                const payload = JSON.stringify({
+                  title: staffNotification.title,
+                  body: staffNotification.body,
+                  icon: '/images/android-chrome-192x192.png',
+                  badge: '/images/favicon-32x32.png',
+                  tag: 'msec-academics',
+                  data: { type: staffNotification.type, ...staffNotification.data }
+                })
+                await Promise.all(activeSubs.map(async (sub) => {
+                  try {
+                    await webpush.sendNotification(sub.subscription, payload)
+                  } catch (e) {
+                    // ignore
+                  }
+                }))
+              }
+            } catch (pushErr) {
+              // ignore
+            }
           } catch (err) {
             console.error('Error sending staff rejection notification:', err)
           }
