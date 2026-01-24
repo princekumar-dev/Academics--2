@@ -28,6 +28,15 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     }
   }, [isOpen])
 
+  // Listen for auth updates (signature saved) so the modal can refresh automatically
+  useEffect(() => {
+    const onAuthChange = () => {
+      if (isOpen) fetchRequests({ force: true })
+    }
+    window.addEventListener('authStateChanged', onAuthChange)
+    return () => window.removeEventListener('authStateChanged', onAuthChange)
+  }, [isOpen])
+
   // Real-time push notifications - only listen when modal is open
   usePushNotifications(isOpen ? {
     'late_arrival': () => {
