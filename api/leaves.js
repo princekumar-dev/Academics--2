@@ -188,6 +188,21 @@ export default async function handler(req, res) {
         request.approvedAt = new Date()
         await request.save()
 
+        // Broadcast immediate approval update so clients refresh quickly
+        try {
+          await sendBroadcastNotification(
+            '✅ Leave Approved',
+            `Leave request for ${request.studentDetails.name} has been approved`,
+            {
+              type: 'leave_approval',
+              leaveId: request._id.toString(),
+              studentName: request.studentDetails.name
+            }
+          )
+        } catch (bErr) {
+          // non-fatal
+        }
+
         // Notify parent on WhatsApp with leave letter PDF attachment
         console.log('🔍 [Leave Approval] Starting WhatsApp dispatch via Evolution API...')
         console.log('🔍 Evolution API configured:', evolutionApi.isConfigured())
