@@ -10,21 +10,29 @@ function BottomNav() {
 
   useEffect(() => {
     checkAuthStatus()
-    
+
     const handleAuthChange = () => {
       checkAuthStatus()
     }
-    
+
     window.addEventListener('authStateChanged', handleAuthChange)
-    return () => window.removeEventListener('authStateChanged', handleAuthChange)
+    // Refresh unread count when notifications or marksheets change elsewhere
+    const handleGlobal = () => fetchNotificationCount(true)
+    window.addEventListener('notificationsUpdated', handleGlobal)
+    window.addEventListener('marksheetsUpdated', handleGlobal)
+
+    return () => {
+      window.removeEventListener('authStateChanged', handleAuthChange)
+      window.removeEventListener('notificationsUpdated', handleGlobal)
+      window.removeEventListener('marksheetsUpdated', handleGlobal)
+    }
   }, [])
 
   useEffect(() => {
     if (isLoggedIn) {
-      // Disabled: Notifications API not implemented yet
-      // fetchNotificationCount()
-      // const interval = setInterval(fetchNotificationCount, 30000) // Check every 30s
-      // return () => clearInterval(interval)
+      fetchNotificationCount()
+      const interval = setInterval(fetchNotificationCount, 30000) // Check every 30s
+      return () => clearInterval(interval)
     }
   }, [isLoggedIn])
 
@@ -42,7 +50,7 @@ function BottomNav() {
     }
   }
 
-  const fetchNotificationCount = async () => {
+  const fetchNotificationCount = async (force = false) => {
     try {
       const auth = localStorage.getItem('auth')
       if (!auth) return
@@ -50,8 +58,8 @@ function BottomNav() {
       const authData = JSON.parse(auth)
       const userId = authData._id || authData.id
       if (!userId) return
-      
-      const data = await apiClient.get(`/api/notifications?userId=${userId}&unreadOnly=true`)
+      const opts = force ? { cache: false, dedupe: false } : undefined
+      const data = await apiClient.get(`/api/notifications?userId=${userId}&unreadOnly=true`, opts)
       if (data?.success) {
         setUnreadNotifications(data.notifications?.length || 0)
       }

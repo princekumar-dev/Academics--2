@@ -41,6 +41,17 @@ function LeaveApprovals() {
   useEffect(() => { fetchRequests() }, [])
   usePullToRefresh(fetchRequests)
 
+  // Refresh when global notifications/marksheets change (avoid stale cache)
+  useEffect(() => {
+    const handler = () => fetchRequests(true)
+    window.addEventListener('notificationsUpdated', handler)
+    window.addEventListener('marksheetsUpdated', handler)
+    return () => {
+      window.removeEventListener('notificationsUpdated', handler)
+      window.removeEventListener('marksheetsUpdated', handler)
+    }
+  }, [])
+
   const act = async (id, action) => {
     try {
       const opts = action === 'approve' ? { timeout: 120000 } : {}
@@ -61,6 +72,8 @@ function LeaveApprovals() {
         } else {
           showSuccess(action === 'approve' ? 'Approved' : 'Rejected', 'Request updated')
         }
+        // Notify other components to refresh (header, lists)
+        try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
         fetchRequests()
       } else {
         showError('Failed', data?.error || 'Could not update request')

@@ -58,6 +58,19 @@ function DispatchRequests() {
     }
   }, [userData])
 
+  // Listen for global updates and force-fetch to avoid stale cached responses
+  useEffect(() => {
+    const handler = () => {
+      if (userData?.role === 'staff') fetchVerifiedMarksheets(true)
+    }
+    window.addEventListener('notificationsUpdated', handler)
+    window.addEventListener('marksheetsUpdated', handler)
+    return () => {
+      window.removeEventListener('notificationsUpdated', handler)
+      window.removeEventListener('marksheetsUpdated', handler)
+    }
+  }, [userData])
+
   // Real-time push notifications
   usePushNotifications({
     'dispatch_request': () => {
@@ -76,13 +89,14 @@ function DispatchRequests() {
 
   usePageFocus(() => fetchVerifiedMarksheets())
 
-  const fetchVerifiedMarksheets = async () => {
+  const fetchVerifiedMarksheets = async (force = false) => {
     if (!userData) return
     setLoading(true)
     try {
       const staffId = userData?._id || userData?.id || localStorage.getItem('userId')
       // Fetch active (non-dispatched) marksheets only
-      const data = await apiClient.get(`/api/marksheets?staffId=${staffId}&status=verified_by_staff,dispatch_requested,approved_by_hod,rejected_by_hod`)
+      const opts = force ? { cache: false, dedupe: false } : undefined
+      const data = await apiClient.get(`/api/marksheets?staffId=${staffId}&status=verified_by_staff,dispatch_requested,approved_by_hod,rejected_by_hod`, opts)
       if (data.success) {
         const normalizeStatus = (sheet) => {
           if (sheet?.status === 'rescheduled_by_hod') {
@@ -102,7 +116,7 @@ function DispatchRequests() {
       // Fetch already-dispatched marksheets separately for history view
       let historyData = { success: false, marksheets: [] }
       try {
-        historyData = await apiClient.get(`/api/marksheets?staffId=${staffId}&status=dispatched`)
+        historyData = await apiClient.get(`/api/marksheets?staffId=${staffId}&status=dispatched`, opts)
         if (historyData.success) {
           const normalizeStatus = (sheet) => sheet?.status === 'rescheduled_by_hod'
             ? { ...sheet, status: 'dispatch_requested', dispatchRequest: { ...(sheet.dispatchRequest || {}), hodResponse: null } }
@@ -118,8 +132,8 @@ function DispatchRequests() {
       
       // Determine most recent exam ID from BOTH active and dispatched marksheets combined
       const allMarksheets = [
-        ...(data.success ? data.marksheets : []),
-        ...(historyData?.success ? historyData.marksheets : [])
+        ...(data && data.success ? data.marksheets : []),
+        ...(historyData && historyData.success ? historyData.marksheets : [])
       ]
       
       if (allMarksheets && allMarksheets.length > 0) {

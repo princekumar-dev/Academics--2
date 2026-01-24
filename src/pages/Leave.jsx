@@ -68,7 +68,14 @@ function Leave() {
   }
 
   useEffect(() => { 
-    fetchRequests() 
+    fetchRequests()
+    const handleGlobal = () => fetchRequests(true)
+    window.addEventListener('notificationsUpdated', handleGlobal)
+    window.addEventListener('marksheetsUpdated', handleGlobal)
+    return () => {
+      window.removeEventListener('notificationsUpdated', handleGlobal)
+      window.removeEventListener('marksheetsUpdated', handleGlobal)
+    }
   }, [])
 
   // Listen for push notifications and page focus changes
