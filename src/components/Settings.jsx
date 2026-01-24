@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import ReactDOM from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { useAlert } from './AlertContext'
+import apiClient from '../utils/apiClient'
 import { 
   requestNotificationPermission, 
   subscribeToNotifications,
@@ -522,19 +523,18 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
       // Persist to backend if userId is available
       if (userId) {
         try {
-          try {
-            const data = await apiClient.patch(`/api/users?action=update-signature&userId=${userId}`, { eSignature: signatureData })
-            if (!data || !data.success) {
-              console.warn('Could not persist signature to backend:', data?.error)
-            }
-          } catch (err) {
-            console.warn('Backend signature save failed:', err.message)
+          const resp = await apiClient.patch(`/api/users?action=update-signature&userId=${userId}`, { eSignature: signatureData })
+          if (!resp || !resp.success) {
+            console.warn('Could not persist signature to backend:', resp?.error)
           }
         } catch (err) {
-          console.warn('Backend signature save failed:', err.message)
+          console.warn('Backend signature save failed:', err && err.message ? err.message : err)
         }
       }
       
+      // Notify other parts of the app that auth changed (so they can reload user info)
+      try { window.dispatchEvent(new Event('authStateChanged')) } catch (e) {}
+
       showSuccess('Saved', 'Signature saved successfully!')
       setShowSignatureModal(false)
       setSignatureMode('draw')
