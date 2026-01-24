@@ -53,10 +53,11 @@ function Leave() {
     .segmented-highlight { position: absolute; top: 0.25rem; bottom: 0.25rem; background: rgba(37,99,235,0.08); border: 1px solid rgba(37,99,235,0.2); border-radius: 0.75rem; transition: left 200ms ease; }
   `, [])
 
-  const fetchRequests = async () => {
+  const fetchRequests = async (force = false) => {
     try {
       setLoading(true)
-      const data = await apiClient.get(`/api/leaves?studentId=${studentId}`)
+      const opts = force ? { cache: false, dedupe: false } : undefined
+      const data = await apiClient.get(`/api/leaves?studentId=${studentId}`, opts)
       if (data.success) {
         setRequests(data.requests || [])
       }
@@ -242,7 +243,8 @@ function Leave() {
         setEndDate('')
         setExpectedArrivalTime('')
         setType('leave')
-        fetchRequests()
+        // Force-fetch to bypass cached responses so the new request appears immediately
+        fetchRequests(true)
       } else {
         showError('Failed', data.error || 'Could not submit request')
       }
@@ -268,7 +270,7 @@ function Leave() {
         sessionStorage.removeItem('activeTimer') // Clear timer from sessionStorage
         setRecordingRequest(null)
         setRecordingTime(0)
-        fetchRequests()
+        fetchRequests(true)
       } else {
         showError('Failed', data.error || 'Could not confirm arrival')
         console.error('Confirm arrival error:', data)
@@ -282,11 +284,12 @@ function Leave() {
   // Called when user confirms deletion
   const performDeleteLeave = async (request) => {
     try {
+
       const data = await apiClient.del(`/api/leaves?id=${request._id}&action=delete`, { body: {} })
 
       if (data && data.success) {
         showSuccess('Success', 'Leave request deleted successfully')
-        fetchRequests()
+        fetchRequests(true)
       } else {
         showError('Failed', data.error || 'Could not delete request')
         console.error('Delete error:', data)
