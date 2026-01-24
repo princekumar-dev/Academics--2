@@ -280,6 +280,7 @@ function Leave() {
       console.error('Confirm arrival exception:', error)
     }
   }
+            try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
 
   // Called when user confirms deletion
   const performDeleteLeave = async (request) => {

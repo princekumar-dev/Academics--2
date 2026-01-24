@@ -311,6 +311,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
           await fetchRequests({ force: true })
           // Notify header and other listeners that notifications changed
           try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
+          try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
         } else if (request.type === 'leave_request') {
           // Leave approvals can trigger longer server-side tasks (PDF gen / WhatsApp).
           // Increase timeout so the client doesn't abort while server works.
@@ -318,6 +319,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
           // Server processed the approval — refresh list to reflect change and show success
           await fetchRequests({ force: true })
           try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
+          try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
         }
         // Optionally log success
         console.log('[NotificationRequests] Request approved:', request._id)

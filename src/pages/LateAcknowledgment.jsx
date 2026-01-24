@@ -39,6 +39,7 @@ function LateAcknowledgment() {
       if (data && data.success) {
         showSuccess('Acknowledged', 'Late arrival recorded and parent notified')
         fetchRequests()
+        try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
       } else {
         showError('Failed', data?.error || 'Could not acknowledge request')
       }

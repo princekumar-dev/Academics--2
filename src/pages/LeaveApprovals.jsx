@@ -74,6 +74,7 @@ function LeaveApprovals() {
         }
         // Notify other components to refresh (header, lists)
         try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
+        try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
         fetchRequests()
       } else {
         showError('Failed', data?.error || 'Could not update request')
