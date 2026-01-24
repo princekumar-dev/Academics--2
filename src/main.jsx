@@ -32,6 +32,15 @@ if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
           }, 150);
         }
       }
+      // When SW notifies of a pushed notification, trigger app-level refresh
+      else if (msg.type === 'NOTIFICATION_RECEIVED') {
+        try {
+          // Let any listeners know notifications changed (includes Header)
+          window.dispatchEvent(new CustomEvent('notificationsUpdated', { detail: msg }));
+        } catch (e) {
+          try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) {}
+        }
+      }
     } catch (e) {
       // ignore
     }
