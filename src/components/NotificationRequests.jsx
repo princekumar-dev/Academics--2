@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import apiClient from '../utils/apiClient'
 import ReactDOM from 'react-dom'
 import { X, UserCheck, UserX, Clock, CheckCircle, XCircle, Bell } from 'lucide-react'
@@ -21,17 +21,15 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
       console.log('[NotificationRequests] User role detected:', userRole)
       setUserRole(userRole)
       setLoading(true)
-      setTimeout(() => {
-        console.log('[NotificationRequests] About to call fetchRequests, userRole:', userRole)
-        fetchRequests()
-      }, 0)
+      console.log('[NotificationRequests] About to schedule immediate fetchRequests, userRole:', userRole)
+      scheduleFetch({ force: false, immediate: true })
     }
   }, [isOpen])
 
   // Listen for auth updates (signature saved) so the modal can refresh automatically
   useEffect(() => {
     const onAuthChange = () => {
-      if (isOpen) fetchRequests({ force: true })
+      if (isOpen) scheduleFetch({ force: true, immediate: true })
     }
     window.addEventListener('authStateChanged', onAuthChange)
     return () => window.removeEventListener('authStateChanged', onAuthChange)
@@ -40,7 +38,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
   // Listen for global notification/marksheet updates so modal stays fresh
   useEffect(() => {
     if (!isOpen) return
-    const handler = () => fetchRequests({ force: true })
+    const handler = () => scheduleFetch({ force: true })
     window.addEventListener('notificationsUpdated', handler)
     window.addEventListener('marksheetsUpdated', handler)
     return () => {
@@ -68,6 +66,35 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
       fetchRequests()
     }
   } : {})
+
+  // Debounced fetch helper to avoid multiple rapid refreshes
+  const fetchTimerRef = useRef(null)
+  const fetchInFlightRef = useRef(false)
+  const scheduleFetch = (opts = {}) => {
+    const { force = false, immediate = false } = opts
+    if (immediate) {
+      if (fetchTimerRef.current) { clearTimeout(fetchTimerRef.current); fetchTimerRef.current = null }
+      if (fetchInFlightRef.current) {
+        return new Promise((resolve) => {
+          fetchTimerRef.current = setTimeout(async () => {
+            try { await fetchRequests({ force }) } catch (e) {}
+            resolve()
+          }, 200)
+        })
+      }
+      fetchInFlightRef.current = true
+      return fetchRequests({ force }).finally(() => { fetchInFlightRef.current = false })
+    } else {
+      if (fetchTimerRef.current) clearTimeout(fetchTimerRef.current)
+      fetchTimerRef.current = setTimeout(async () => {
+        if (fetchInFlightRef.current) return
+        fetchInFlightRef.current = true
+        try { await fetchRequests({ force }) } catch (e) {}
+        fetchInFlightRef.current = false
+      }, 150)
+      return Promise.resolve()
+    }
+  }
 
   const fetchRequests = async (opts = {}) => {
     const { force = false } = opts
@@ -306,18 +333,18 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
 
       try {
           if (request.type === 'staff_account_approval') {
-          await apiClient.patch('/api/staff-approval', { requestId: request.data.requestId, action: 'approve', hodId }, { timeout: 20000, retry: 1 })
-          // Successfully approved staff account — refresh list
-          await fetchRequests({ force: true })
+          await apiClient.patch('/api/staff-approval', { requestId: request.data.requestId, action: 'approve', hodId }, { timeout: 20000, retry: 1, dispatch: false })
+          // Successfully approved staff account — refresh list (debounced, immediate)
+          await scheduleFetch({ force: true, immediate: true })
           // Notify header and other listeners that notifications changed
           try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
           try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
         } else if (request.type === 'leave_request') {
           // Leave approvals can trigger longer server-side tasks (PDF gen / WhatsApp).
           // Increase timeout so the client doesn't abort while server works.
-          await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=approve`, { hodId }, { timeout: 60000, retry: 1 })
+          await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=approve`, { hodId }, { timeout: 60000, retry: 1, dispatch: false })
           // Server processed the approval — refresh list to reflect change and show success
-          await fetchRequests({ force: true })
+          await scheduleFetch({ force: true, immediate: true })
           try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
           try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
         }
@@ -358,9 +385,9 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
       
       try {
         if (request.type === 'staff_account_approval') {
-          await apiClient.patch('/api/staff-approval', { requestId: request.data.requestId, action: 'reject', hodId, rejectionReason: reason })
+          await apiClient.patch('/api/staff-approval', { requestId: request.data.requestId, action: 'reject', hodId, rejectionReason: reason }, { dispatch: false })
         } else if (request.type === 'leave_request') {
-          await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=reject`, { hodId, reason })
+          await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=reject`, { hodId, reason }, { dispatch: false })
         }
         // Remove from list
         setRequests(prev => {
@@ -368,6 +395,8 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
           if (setUnreadCount) setUnreadCount(next.filter(n => !n.read).length)
           return next
         })
+        try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
+        try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
       } catch (err) {
         console.error('Error rejecting request:', err)
       }
