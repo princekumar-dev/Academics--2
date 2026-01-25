@@ -11,6 +11,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
   const [processing, setProcessing] = useState(null)
   const [userRole, setUserRole] = useState('')
   const [staffStatus, setStaffStatus] = useState(null)
+  const [rejectDialog, setRejectDialog] = useState({ open: false, request: null, reason: '' })
 
   useEffect(() => {
     if (isOpen) {
@@ -375,26 +376,36 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
   }
 
   const handleReject = async (request) => {
+    // Replace old browser prompt with in-app modal
+    setRejectDialog({ open: true, request, reason: '' })
+  }
+
+  const openReject = (request) => {
+    setRejectDialog({ open: true, request, reason: '' })
+  }
+
+  const closeReject = () => {
+    setRejectDialog({ open: false, request: null, reason: '' })
+    setProcessing(null)
+  }
+
+  const confirmReject = async () => {
+    if (!rejectDialog || !rejectDialog.request) return
+    const request = rejectDialog.request
     setProcessing(request._id)
     try {
-      const reason = prompt('Enter rejection reason (optional):')
-      if (reason === null) {
-        setProcessing(null)
-        return
-      }
-      
       const auth = JSON.parse(localStorage.getItem('auth') || '{}')
       const hodId = auth?.id || auth.user?.id
-      
-      let response
-      
+      const reason = (rejectDialog.reason || '').trim()
+
       try {
         if (request.type === 'staff_account_approval') {
           await apiClient.patch('/api/staff-approval', { requestId: request.data.requestId, action: 'reject', hodId, rejectionReason: reason }, { dispatch: false })
         } else if (request.type === 'leave_request') {
           await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=reject`, { hodId, reason }, { dispatch: false })
         }
-        // Remove from list
+
+        // Remove from list locally
         setRequests(prev => {
           const next = prev.filter(r => r._id !== request._id)
           if (setUnreadCount) setUnreadCount(next.filter(n => !n.read).length)
@@ -408,7 +419,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     } catch (error) {
       console.error('Error rejecting request:', error)
     } finally {
-      setProcessing(null)
+      closeReject()
     }
   }
 
@@ -983,5 +994,31 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     </div>
   )
 
-  return ReactDOM.createPortal(modalContent, document.body)
+  const rejectModal = rejectDialog && rejectDialog.open ? (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-4" onClick={(e) => { if (e.target === e.currentTarget) closeReject() }}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-4 sm:p-6" onClick={(e) => e.stopPropagation()}>
+        <h3 className="text-lg font-bold text-gray-900 mb-2">Enter rejection reason (optional)</h3>
+        <p className="text-sm text-gray-600 mb-3">This will be sent to the student/parent as a plain text message.</p>
+        <textarea
+          value={rejectDialog.reason}
+          onChange={(e) => setRejectDialog(d => ({ ...d, reason: e.target.value }))}
+          rows={4}
+          placeholder="Reason for rejection (optional)"
+          className="w-full rounded-lg border border-gray-200 px-3 py-2 focus:border-blue-500 focus:outline-none mb-4"
+        />
+        <div className="flex justify-end gap-3">
+          <button onClick={closeReject} className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm font-semibold">Cancel</button>
+          <button
+            onClick={confirmReject}
+            disabled={processing === (rejectDialog.request && rejectDialog.request._id)}
+            className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm font-semibold disabled:opacity-50"
+          >
+            {processing === (rejectDialog.request && rejectDialog.request._id) ? 'Processing…' : 'Reject'}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null
+
+  return ReactDOM.createPortal( <>{modalContent}{rejectModal}</>, document.body)
 }

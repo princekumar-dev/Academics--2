@@ -487,10 +487,27 @@ MSEC Academics Department`
       }
 
       if (action === 'reject') {
+        const { hodId, reason } = req.body || {}
+
+        // Record rejection metadata
         request.status = 'rejected_by_hod'
+        request.rejectionReason = reason || ''
+        request.rejectedAt = new Date()
+        if (hodId) {
+          try {
+            const hod = await User.findById(hodId).lean()
+            if (hod) {
+              request.hodId = hod._id
+              request.hodName = hod.name
+            }
+          } catch (hErr) {
+            console.warn('⚠️ Could not fetch HOD for rejection metadata:', hErr && hErr.message)
+          }
+        }
+
         await request.save()
-        
-        // Send broadcast notification for leave rejection
+
+        // Broadcast update so clients refresh
         await sendBroadcastNotification(
           '❌ Leave Rejected',
           `Leave request for ${request.studentDetails.name} has been rejected`,
@@ -500,7 +517,30 @@ MSEC Academics Department`
             studentName: request.studentDetails.name
           }
         )
-        
+
+        // Send only a plain text WhatsApp message to parent with rejection + reason (no attachments)
+        try {
+          if (evolutionApi.isConfigured()) {
+            const parentPhone = request.studentDetails?.parentPhoneNumber
+            if (parentPhone) {
+              const text = `Hello!\n\nYour leave request for ${request.studentDetails.name} (Reg: ${request.studentDetails.regNumber}) has been rejected by the HOD.\n\nReason: ${reason || 'Not specified'}\n\nRegards,\nMSEC Academics Department`
+              try {
+                await evolutionApi.sendTextMessage(parentPhone, text)
+                // Optionally record that we attempted/ succeeded — storeNotification for HOD could be added
+                console.log('✅ Sent plain-text rejection WhatsApp message to', parentPhone)
+              } catch (sendErr) {
+                console.warn('⚠️ Failed to send rejection text via Evolution API:', sendErr && (sendErr.message || sendErr))
+              }
+            } else {
+              console.log('⚠️ No parent phone number available for leave rejection dispatch')
+            }
+          } else {
+            console.log('⚠️ Evolution API not configured; skipping WhatsApp rejection dispatch')
+          }
+        } catch (notifyErr) {
+          console.warn('⚠️ Error while attempting to send rejection WhatsApp message:', notifyErr && notifyErr.message)
+        }
+
         return res.status(200).json({ success: true, request })
       }
 
