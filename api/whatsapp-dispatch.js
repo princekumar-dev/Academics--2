@@ -22,14 +22,18 @@ if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
 // Helper to send notifications to user
 async function sendUserNotification(userEmail, title, body, url) {
   try {
-    const subs = await getUserSubscriptions(userEmail)
+    const { subscriptions } = await getUserSubscriptions(userEmail)
     const payload = JSON.stringify({ title, body, url })
-    
-    await Promise.all(subs.map(sub => 
-      webpush.sendNotification(sub, payload).catch(() => {})
-    ))
-    
-    await storeNotification(userEmail, title, body, url)
+
+    const activeSubs = (subscriptions || []).filter(s => s.active === true || s.status === 'active')
+    if (activeSubs.length > 0) {
+      await Promise.all(activeSubs.map(sub => 
+        webpush.sendNotification(sub.subscription || sub, payload).catch(() => {})
+      ))
+    }
+
+    // Store notification record
+    await storeNotification({ userEmail, title, body, url })
   } catch (err) {
     console.error('Notification error:', err.message)
   }
