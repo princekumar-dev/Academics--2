@@ -21,6 +21,7 @@ import Header from './components/Header'
 import BottomNav from './components/BottomNav'
 import { AlertProvider } from './components/AlertContext'
 import apiClient from './utils/apiClient'
+import { SpeedInsights } from '@vercel/speed-insights/react'
 // Removed old notification imports for academic system
 
 // Lazy load components for better performance
@@ -186,6 +187,7 @@ function App() {
       <AlertProvider>
           <BrowserRouter future={futureFlags}>
           <AppContent />
+          <SpeedInsights />
           </BrowserRouter>
       </AlertProvider>
     </ErrorBoundary>
