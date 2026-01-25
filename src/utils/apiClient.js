@@ -127,13 +127,18 @@ async function request(method, url, opts = {}) {
         const delay = Math.max(0, retryDelay * Math.pow(2, attempt - 1));
         await new Promise(r => setTimeout(r, delay));
         // continue to next attempt
-      } finally {
-        inFlight.delete(key);
       }
     }
   })();
 
   inFlight.set(key, p);
+  // Keep the inFlight entry until the promise fully settles. Previously
+  // the entry was deleted inside the retry loop's finally, which allowed
+  // duplicate requests to start while retries were still ongoing.
+  p.finally(() => {
+    try { inFlight.delete(key); } catch (e) { /* ignore */ }
+  });
+
   return p;
 }
 

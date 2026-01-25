@@ -43,6 +43,7 @@ function Header() {
 
   const pollIntervalRef = useRef(null);
   const resizeTimeoutRef = useRef(null);
+  const notifDebounceRef = useRef(null);
   useEffect(() => {
     checkAuthStatus();
     const updateViewport = () => {
@@ -64,7 +65,12 @@ function Header() {
     window.addEventListener('authStateChanged', handleAuthChange);
     const handleNotificationsUpdated = () => {
       try {
-        if (isLoggedIn && userEmail && userRole) fetchUnreadCount(userEmail, userRole, true)
+        if (!(isLoggedIn && userEmail && userRole)) return
+        if (notifDebounceRef.current) clearTimeout(notifDebounceRef.current)
+        notifDebounceRef.current = setTimeout(() => {
+          fetchUnreadCount(userEmail, userRole, true).catch(()=>{})
+          notifDebounceRef.current = null
+        }, 350)
       } catch (e) {}
     }
     window.addEventListener('notificationsUpdated', handleNotificationsUpdated);
@@ -87,6 +93,7 @@ function Header() {
       window.removeEventListener('notificationsUpdated', handleNotificationsUpdated);
       window.removeEventListener('resize', updateViewport);
       window.removeEventListener('orientationchange', updateViewport);
+      if (notifDebounceRef.current) { clearTimeout(notifDebounceRef.current); notifDebounceRef.current = null }
       if (resizeTimeoutRef.current) { clearTimeout(resizeTimeoutRef.current); resizeTimeoutRef.current = null; }
       if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
     };

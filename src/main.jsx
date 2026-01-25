@@ -35,8 +35,14 @@ if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
       // When SW notifies of a pushed notification, trigger app-level refresh
       else if (msg.type === 'NOTIFICATION_RECEIVED') {
         try {
-          // Let any listeners know notifications changed (includes Header)
-          window.dispatchEvent(new CustomEvent('notificationsUpdated', { detail: msg }));
+          // Use debounced central dispatcher so rapid push events don't cause
+          // multiple immediate client fetches. Import dynamically to avoid
+          // client-side bundling issues with non-browser env.
+          import('./utils/notificationEvents').then(mod => {
+            try { mod.notifyNotificationsUpdated(msg, 300) } catch (e) { try { window.dispatchEvent(new CustomEvent('notificationsUpdated', { detail: msg })) } catch (ee) {} }
+          }).catch(() => {
+            try { window.dispatchEvent(new CustomEvent('notificationsUpdated', { detail: msg })) } catch (ee) {}
+          })
         } catch (e) {
           try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) {}
         }

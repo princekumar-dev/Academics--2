@@ -230,7 +230,7 @@ function ApprovalRequests() {
         hodId,
         response: actionModal.type,
         comments
-      })
+      }, { dispatch: false })
       if (!data || !data.success) throw new Error(data?.error || 'Failed to submit response')
       const actionVerb = actionModal.type === 'approved' ? 'approved' : 'rejected'
       const studentName = actionModal.marksheet?.studentDetails?.name || 'Student'
@@ -249,7 +249,7 @@ function ApprovalRequests() {
         setPendingRequests(prev => prev.filter(m => m._id !== actionModal.marksheet._id))
       } catch (e) {}
       // Notify header and other listeners to refresh counts and marksheet lists
-      try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
+      try { import('../utils/notificationEvents').then(m=>m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) {} }
       try { window.dispatchEvent(new Event('marksheetsUpdated')) } catch (e) {}
       try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
       // Ensure a backend-backed refresh (force) to reconcile state
@@ -286,7 +286,7 @@ function ApprovalRequests() {
           hodId,
           response: actionType,
           comments: ''
-        }).then(r => r).catch(e => ({ success: false, error: e.message }))
+        }, { dispatch: false }).then(r => r).catch(e => ({ success: false, error: e.message }))
       )
 
       const results = await Promise.all(promises)
@@ -313,7 +313,7 @@ function ApprovalRequests() {
       try {
         setPendingRequests(prev => prev.filter(m => !(targetRequests.some(t => t._id === m._id))))
       } catch (e) {}
-      try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
+      try { import('../utils/notificationEvents').then(m=>m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) {} }
       try { window.dispatchEvent(new Event('marksheetsUpdated')) } catch (e) {}
       try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
       await fetchPendingRequests(true)

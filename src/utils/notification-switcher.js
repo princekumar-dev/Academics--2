@@ -1,4 +1,4 @@
-// Lightweight wrapper: re-export the robust notification manager implementation
+i // Lightweight wrapper: re-export the robust notification manager implementation
 export { 
   initNotifications,
   requestNotificationPermission,

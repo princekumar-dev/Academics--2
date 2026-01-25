@@ -55,7 +55,7 @@ function LeaveApprovals() {
   const act = async (id, action) => {
     try {
       const opts = action === 'approve' ? { timeout: 120000 } : {}
-      const data = await apiClient.patch(`/api/leaves?id=${id}&action=${action}`, { hodId: auth.id }, opts)
+      const data = await apiClient.patch(`/api/leaves?id=${id}&action=${action}`, { hodId: auth.id }, Object.assign({}, opts, { dispatch: false }))
       if (data && data.success) {
         // If approve, prefer to show WhatsApp send result if available
         if (action === 'approve' && data.whatsappResult) {
@@ -72,8 +72,8 @@ function LeaveApprovals() {
         } else {
           showSuccess(action === 'approve' ? 'Approved' : 'Rejected', 'Request updated')
         }
-        // Notify other components to refresh (header, lists)
-        try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
+        // Notify other components to refresh (header, lists) using debounced dispatcher
+        try { import('../utils/notificationEvents').then(m=>m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) {} }
         try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
         fetchRequests()
       } else {

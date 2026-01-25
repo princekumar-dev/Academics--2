@@ -342,16 +342,16 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
           await apiClient.patch('/api/staff-approval', { requestId: request.data.requestId, action: 'approve', hodId }, { timeout: 20000, retry: 1, dispatch: false })
           // Successfully approved staff account — refresh list (debounced, immediate)
           await scheduleFetch({ force: true, immediate: true })
-          // Notify header and other listeners that notifications changed
-          try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
-          try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
+          // Notify header and other listeners that notifications changed (debounced)
+            try { import('../utils/notificationEvents').then(m=>m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) {} }
+            try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
         } else if (request.type === 'leave_request') {
           // Leave approvals can trigger longer server-side tasks (PDF gen / WhatsApp).
           // Increase timeout so the client doesn't abort while server works.
           await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=approve`, { hodId }, { timeout: 60000, retry: 1, dispatch: false })
           // Server processed the approval — refresh list to reflect change and show success
           await scheduleFetch({ force: true, immediate: true })
-          try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
+          try { import('../utils/notificationEvents').then(m=>m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) {} }
           try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
         }
         // Optionally log success
@@ -411,7 +411,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
           if (setUnreadCount) setUnreadCount(next.filter(n => !n.read).length)
           return next
         })
-        try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) {}
+        try { import('../utils/notificationEvents').then(m=>m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) {} }
         try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
       } catch (err) {
         console.error('Error rejecting request:', err)
