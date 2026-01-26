@@ -18,6 +18,68 @@
  * - SimpleSkeleton → NotFound, 404 errors
  */
 
+// Base Skeleton component
+export function Skeleton({ className = '' }) {
+  return (
+    <div className={`animate-pulse bg-gray-200 rounded ${className}`}></div>
+  )
+}
+
+// Low-fidelity building blocks
+export function BaseTableSkeleton({ rows = 5, columns = 6 }) {
+  return (
+    <div className="space-y-3">
+      {[...Array(rows)].map((_, i) => (
+        <div key={i} className="flex gap-4 animate-pulse">
+          {[...Array(columns)].map((_, j) => (
+            <div
+              key={j}
+              className="h-12 bg-gray-200 rounded-lg"
+              style={{ width: j === 0 ? '5%' : j === 1 ? '25%' : j === 2 ? '20%' : j === 3 ? '15%' : j === 4 ? '20%' : '15%' }}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function BaseCardSkeleton({ count = 4 }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {[...Array(count)].map((_, i) => (
+        <div key={i} className="bg-white rounded-2xl p-6 shadow-lg animate-pulse">
+          <div className="flex items-center justify-between mb-4">
+            <div className="w-12 h-12 bg-gray-200 rounded-full" />
+            <div className="w-16 h-8 bg-gray-200 rounded-lg" />
+          </div>
+          <div className="w-24 h-4 bg-gray-200 rounded mb-2" />
+          <div className="w-32 h-6 bg-gray-300 rounded" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function BaseListSkeleton({ items = 5 }) {
+  return (
+    <div className="space-y-4">
+      {[...Array(items)].map((_, i) => (
+        <div key={i} className="bg-white rounded-xl p-4 shadow animate-pulse">
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-gray-200 rounded-full" />
+            <div className="flex-1 space-y-2">
+              <div className="w-3/4 h-4 bg-gray-300 rounded" />
+              <div className="w-1/2 h-3 bg-gray-200 rounded" />
+            </div>
+            <div className="w-20 h-8 bg-gray-200 rounded-lg" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // Dashboard skeleton for Home and DepartmentOverview
 export function DashboardSkeleton() {
   return (
@@ -27,7 +89,7 @@ export function DashboardSkeleton() {
         <div className="h-8 bg-gray-200 rounded w-1/3 mb-2"></div>
         <div className="h-4 bg-gray-100 rounded w-1/2"></div>
       </div>
-      
+
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[1, 2, 3, 4].map((i) => (
@@ -38,7 +100,7 @@ export function DashboardSkeleton() {
           </div>
         ))}
       </div>
-      
+
       {/* Recent Activity Section */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100">
         <div className="h-6 bg-gray-200 rounded w-1/4 mb-4"></div>
@@ -73,13 +135,13 @@ export function ListSkeleton() {
           <div className="h-10 bg-gray-200 rounded w-24"></div>
         </div>
       </div>
-      
+
       {/* Filter/Search bar */}
       <div className="flex gap-2 mb-4">
         <div className="flex-1 h-12 bg-gray-200 rounded-xl"></div>
         <div className="h-12 bg-gray-200 rounded-xl w-32"></div>
       </div>
-      
+
       {/* List items */}
       <div className="space-y-4">
         {[1, 2, 3, 4, 5].map((i) => (
@@ -112,7 +174,7 @@ export function DetailSkeleton() {
     <div className="p-4 md:p-6 animate-pulse">
       {/* Back button */}
       <div className="h-10 bg-gray-200 rounded w-32 mb-6"></div>
-      
+
       {/* Main card */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         {/* Header */}
@@ -124,7 +186,7 @@ export function DetailSkeleton() {
             </div>
             <div className="h-10 bg-gray-300 rounded-full w-32"></div>
           </div>
-          
+
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map((i) => (
               <div key={i}>
@@ -134,7 +196,7 @@ export function DetailSkeleton() {
             ))}
           </div>
         </div>
-        
+
         {/* Content */}
         <div className="p-6 space-y-6">
           {/* Student info */}
@@ -149,7 +211,7 @@ export function DetailSkeleton() {
               ))}
             </div>
           </div>
-          
+
           {/* Subjects table */}
           <div>
             <div className="h-6 bg-gray-200 rounded w-24 mb-4"></div>
@@ -172,7 +234,7 @@ export function DetailSkeleton() {
               ))}
             </div>
           </div>
-          
+
           {/* Action buttons */}
           <div className="flex gap-3 pt-4">
             <div className="h-12 bg-gray-200 rounded-xl w-32"></div>
@@ -193,7 +255,7 @@ export function FormSkeleton() {
         <div className="h-8 bg-gray-200 rounded w-1/3 mb-2"></div>
         <div className="h-4 bg-gray-100 rounded w-1/2"></div>
       </div>
-      
+
       {/* Form card */}
       <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 max-w-2xl">
         <div className="space-y-6">
@@ -204,7 +266,7 @@ export function FormSkeleton() {
               <div className="h-12 bg-gray-100 rounded-xl"></div>
             </div>
           ))}
-          
+
           {/* File upload area */}
           <div className="border-2 border-dashed border-gray-200 rounded-xl p-8">
             <div className="text-center">
@@ -213,7 +275,7 @@ export function FormSkeleton() {
               <div className="h-4 bg-gray-100 rounded w-64 mx-auto"></div>
             </div>
           </div>
-          
+
           {/* Submit button */}
           <div className="flex gap-3 pt-4">
             <div className="h-12 bg-gray-300 rounded-xl flex-1"></div>
@@ -276,7 +338,7 @@ export function DispatchRequestsSkeleton() {
                     </div>
                     <div className="h-8 bg-yellow-100 rounded-full w-32"></div>
                   </div>
-                  
+
                   {/* Info Grid */}
                   <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mt-4">
                     {[1, 2, 3, 4, 5].map((j) => (
@@ -360,7 +422,7 @@ export function ApprovalRequestsSkeleton() {
                       </div>
                       <div className="h-8 bg-yellow-100 rounded-full w-28"></div>
                     </div>
-                    
+
                     {/* Info Grid */}
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                       {[1, 2, 3, 4].map((j) => (
@@ -374,7 +436,7 @@ export function ApprovalRequestsSkeleton() {
 
                   {/* Divider */}
                   <div className="border-t border-gray-100"></div>
-                  
+
                   {/* Action Buttons Section */}
                   <div className="p-6 pt-4 bg-gray-50">
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -470,7 +532,7 @@ export function RecordsSkeleton() {
                     </div>
                     <div className="h-8 bg-gray-200 rounded-full w-24"></div>
                   </div>
-                  
+
                   <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mt-4">
                     {[1, 2, 3, 4, 5].map((j) => (
                       <div key={j}>
@@ -509,7 +571,7 @@ export function TableSkeleton() {
           <div className="h-10 bg-gray-200 rounded w-24"></div>
         </div>
       </div>
-      
+
       {/* Filters */}
       <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100 mb-6">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -521,7 +583,7 @@ export function TableSkeleton() {
           ))}
         </div>
       </div>
-      
+
       {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
         {/* Table header */}
@@ -532,7 +594,7 @@ export function TableSkeleton() {
             ))}
           </div>
         </div>
-        
+
         {/* Table rows */}
         {[1, 2, 3, 4, 5, 6, 7].map((i) => (
           <div key={i} className="border-b border-gray-100 last:border-b-0">
@@ -544,7 +606,7 @@ export function TableSkeleton() {
           </div>
         ))}
       </div>
-      
+
       {/* Pagination */}
       <div className="flex justify-between items-center mt-6">
         <div className="h-4 bg-gray-200 rounded w-32"></div>
@@ -632,7 +694,7 @@ export function PrivacySkeleton() {
             ].map((section, i) => (
               <div key={i} className={`border-l-4 border-${section.color}-500 pl-6`}>
                 <div className="h-7 bg-gray-300 rounded w-64 mb-4"></div>
-                
+
                 {i === 1 || i === 2 ? (
                   /* Info boxes for certain sections */
                   <div className="space-y-4">
@@ -689,7 +751,7 @@ export function TermsSkeleton() {
             ].map((section, i) => (
               <div key={i} className={`border-l-4 border-${section.color}-500 pl-6 ${section.hasHighlight ? 'bg-indigo-50 rounded-r-lg py-4 pr-6' : ''}`}>
                 <div className="h-7 bg-gray-300 rounded w-80 mb-4"></div>
-                
+
                 {section.hasCards ? (
                   /* Card-style items */
                   <div className="space-y-3">
@@ -741,7 +803,7 @@ export function ContactSkeleton() {
             <div className="h-5 bg-gray-200 rounded w-96 mx-auto mb-2"></div>
             <div className="h-5 bg-gray-200 rounded w-80 mx-auto"></div>
           </div>
-          
+
           {/* Three Column Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* MSEC Connect Section */}
@@ -755,7 +817,7 @@ export function ContactSkeleton() {
                   <div className="h-4 bg-gray-200 rounded w-4/5 mx-auto"></div>
                 </div>
               </div>
-              
+
               {/* Social Icons */}
               <div className="flex justify-center gap-4 mt-6">
                 {[1, 2, 3].map((i) => (
@@ -811,6 +873,100 @@ export function SimpleSkeleton() {
         <div className="h-10 bg-gray-300 rounded w-64 mx-auto mb-4"></div>
         <div className="h-4 bg-gray-200 rounded w-96 mx-auto mb-8"></div>
         <div className="h-12 bg-gray-300 rounded-xl w-48 mx-auto"></div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Auth Skeletons for Login and SignUp pages
+ */
+export function LoginSkeleton() {
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4 py-8">
+      <div className="relative z-10 w-full max-w-md">
+        <div className="backdrop-blur-md bg-white/20 border border-white/30 p-8 rounded-3xl shadow-2xl animate-pulse">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-white/30 rounded-full mb-6"></div>
+            <div className="h-9 bg-white/30 rounded-lg w-3/4 mx-auto mb-2"></div>
+            <div className="h-6 bg-white/20 rounded-lg w-2/3 mx-auto"></div>
+          </div>
+          <div className="space-y-6">
+            <div>
+              <div className="h-4 bg-white/30 rounded w-24 mb-3"></div>
+              <div className="h-14 bg-white/20 rounded-2xl"></div>
+            </div>
+            <div>
+              <div className="h-4 bg-white/30 rounded w-20 mb-3"></div>
+              <div className="h-14 bg-white/20 rounded-2xl"></div>
+            </div>
+            <div className="text-center">
+              <div className="h-4 bg-white/20 rounded w-32 mx-auto"></div>
+            </div>
+            <div className="pt-4">
+              <div className="h-14 bg-white/30 rounded-2xl"></div>
+            </div>
+          </div>
+          <div className="mt-8 text-center">
+            <div className="h-4 bg-white/20 rounded w-48 mx-auto"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export function SignUpSkeleton() {
+  return (
+    <div className="min-h-screen flex items-center justify-center px-4 py-8">
+      <div className="relative z-10 w-full max-w-md">
+        <div className="backdrop-blur-md bg-white/20 border border-white/30 p-8 rounded-3xl shadow-2xl animate-pulse">
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-white/30 rounded-full mb-6"></div>
+            <div className="h-9 bg-white/30 rounded-lg w-3/4 mx-auto mb-2"></div>
+            <div className="h-6 bg-white/20 rounded-lg w-2/3 mx-auto"></div>
+          </div>
+          <div className="space-y-6">
+            {[1, 2].map((i) => (
+              <div key={i}>
+                <div className="h-4 bg-white/30 rounded w-24 mb-3"></div>
+                <div className="h-14 bg-white/20 rounded-2xl"></div>
+              </div>
+            ))}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="h-4 bg-white/30 rounded w-16 mb-3"></div>
+                <div className="h-14 bg-white/20 rounded-2xl"></div>
+              </div>
+              <div>
+                <div className="h-4 bg-white/30 rounded w-20 mb-3"></div>
+                <div className="h-14 bg-white/20 rounded-2xl"></div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="h-4 bg-white/30 rounded w-16 mb-3"></div>
+                <div className="h-14 bg-white/20 rounded-2xl"></div>
+              </div>
+              <div>
+                <div className="h-4 bg-white/30 rounded w-16 mb-3"></div>
+                <div className="h-14 bg-white/20 rounded-2xl"></div>
+              </div>
+            </div>
+            {[1, 2].map((i) => (
+              <div key={`pass-${i}`}>
+                <div className="h-4 bg-white/30 rounded w-28 mb-3"></div>
+                <div className="h-14 bg-white/20 rounded-2xl"></div>
+              </div>
+            ))}
+            <div className="pt-4">
+              <div className="h-14 bg-white/30 rounded-2xl"></div>
+            </div>
+          </div>
+          <div className="mt-8 text-center">
+            <div className="h-4 bg-white/20 rounded w-48 mx-auto"></div>
+          </div>
+        </div>
       </div>
     </div>
   )

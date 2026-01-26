@@ -3,8 +3,8 @@ import ReactDOM from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { useAlert } from './AlertContext'
 import apiClient from '../utils/apiClient'
-import { 
-  requestNotificationPermission, 
+import {
+  requestNotificationPermission,
   subscribeToNotifications,
   unsubscribeFromNotifications,
   showNotification,
@@ -71,18 +71,14 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
   useEffect(() => {
     if (!(isMobile || isFullWidthMobile)) return
 
-    // Only toggle overflow to prevent background scroll. Avoid setting
-    // `position: fixed` or forcing `width` which can cause scroll/viewport
-    // issues on some Chromium/Edge versions when applied to `body`.
-    let prevOverflow
+    // Only toggle overflow to prevent background scroll on mobile modals
     if (isOpen) {
-      prevOverflow = document.body.style.overflow
+      const prevOverflow = document.body.style.overflow || ''
       document.body.style.overflow = 'hidden'
-    }
 
-    return () => {
-      if (isOpen) {
-        document.body.style.overflow = prevOverflow
+      return () => {
+        // Always restore to empty string (browser default) to ensure scrolling works
+        document.body.style.overflow = prevOverflow || ''
       }
     }
   }, [isOpen, isMobile, isFullWidthMobile])
@@ -105,19 +101,19 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
             currentPermission = getNotificationPermission()
           }
         }
-        
+
         console.log('Current notification permission:', currentPermission)
         if (!cancelled) setNotificationPermission(currentPermission)
 
         // Load user's preference from localStorage (source of truth)
         const savedSettings = localStorage.getItem('userSettings')
         let userPreference = false // Default OFF for new users
-        
+
         if (savedSettings) {
           const settings = JSON.parse(savedSettings)
           userPreference = settings.notificationsEnabled === true
           console.log('Loaded user preference:', userPreference)
-          
+
           if (!cancelled) {
             setEmailNotifications(settings.emailNotifications !== false)
             setNotificationsEnabled(userPreference)
@@ -139,7 +135,7 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
           const subResult = await checkCurrentSubscription()
           const subscriptionExists = subResult?.found === true
           console.log('Current subscription status:', subscriptionExists, '| User wants:', userPreference)
-          
+
           // If preference and subscription are out of sync, fix it
           if (userPreference && !subscriptionExists && currentPermission === 'granted') {
             console.log('Creating missing subscription...')
@@ -216,23 +212,23 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
 
     const newState = !notificationsEnabled
     console.log('Toggle clicked - changing from', notificationsEnabled, 'to', newState)
-    
+
     // Immediately update UI (optimistic update)
     setNotificationsEnabled(newState)
     saveSettings('notificationsEnabled', newState)
-    
+
     toggleInProgressRef.current = true
     setNotificationLoading(true)
-    
+
     try {
       if (newState) {
         // User wants notifications ON
         console.log('Enabling notifications...')
-        
+
         // Check if permission is already granted
         const currentPerm = 'Notification' in window ? Notification.permission : 'default'
         console.log('Current browser permission:', currentPerm)
-        
+
         if (currentPerm === 'granted') {
           // Permission already granted, just subscribe
           console.log('Permission already granted, subscribing...')
@@ -259,7 +255,7 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
           // Need to request permission
           console.log('Requesting permission...')
           const permissionGranted = await requestNotificationPermission()
-          
+
           if (permissionGranted) {
             setNotificationPermission('granted')
             const subscription = await subscribeToNotifications()
@@ -287,7 +283,7 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
         console.log('Disabling notifications...')
         const success = await unsubscribeFromNotifications()
         console.log('Unsubscribe result:', success)
-        
+
         // Always show success when turning off - the goal is achieved
         showInfo('Notifications Disabled', 'Push notifications turned off')
       }
@@ -503,7 +499,7 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
   }
 
   const saveSignature = async () => {
-    const signatureData = signatureMode === 'draw' 
+    const signatureData = signatureMode === 'draw'
       ? canvasRef.current?.toDataURL('image/png')
       : uploadedSignature
 
@@ -515,11 +511,11 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
     try {
       const auth = JSON.parse(localStorage.getItem('auth') || '{}')
       const userId = auth?.id || localStorage.getItem('userId')
-      
+
       // Save signature at top level (same structure as login)
       auth.eSignature = signatureData
       localStorage.setItem('auth', JSON.stringify(auth))
-      
+
       // Persist to backend if userId is available
       if (userId) {
         try {
@@ -531,9 +527,9 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
           console.warn('Backend signature save failed:', err && err.message ? err.message : err)
         }
       }
-      
+
       // Notify other parts of the app that auth changed (so they can reload user info)
-      try { window.dispatchEvent(new Event('authStateChanged')) } catch (e) {}
+      try { window.dispatchEvent(new Event('authStateChanged')) } catch (e) { }
 
       showSuccess('Saved', 'Signature saved successfully!')
       setShowSignatureModal(false)
@@ -599,7 +595,7 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
       }
       return userEmail
     })()
-    
+
     const displayInitial = (() => {
       if (userRole === 'student') {
         try {
@@ -613,36 +609,36 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
     })()
 
     return (
-    <>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          if (!isInitializing) onClose()
-        }}
-        className={`absolute z-10 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation ${isFullWidthMobile ? 'top-3 right-3 sm:top-4 sm:right-4' : 'top-3 right-3'}`}
-        aria-label="Close settings"
-        style={{ touchAction: 'manipulation', boxSizing: 'border-box' }}
-      >
-        <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-      <div className="px-4 sm:px-4 py-3 sm:py-4 border-b border-[#e7edf4] hover:bg-gray-50/50 transition-colors duration-200">
-      <div className="flex items-center gap-3 pr-6">
-        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0 group-hover:shadow-md group-hover:scale-105 transition-all duration-200">
-          <span className="text-base font-bold text-yellow-600 group-hover:text-yellow-700 transition-colors duration-200">
-            {displayInitial}
-          </span>
+      <>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (!isInitializing) onClose()
+          }}
+          className={`absolute z-10 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation ${isFullWidthMobile ? 'top-3 right-3 sm:top-4 sm:right-4' : 'top-3 right-3'}`}
+          aria-label="Close settings"
+          style={{ touchAction: 'manipulation', boxSizing: 'border-box' }}
+        >
+          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+        <div className="px-4 sm:px-4 py-3 sm:py-4 border-b border-[#e7edf4] hover:bg-gray-50/50 transition-colors duration-200">
+          <div className="flex items-center gap-3 pr-6">
+            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0 group-hover:shadow-md group-hover:scale-105 transition-all duration-200">
+              <span className="text-base font-bold text-yellow-600 group-hover:text-yellow-700 transition-colors duration-200">
+                {displayInitial}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="text-[#0b1220] font-semibold text-sm truncate group-hover:text-black transition-colors duration-200">{displayName}</h3>
+              <p className="text-[#475569] text-xs capitalize group-hover:text-[#374151] transition-colors duration-200">{userRole} Account</p>
+            </div>
+          </div>
         </div>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-[#0b1220] font-semibold text-sm truncate group-hover:text-black transition-colors duration-200">{displayName}</h3>
-          <p className="text-[#475569] text-xs capitalize group-hover:text-[#374151] transition-colors duration-200">{userRole} Account</p>
-        </div>
-      </div>
-    </div>
-    </>
-  )
+      </>
+    )
   }
 
   const SettingsBody = () => (
@@ -876,14 +872,14 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
       className={(
-        isFullWidthMobile 
-          ? 'inner-panel pointer-events-auto' 
+        isFullWidthMobile
+          ? 'inner-panel pointer-events-auto'
           : 'settings-glass-card no-mobile-backdrop pointer-events-auto'
       ) + ' rounded-xl shadow-lg overflow-hidden w-full max-w-sm mx-auto flex flex-col group ' + (
-        isFullWidthMobile 
-          ? 'rounded-b-2xl sm:rounded-xl max-w-md'
-          : 'absolute top-full right-0 mt-2 w-80'
-      )}
+          isFullWidthMobile
+            ? 'rounded-b-2xl sm:rounded-xl max-w-md'
+            : 'absolute top-full right-0 mt-2 w-80'
+        )}
       style={{
         boxShadow: '0 8px 28px rgba(2,6,23,0.06)',
         background: isFullWidthMobile ? '#ffffff' : undefined,
@@ -908,7 +904,7 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
     >
       <SettingsContent />
       <SettingsBody />
-      
+
       {/* Sub-modals rendered as centered overlays on top of Settings */}
       {showPasswordModal && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm"
@@ -1003,21 +999,19 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
             <div className="flex gap-2 mb-5 bg-gray-100 p-1 rounded-lg">
               <button
                 onClick={() => setSignatureMode('draw')}
-                className={`flex-1 py-2.5 px-4 rounded-md font-semibold text-sm transition-all ${
-                  signatureMode === 'draw'
+                className={`flex-1 py-2.5 px-4 rounded-md font-semibold text-sm transition-all ${signatureMode === 'draw'
                     ? 'bg-white text-gray-900 shadow-md'
                     : 'text-gray-600 hover:text-gray-900'
-                }`}
+                  }`}
               >
                 ✍️ Draw
               </button>
               <button
                 onClick={() => setSignatureMode('upload')}
-                className={`flex-1 py-2.5 px-4 rounded-md font-semibold text-sm transition-all ${
-                  signatureMode === 'upload'
+                className={`flex-1 py-2.5 px-4 rounded-md font-semibold text-sm transition-all ${signatureMode === 'upload'
                     ? 'bg-white text-gray-900 shadow-md'
                     : 'text-gray-600 hover:text-gray-900'
-                }`}
+                  }`}
               >
                 📤 Upload
               </button>

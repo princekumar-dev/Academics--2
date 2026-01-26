@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import RefreshButton from '../components/RefreshButton'
 import SwipeableCard from '../components/SwipeableCard'
 import { useAlert } from '../components/AlertContext'
-import { CardSkeleton, ListSkeleton } from '../components/SkeletonLoaders'
+import { BaseCardSkeleton as CardSkeleton, BaseListSkeleton as ListSkeleton } from '../components/PageSkeletons'
 import { NoPendingRequests } from '../components/EmptyStates'
 import { useConfetti } from '../components/Confetti'
 import { HelpTooltip } from '../components/ContextualHelp'
@@ -174,7 +174,7 @@ function ApprovalRequests() {
       const profileData = await apiClient.get(`/api/users?action=profile&userId=${hodId}`)
       if (profileData?.success && profileData.user) {
         const updated = { ...userData, ...profileData.user }
-        try { localStorage.setItem('auth', JSON.stringify(updated)) } catch (e) {}
+        try { localStorage.setItem('auth', JSON.stringify(updated)) } catch (e) { }
         setUserData(updated)
         return updated
       }
@@ -198,11 +198,11 @@ function ApprovalRequests() {
     const rect = event?.currentTarget?.getBoundingClientRect()
     const anchorRect = rect && hasWindow
       ? {
-          top: rect.top + window.scrollY,
-          left: rect.left + window.scrollX,
-          width: rect.width,
-          height: rect.height
-        }
+        top: rect.top + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+        height: rect.height
+      }
       : null
     setActionError('')
     setActionModal({ open: true, type, marksheet, anchorRect })
@@ -235,23 +235,23 @@ function ApprovalRequests() {
       const actionVerb = actionModal.type === 'approved' ? 'approved' : 'rejected'
       const studentName = actionModal.marksheet?.studentDetails?.name || 'Student'
       setFeedback(`Dispatch request ${actionVerb} successfully.`)
-      
+
       // Show glassmorphism alert
       if (actionModal.type === 'approved') {
         showSuccess('✓ Approved', `Dispatch approved for ${studentName}`)
       } else {
         showWarning('Request Rejected', `Dispatch rejected for ${studentName}`)
       }
-      
+
       closeModal()
       // Optimistically remove the processed marksheet so UI updates immediately
       try {
         setPendingRequests(prev => prev.filter(m => m._id !== actionModal.marksheet._id))
-      } catch (e) {}
+      } catch (e) { }
       // Notify header and other listeners to refresh counts and marksheet lists
-      try { import('../utils/notificationEvents').then(m=>m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) {} }
-      try { window.dispatchEvent(new Event('marksheetsUpdated')) } catch (e) {}
-      try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
+      try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) { } }
+      try { window.dispatchEvent(new Event('marksheetsUpdated')) } catch (e) { }
+      try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
       // Ensure a backend-backed refresh (force) to reconcile state
       await fetchPendingRequests(true)
     } catch (err) {
@@ -279,8 +279,8 @@ function ApprovalRequests() {
       setBulkActionLoading(true)
       setActionError('')
       const hodId = userData._id || userData.id
-      
-      const promises = targetRequests.map(marksheet => 
+
+      const promises = targetRequests.map(marksheet =>
         apiClient.post('/api/marksheets?action=hod-response', {
           marksheetId: marksheet._id,
           hodId,
@@ -312,10 +312,10 @@ function ApprovalRequests() {
       // Optimistically clear processed items from UI
       try {
         setPendingRequests(prev => prev.filter(m => !(targetRequests.some(t => t._id === m._id))))
-      } catch (e) {}
-      try { import('../utils/notificationEvents').then(m=>m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) {} }
-      try { window.dispatchEvent(new Event('marksheetsUpdated')) } catch (e) {}
-      try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
+      } catch (e) { }
+      try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) { } }
+      try { window.dispatchEvent(new Event('marksheetsUpdated')) } catch (e) { }
+      try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
       await fetchPendingRequests(true)
     } catch (err) {
       setActionError(err.message || `Failed to perform bulk ${actionType}`)
@@ -374,10 +374,10 @@ function ApprovalRequests() {
 
   return (
     <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      <PullToRefreshIndicator 
-        pullDistance={pullDistance} 
-        threshold={threshold} 
-        isRefreshing={isRefreshing} 
+      <PullToRefreshIndicator
+        pullDistance={pullDistance}
+        threshold={threshold}
+        isRefreshing={isRefreshing}
       />
       <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="max-w-6xl mx-auto">
@@ -387,7 +387,7 @@ function ApprovalRequests() {
               Review and approve dispatch requests for {userData.department} Department
             </p>
           </div>
-          
+
           {/* Notice: Leave Approvals moved to Notification Modal */}
           {leaveRequests.length > 0 && (
             <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
@@ -420,9 +420,8 @@ function ApprovalRequests() {
                     <button
                       key={filter.id}
                       onClick={() => setSelectedStatus(filter.id)}
-                      className={`px-4 py-2 rounded-full text-sm font-medium border transition-all duration-200 ${
-                        selectedStatus === filter.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200 hover:border-blue-400'
-                      }`}
+                      className={`px-4 py-2 rounded-full text-sm font-medium border transition-all duration-200 ${selectedStatus === filter.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-200 hover:border-blue-400'
+                        }`}
                     >
                       {filter.label}
                       <span className={`ml-2 inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-semibold ${selectedStatus === filter.id ? 'bg-white/25 text-white' : 'bg-gray-100 text-gray-700'}`}>
@@ -464,11 +463,10 @@ function ApprovalRequests() {
                     <button
                       onClick={() => handleBulkAction('approved')}
                       disabled={bulkActionLoading || filteredRequests.filter(m => m.status === 'dispatch_requested').length === 0}
-                      className={`px-3 sm:px-4 py-2 rounded-lg font-medium text-white text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 ${
-                        bulkActionLoading || filteredRequests.filter(m => m.status === 'dispatch_requested').length === 0
+                      className={`px-3 sm:px-4 py-2 rounded-lg font-medium text-white text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1 ${bulkActionLoading || filteredRequests.filter(m => m.status === 'dispatch_requested').length === 0
                           ? 'bg-gray-300 cursor-not-allowed'
                           : 'bg-green-600 hover:bg-green-700'
-                      }`}
+                        }`}
                     >
                       <span className="flex items-center justify-center gap-1">
                         <span>✅</span>
@@ -478,11 +476,10 @@ function ApprovalRequests() {
                     <button
                       onClick={() => handleBulkAction('rejected')}
                       disabled={bulkActionLoading || filteredRequests.filter(m => m.status === 'dispatch_requested').length === 0}
-                      className={`px-3 sm:px-4 py-2 rounded-lg font-medium text-white text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 ${
-                        bulkActionLoading || filteredRequests.filter(m => m.status === 'dispatch_requested').length === 0
+                      className={`px-3 sm:px-4 py-2 rounded-lg font-medium text-white text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1 ${bulkActionLoading || filteredRequests.filter(m => m.status === 'dispatch_requested').length === 0
                           ? 'bg-gray-300 cursor-not-allowed'
                           : 'bg-red-600 hover:bg-red-700'
-                      }`}
+                        }`}
                     >
                       <span className="flex items-center justify-center gap-1">
                         <span>⛔</span>
@@ -537,7 +534,7 @@ function ApprovalRequests() {
                                 <span className="text-xs">{(marksheet.status || '').replace(/_/g, ' ')}</span>
                               </span>
                             </div>
-                            
+
                             {/* Info Grid */}
                             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 text-xs sm:text-sm">
                               <div>
@@ -551,7 +548,7 @@ function ApprovalRequests() {
                               <div>
                                 <p className="text-gray-500 mb-1">Exam Date:</p>
                                 <p className="font-medium text-gray-900">
-                                  {marksheet.examinationDate 
+                                  {marksheet.examinationDate
                                     ? new Date(marksheet.examinationDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
                                     : '—'
                                   }
@@ -566,7 +563,7 @@ function ApprovalRequests() {
 
                           {/* Divider */}
                           <div className="border-t border-gray-100"></div>
-                          
+
                           {/* Action Buttons Section - Desktop Only */}
                           <div className="hidden sm:block p-4 sm:p-6 pt-3 sm:pt-4 bg-gray-50">
                             <div className="grid grid-cols-4 gap-3">
@@ -620,7 +617,7 @@ function ApprovalRequests() {
         loading={actionLoading}
         error={actionError}
       />
-      
+
       {/* Confetti celebration */}
       <ConfettiContainer />
     </div>

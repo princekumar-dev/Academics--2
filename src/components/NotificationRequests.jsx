@@ -1,9 +1,215 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, memo, useCallback, useMemo } from 'react'
 import apiClient from '../utils/apiClient'
 import ReactDOM from 'react-dom'
 import { X, UserCheck, UserX, Clock, CheckCircle, XCircle, Bell } from 'lucide-react'
 import SwipeableCard from './SwipeableCard'
 import { usePushNotifications } from '../hooks/usePushNotifications'
+
+// Sub-component for Admin Notification Items
+const AdminNotificationItem = memo(({ notification, onMarkRead }) => (
+  <div
+    className={`border rounded-xl p-4 sm:p-5 transition-all ${notification.read ? 'bg-white border-gray-200' : 'bg-blue-50 border-blue-200'}`}
+  >
+    <div className="flex items-start justify-between gap-3">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span className={`text-xs font-bold px-2 py-1 rounded-full ${notification.read ? 'bg-gray-100 text-gray-700' : 'bg-blue-100 text-blue-700'}`}>
+            {notification.type?.replace(/_/g, ' ') || 'notification'}
+          </span>
+          {!notification.read && <span className="text-[11px] font-semibold text-blue-700">NEW</span>}
+        </div>
+        <h3 className="text-sm sm:text-base font-bold text-gray-900 break-words">{notification.title}</h3>
+        <p className="text-xs sm:text-sm text-gray-700 mt-1 break-words">{notification.body}</p>
+        <p className="text-[11px] text-gray-500 mt-2">
+          {notification.createdAt ? new Date(notification.createdAt).toLocaleString() : 'Just now'}
+        </p>
+      </div>
+      {!notification.read && (
+        <button
+          onClick={() => onMarkRead(notification._id)}
+          className="text-xs font-semibold text-green-700 bg-green-50 border border-green-100 px-3 py-1.5 rounded-lg hover:bg-green-100"
+        >
+          Mark read
+        </button>
+      )}
+    </div>
+  </div>
+))
+
+// Sub-component for Staff View: Late Arrival Item
+const LateArrivalItem = memo(({ request, onApprove, processing }) => {
+  const actions = useMemo(() => [
+    {
+      label: 'Record',
+      icon: <CheckCircle className="w-5 h-5" />,
+      onClick: () => onApprove(request),
+      className: 'bg-green-600 hover:bg-green-700 text-white',
+    }
+  ], [onApprove, request])
+
+  return (
+    <SwipeableCard actions={actions}>
+      <div className="bg-gradient-to-br from-white to-amber-50 border-2 border-amber-200 rounded-lg p-3 hover:border-amber-400 transition-all">
+        <div className="flex items-start justify-between mb-2">
+          <div>
+            <p className="font-semibold text-gray-900">{request.data?.studentName}</p>
+            <p className="text-xs text-gray-600">{request.data?.regNumber}</p>
+          </div>
+          <span className="text-xs font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-800">Late</span>
+        </div>
+        <p className="text-sm text-gray-700 mb-2"><strong>Reason:</strong> {request.data?.reason}</p>
+        <p className="text-xs text-gray-600 mb-3">
+          Expected: {new Date(request.data?.expectedArrivalTime).toLocaleString()}
+        </p>
+        <p className="text-xs text-green-600 mb-3 font-semibold">👉 Student will confirm arrival in their dashboard</p>
+        <button
+          onClick={() => onApprove(request)}
+          disabled={processing === request._id}
+          className="hidden sm:flex w-full items-center justify-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
+        >
+          {processing === request._id ? (
+            <>
+              <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Recording...
+            </>
+          ) : (
+            <>
+              <CheckCircle className="w-4 h-4" />
+              Record
+            </>
+          )}
+        </button>
+      </div>
+    </SwipeableCard>
+  )
+})
+
+// Sub-component for HOD View: Request Item (Staff Approval or Leave)
+const HODRequestItem = memo(({ request, onApprove, onReject, processing }) => {
+  const actions = useMemo(() => [
+    {
+      label: 'Reject',
+      icon: <UserX className="w-5 h-5" />,
+      onClick: () => onReject(request),
+      className: 'bg-red-600 hover:bg-red-700 text-white',
+    },
+    {
+      label: 'Accept',
+      icon: <UserCheck className="w-5 h-5" />,
+      onClick: () => onApprove(request),
+      className: 'bg-green-600 hover:bg-green-700 text-white',
+    },
+  ], [onApprove, onReject, request])
+
+  return (
+    <SwipeableCard actions={actions}>
+      <div className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-xl p-4 sm:p-5 hover:border-theme-gold/30 transition-all duration-200">
+        <div className="mb-3 flex items-center justify-between">
+          <span className={`text-xs font-bold px-2 py-1 rounded-full ${request.type === 'staff_account_approval'
+              ? 'bg-blue-100 text-blue-700'
+              : 'bg-orange-100 text-orange-700'
+            }`}>
+            {request.type === 'staff_account_approval' ? '👤 Staff Account' : '📋 Leave Request'}
+          </span>
+        </div>
+
+        {request.type === 'staff_account_approval' ? (
+          <div className="mb-4">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex-1">
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1">{request.data.staffName}</h3>
+                <p className="text-sm text-gray-600 break-all">{request.data.staffEmail}</p>
+                {request.data.phoneNumber && <p className="text-sm text-gray-600 mt-1">📱 {request.data.phoneNumber}</p>}
+              </div>
+              <div className="w-10 h-10 rounded-full bg-theme-gold-gradient flex items-center justify-center flex-shrink-0 ml-3">
+                <span className="text-white font-bold text-sm">{request.data.staffName?.charAt(0).toUpperCase()}</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="bg-white rounded-lg p-2 sm:p-3 border border-gray-200">
+                <p className="text-xs text-gray-500 mb-1">Department</p>
+                <p className="text-xs sm:text-sm font-bold text-gray-900">{request.data.department}</p>
+              </div>
+              <div className="bg-white rounded-lg p-2 sm:p-3 border border-gray-200">
+                <p className="text-xs text-gray-500 mb-1">Year</p>
+                <p className="text-xs sm:text-sm font-bold text-gray-900">{request.data.year}</p>
+              </div>
+              <div className="bg-white rounded-lg p-2 sm:p-3 border border-gray-200">
+                <p className="text-xs text-gray-500 mb-1">Section</p>
+                <p className="text-xs sm:text-sm font-bold text-gray-900">{request.data.section}</p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-4">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1">
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-2">{request.data.studentName || 'Unknown Student'}</h3>
+                <div className="space-y-1 text-sm">
+                  <p className="text-gray-600"><span className="text-gray-500">Reg:</span> {request.data.regNumber || '—'}</p>
+                  <p className="text-gray-600 capitalize"><span className="text-gray-500">Leave Type:</span> {request.data.type || '—'}</p>
+                </div>
+              </div>
+              <div className="w-12 h-12 rounded-full bg-orange-gradient flex items-center justify-center flex-shrink-0 ml-3">
+                <span className="text-white font-bold text-lg">{request.data.studentName?.charAt(0).toUpperCase()}</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-3">
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <p className="text-xs text-gray-500 mb-1">Year</p>
+                <p className="text-sm font-bold text-gray-900">{request.data.year || '—'}</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <p className="text-xs text-gray-500 mb-1">Section</p>
+                <p className="text-sm font-bold text-gray-900">{request.data.section || '—'}</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <p className="text-xs text-gray-500 mb-1">From</p>
+                <p className="text-sm font-bold text-gray-900">{request.data.startDate ? new Date(request.data.startDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : '—'}</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <p className="text-xs text-gray-500 mb-1">To</p>
+                <p className="text-sm font-bold text-gray-900">{request.data.endDate ? new Date(request.data.endDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' }) : '—'}</p>
+              </div>
+            </div>
+            {request.data.reason && (
+              <div className="bg-white rounded-lg p-3 border border-gray-200 mb-3">
+                <p className="text-xs text-gray-500 mb-1">Reason</p>
+                <p className="text-sm text-gray-700 line-clamp-2">{request.data.reason}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <p className="text-xs text-gray-500 mb-3">
+          Requested {new Date(request.createdAt).toLocaleDateString()} at {new Date(request.createdAt).toLocaleTimeString()}
+        </p>
+
+        <div className="hidden sm:flex gap-2 sm:gap-3">
+          <button
+            onClick={() => onApprove(request)}
+            disabled={processing === request._id}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-semibold transition-all duration-200 text-sm sm:text-base"
+          >
+            <UserCheck className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span>{processing === request._id ? 'Processing...' : 'Accept'}</span>
+          </button>
+          <button
+            onClick={() => onReject(request)}
+            disabled={processing === request._id}
+            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-lg font-semibold transition-all duration-200 text-sm sm:text-base"
+          >
+            <UserX className="w-4 h-4 sm:w-5 sm:h-5" />
+            <span>{processing === request._id ? 'Processing...' : 'Reject'}</span>
+          </button>
+        </div>
+      </div>
+    </SwipeableCard>
+  )
+})
 
 export default function NotificationRequests({ isOpen, onClose, setUnreadCount }) {
   const [requests, setRequests] = useState([])
@@ -15,14 +221,10 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
 
   useEffect(() => {
     if (isOpen) {
-      console.log('[NotificationRequests] Modal opened, isOpen:', isOpen)
       const auth = JSON.parse(localStorage.getItem('auth') || '{}')
       const userRole = auth?.role || auth.user?.role || ''
-      console.log('[NotificationRequests] Auth from localStorage:', auth)
-      console.log('[NotificationRequests] User role detected:', userRole)
       setUserRole(userRole)
       setLoading(true)
-      console.log('[NotificationRequests] About to schedule immediate fetchRequests, userRole:', userRole)
       scheduleFetch({ force: false, immediate: true })
     }
   }, [isOpen])
@@ -78,15 +280,15 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
       if (fetchInFlightRef.current) {
         return new Promise((resolve) => {
           fetchTimerRef.current = setTimeout(async () => {
-            try { await fetchRequests({ force }) } catch (e) {}
-            try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
+            try { await fetchRequests({ force }) } catch (e) { }
+            try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
             resolve()
           }, 200)
         })
       }
       fetchInFlightRef.current = true
       return fetchRequests({ force }).finally(() => { fetchInFlightRef.current = false }).then((v) => {
-        try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
+        try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
         return v
       })
     } else {
@@ -94,8 +296,8 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
       fetchTimerRef.current = setTimeout(async () => {
         if (fetchInFlightRef.current) return
         fetchInFlightRef.current = true
-        try { await fetchRequests({ force }) } catch (e) {}
-        try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
+        try { await fetchRequests({ force }) } catch (e) { }
+        try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
         fetchInFlightRef.current = false
       }, 150)
       return Promise.resolve()
@@ -110,44 +312,44 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
       const auth = JSON.parse(localStorage.getItem('auth') || '{}')
       console.log('[NotificationRequests] Full auth object:', auth)
       console.log('[NotificationRequests] Auth user object:', auth.user)
-      
+
       const userRole = auth?.role || auth.user?.role
       const userId = auth?.id || auth.user?.id
-      
+
       console.log('[NotificationRequests] Fetching for user:', userRole, userId)
-      
+
       if (userRole === 'hod') {
         const hodId = userId
         console.log('[NotificationRequests] HOD ID to send:', hodId)
-        
+
         if (!hodId) {
           console.error('[NotificationRequests] ERROR: No HOD ID found!')
           setRequests([])
           setLoading(false)
           return
         }
-        
+
         // Fetch both staff approval requests and leave requests
         const staffApiUrl = `/api/staff-approval?action=pending&hodId=${hodId}`
         const auth = JSON.parse(localStorage.getItem('auth') || '{}')
         const department = auth?.department || auth.user?.department
         const leaveApiUrl = `/api/leaves?department=${department}&type=leave`
-        
+
         console.log('[NotificationRequests] Staff API URL:', staffApiUrl)
         console.log('[NotificationRequests] Leave API URL:', leaveApiUrl)
-        
+
         try {
-            const getOpts = force ? { cache: false, dedupe: false } : {}
+          const getOpts = force ? { cache: false, dedupe: false } : {}
           const [staffData, leaveData] = await Promise.all([
             apiClient.get(staffApiUrl, getOpts),
             apiClient.get(leaveApiUrl, getOpts)
           ])
-          
+
           console.log('[NotificationRequests] Staff Data:', staffData)
           console.log('[NotificationRequests] Leave Data:', leaveData)
-          
+
           const allRequests = []
-          
+
           // Process staff requests
           if (staffData.success && staffData.requests) {
             const staffRequests = (staffData.requests || []).map(req => ({
@@ -168,7 +370,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
             console.log('[NotificationRequests] Converted staff requests:', staffRequests)
             allRequests.push(...staffRequests)
           }
-          
+
           // Process leave requests
           if (leaveData.success && leaveData.requests) {
             const leaveRequests = (leaveData.requests || [])
@@ -194,17 +396,17 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
             console.log('[NotificationRequests] Converted leave requests:', leaveRequests)
             allRequests.push(...leaveRequests)
           }
-          
+
           console.log('[NotificationRequests] Total requests:', allRequests.length)
-            setRequests(allRequests)
-            // Update header unread count if provided
-            if (setUnreadCount) {
-                try {
-                  setUnreadCount(allRequests.filter(r => r.data?.status === 'pending' || !r.read).length)
-                } catch (e) {
-                  setUnreadCount(allRequests.length)
-                }
-              }
+          setRequests(allRequests)
+          // Update header unread count if provided
+          if (setUnreadCount) {
+            try {
+              setUnreadCount(allRequests.filter(r => r.data?.status === 'pending' || !r.read).length)
+            } catch (e) {
+              setUnreadCount(allRequests.length)
+            }
+          }
         } catch (error) {
           console.error('[NotificationRequests] Error fetching requests:', error)
           setRequests([])
@@ -212,13 +414,13 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
       } else if (userRole === 'staff') {
         // For Staff: Check approval status from notifications + late requests
         const data = await apiClient.get(`/api/notifications?userEmail=${auth?.email || auth.user?.email}`, force ? { cache: false, dedupe: false } : {})
-        
+
         let allRequests = []
-        
+
         if (data.success) {
           const ownRequest = data.notifications.find(
-            n => n.type === 'staff_account_approval' && 
-            n.data?.staffEmail === (auth?.email || auth.user?.email)
+            n => n.type === 'staff_account_approval' &&
+              n.data?.staffEmail === (auth?.email || auth.user?.email)
           )
           if (ownRequest) {
             setStaffStatus({
@@ -231,12 +433,12 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
             })
           }
         }
-        
+
         // Fetch late arrival requests for staff's year/section
         if (auth?.year && auth?.section && auth?.department) {
           try {
             const lateData = await apiClient.get(`/api/leaves?department=${auth.department}&type=late&status=requested`, force ? { cache: false, dedupe: false } : {})
-            
+
             if (lateData.success && lateData.requests) {
               const lateRequests = (lateData.requests || [])
                 .filter(r => r.studentDetails?.year === auth.year && r.studentDetails?.section === auth.section)
@@ -264,7 +466,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
             console.error('[NotificationRequests] Error fetching late requests:', error)
           }
         }
-        
+
         setRequests(allRequests)
       } else if (userRole === 'admin') {
         // Admin: fetch notifications targeted to the admin account
@@ -303,11 +505,11 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     // For late arrival: only record (mark as waiting for student confirmation)
     if (request.type === 'late_arrival') {
       setProcessing(request._id)
-      
+
       try {
         const auth = JSON.parse(localStorage.getItem('auth') || '{}')
         const staffId = auth?.id || auth.user?.id
-        
+
         // Step 1: Record the action (just update status, don't send notification yet)
         try {
           await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=acknowledge`, { staffId })
@@ -338,21 +540,21 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
       let response
 
       try {
-          if (request.type === 'staff_account_approval') {
+        if (request.type === 'staff_account_approval') {
           await apiClient.patch('/api/staff-approval', { requestId: request.data.requestId, action: 'approve', hodId }, { timeout: 20000, retry: 1, dispatch: false })
           // Successfully approved staff account — refresh list (debounced, immediate)
           await scheduleFetch({ force: true, immediate: true })
           // Notify header and other listeners that notifications changed (debounced)
-            try { import('../utils/notificationEvents').then(m=>m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) {} }
-            try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
+          try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) { } }
+          try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
         } else if (request.type === 'leave_request') {
           // Leave approvals can trigger longer server-side tasks (PDF gen / WhatsApp).
           // Increase timeout so the client doesn't abort while server works.
           await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=approve`, { hodId }, { timeout: 60000, retry: 1, dispatch: false })
           // Server processed the approval — refresh list to reflect change and show success
           await scheduleFetch({ force: true, immediate: true })
-          try { import('../utils/notificationEvents').then(m=>m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) {} }
-          try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
+          try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) { } }
+          try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
         }
         // Optionally log success
         console.log('[NotificationRequests] Request approved:', request._id)
@@ -411,8 +613,8 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
           if (setUnreadCount) setUnreadCount(next.filter(n => !n.read).length)
           return next
         })
-        try { import('../utils/notificationEvents').then(m=>m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) {} }
-        try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
+        try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) { } }
+        try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
       } catch (err) {
         console.error('Error rejecting request:', err)
       }
@@ -423,7 +625,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     }
   }
 
-  const markNotificationAsRead = async (notificationId) => {
+  const markNotificationAsRead = useCallback(async (notificationId) => {
     try {
       await apiClient.patch(`/api/notifications/${notificationId}/read`)
       setRequests(prev => {
@@ -436,9 +638,9 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     } catch (error) {
       console.error('Error marking notification as read:', error)
     }
-  }
+  }, [setUnreadCount])
 
-  const markAllNotificationsAsRead = async () => {
+  const markAllNotificationsAsRead = useCallback(async () => {
     try {
       const unread = requests.filter(n => !n.read)
       await Promise.all(unread.map(n => apiClient.patch(`/api/notifications/${n._id}/read`)))
@@ -447,20 +649,24 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     } catch (error) {
       console.error('Error marking all notifications as read:', error)
     }
-  }
+  }, [requests, setUnreadCount])
+
+  const handleApproveHandler = useCallback(handleApprove, [handleApprove])
+  const handleRejectHandler = useCallback(handleReject, [handleReject])
+  const confirmRejectHandler = useCallback(confirmReject, [confirmReject])
 
   if (!isOpen) return null
 
   if (userRole === 'admin') {
     const unreadCount = requests.filter(n => !n.read).length
     const modalContent = (
-      <div 
+      <div
         className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose()
         }}
       >
-        <div 
+        <div
           className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
@@ -509,34 +715,11 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
             ) : (
               <div className="space-y-3">
                 {requests.map((notification) => (
-                  <div
+                  <AdminNotificationItem
                     key={notification._id}
-                    className={`border rounded-xl p-4 sm:p-5 transition-all ${notification.read ? 'bg-white border-gray-200' : 'bg-blue-50 border-blue-200'}`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`text-xs font-bold px-2 py-1 rounded-full ${notification.read ? 'bg-gray-100 text-gray-700' : 'bg-blue-100 text-blue-700'}`}>
-                            {notification.type?.replace(/_/g, ' ') || 'notification'}
-                          </span>
-                          {!notification.read && <span className="text-[11px] font-semibold text-blue-700">NEW</span>}
-                        </div>
-                        <h3 className="text-sm sm:text-base font-bold text-gray-900 break-words">{notification.title}</h3>
-                        <p className="text-xs sm:text-sm text-gray-700 mt-1 break-words">{notification.body}</p>
-                        <p className="text-[11px] text-gray-500 mt-2">
-                          {notification.createdAt ? new Date(notification.createdAt).toLocaleString() : 'Just now'}
-                        </p>
-                      </div>
-                      {!notification.read && (
-                        <button
-                          onClick={() => markNotificationAsRead(notification._id)}
-                          className="text-xs font-semibold text-green-700 bg-green-50 border border-green-100 px-3 py-1.5 rounded-lg hover:bg-green-100"
-                        >
-                          Mark read
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                    notification={notification}
+                    onMarkRead={markNotificationAsRead}
+                  />
                 ))}
               </div>
             )}
@@ -551,13 +734,13 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
   // Staff View - Show their own registration status + late arrival requests
   if (userRole === 'staff') {
     const modalContent = (
-      <div 
+      <div
         className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
         onClick={(e) => {
           if (e.target === e.currentTarget) onClose()
         }}
       >
-        <div 
+        <div
           className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
           onClick={(e) => e.stopPropagation()}
         >
@@ -593,13 +776,12 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
                 {staffStatus && (
                   <>
                     <h3 className="text-sm font-bold text-gray-700 mb-3">Account Status</h3>
-                    <div className={`rounded-xl p-5 border-2 ${
-                      staffStatus.status === 'approved' 
-                        ? 'bg-green-50 border-green-300' 
+                    <div className={`rounded-xl p-5 border-2 ${staffStatus.status === 'approved'
+                        ? 'bg-green-50 border-green-300'
                         : staffStatus.status === 'rejected'
-                        ? 'bg-red-50 border-red-300'
-                        : 'bg-blue-50 border-blue-300'
-                    }`}>
+                          ? 'bg-red-50 border-red-300'
+                          : 'bg-blue-50 border-blue-300'
+                      }`}>
                       <div className="flex items-center gap-3 mb-3">
                         {staffStatus.status === 'approved' ? (
                           <CheckCircle className="w-8 h-8 text-green-600" />
@@ -610,18 +792,18 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
                         )}
                         <div>
                           <h3 className="text-lg font-bold text-gray-900">
-                            {staffStatus.status === 'approved' 
-                              ? 'Account Approved' 
+                            {staffStatus.status === 'approved'
+                              ? 'Account Approved'
                               : staffStatus.status === 'rejected'
-                              ? 'Account Rejected'
-                              : 'Pending Approval'}
+                                ? 'Account Rejected'
+                                : 'Pending Approval'}
                           </h3>
                           <p className="text-sm text-gray-600">
-                            {staffStatus.status === 'approved' 
-                              ? 'Your account has been approved by HOD' 
+                            {staffStatus.status === 'approved'
+                              ? 'Your account has been approved by HOD'
                               : staffStatus.status === 'rejected'
-                              ? 'Your registration was not approved'
-                              : 'Waiting for HOD approval'}
+                                ? 'Your registration was not approved'
+                                : 'Waiting for HOD approval'}
                           </p>
                         </div>
                       </div>
@@ -681,57 +863,14 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
                     <div className={staffStatus ? "mt-6 pt-4 border-t border-gray-200" : ""}>
                       <h3 className="text-sm font-bold text-gray-700 mb-3">Late Arrivals ({requests.length})</h3>
                       <div className="space-y-3">
-                        {requests.map((request) => {
-                          return (
-                            <SwipeableCard
-                              key={request._id}
-                              actions={[
-                                {
-                                  label: 'Record',
-                                  icon: <CheckCircle className="w-5 h-5" />,
-                                  onClick: () => handleApprove(request),
-                                  className: 'bg-green-600 hover:bg-green-700 text-white',
-                                },
-                              ]}
-                            >
-                              <div className="bg-gradient-to-br from-white to-amber-50 border-2 border-amber-200 rounded-lg p-3 hover:border-amber-400 transition-all">
-                                <div className="flex items-start justify-between mb-2">
-                                  <div>
-                                    <p className="font-semibold text-gray-900">{request.data?.studentName}</p>
-                                    <p className="text-xs text-gray-600">{request.data?.regNumber}</p>
-                                  </div>
-                                  <span className="text-xs font-bold px-2 py-1 rounded-full bg-amber-100 text-amber-800">Late</span>
-                                </div>
-                                <p className="text-sm text-gray-700 mb-2"><strong>Reason:</strong> {request.data?.reason}</p>
-                                <p className="text-xs text-gray-600 mb-3">
-                                  Expected: {new Date(request.data?.expectedArrivalTime).toLocaleString()}
-                                </p>
-                                <p className="text-xs text-green-600 mb-3 font-semibold">👉 Student will confirm arrival in their dashboard</p>
-                                {/* Desktop: Show Record button */}
-                                <button
-                                  onClick={() => handleApprove(request)}
-                                  disabled={processing === request._id}
-                                  className="hidden sm:flex w-full items-center justify-center gap-2 px-3 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold rounded-lg transition-colors"
-                                >
-                                  {processing === request._id ? (
-                                    <>
-                                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                      </svg>
-                                      Recording...
-                                    </>
-                                  ) : (
-                                    <>
-                                      <CheckCircle className="w-4 h-4" />
-                                      Record
-                                    </>
-                                  )}
-                                </button>
-                              </div>
-                            </SwipeableCard>
-                          )
-                        })}
+                        {requests.map((request) => (
+                          <LateArrivalItem
+                            key={request._id}
+                            request={request}
+                            onApprove={handleApproveHandler}
+                            processing={processing}
+                          />
+                        ))}
                       </div>
                     </div>
                   </>
@@ -758,15 +897,15 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
 
   // HOD View - Show pending requests from staff
   console.log('[NotificationRequests] Rendering with userRole:', userRole, 'requests count:', requests.length, 'loading:', loading)
-  
+
   const modalContent = (
-    <div 
+    <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div 
+      <div
         className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
@@ -808,185 +947,15 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
             </div>
           ) : (
             <div className="space-y-4">
-              {requests.map((request) => {
-                const swipeActions = [
-                  {
-                    label: 'Reject',
-                    icon: <UserX className="w-5 h-5" />,
-                    onClick: () => handleReject(request),
-                    className: 'bg-red-600 hover:bg-red-700 text-white',
-                  },
-                  {
-                    label: 'Accept',
-                    icon: <UserCheck className="w-5 h-5" />,
-                    onClick: () => handleApprove(request),
-                    className: 'bg-green-600 hover:bg-green-700 text-white',
-                  },
-                ]
-
-                return (
-                  <SwipeableCard
-                    key={request._id}
-                    actions={swipeActions}
-                  >
-                    <div className="bg-gradient-to-br from-white to-gray-50 border-2 border-gray-200 rounded-xl p-4 sm:p-5 hover:border-theme-gold/30 transition-all duration-200">
-                      {/* Request Type Badge */}
-                      <div className="mb-3 flex items-center justify-between">
-                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${
-                          request.type === 'staff_account_approval' 
-                            ? 'bg-blue-100 text-blue-700' 
-                            : 'bg-orange-100 text-orange-700'
-                        }`}>
-                          {request.type === 'staff_account_approval' ? '👤 Staff Account' : '📋 Leave Request'}
-                        </span>
-                      </div>
-
-                      {/* Staff Info (for staff account approval) */}
-                      {request.type === 'staff_account_approval' && (
-                        <div className="mb-4">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex-1">
-                              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-1">
-                                {request.data.staffName}
-                              </h3>
-                              <p className="text-sm text-gray-600 break-all">
-                                {request.data.staffEmail}
-                              </p>
-                              {request.data.phoneNumber && (
-                                <p className="text-sm text-gray-600 mt-1">
-                                  📱 {request.data.phoneNumber}
-                                </p>
-                              )}
-                            </div>
-                            <div className="w-10 h-10 rounded-full bg-theme-gold-gradient flex items-center justify-center flex-shrink-0 ml-3">
-                              <span className="text-white font-bold text-sm">
-                                {request.data.staffName?.charAt(0).toUpperCase()}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Details Grid */}
-                          <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                            <div className="bg-white rounded-lg p-2 sm:p-3 border border-gray-200">
-                              <p className="text-xs text-gray-500 mb-1">Department</p>
-                              <p className="text-xs sm:text-sm font-bold text-gray-900">
-                                {request.data.department}
-                              </p>
-                            </div>
-                            <div className="bg-white rounded-lg p-2 sm:p-3 border border-gray-200">
-                              <p className="text-xs text-gray-500 mb-1">Year</p>
-                              <p className="text-xs sm:text-sm font-bold text-gray-900">
-                                {request.data.year}
-                              </p>
-                            </div>
-                            <div className="bg-white rounded-lg p-2 sm:p-3 border border-gray-200">
-                              <p className="text-xs text-gray-500 mb-1">Section</p>
-                              <p className="text-xs sm:text-sm font-bold text-gray-900">
-                                {request.data.section}
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Leave Info (for leave requests) */}
-                      {request.type === 'leave_request' && (
-                        <div className="mb-4">
-                          {/* Student Header */}
-                          <div className="flex items-start justify-between mb-4">
-                            <div className="flex-1">
-                              <h3 className="text-base sm:text-lg font-bold text-gray-900 mb-2">
-                                {request.data.studentName || 'Unknown Student'}
-                              </h3>
-                              <div className="space-y-1 text-sm">
-                                <p className="text-gray-600">
-                                  <span className="text-gray-500">Reg:</span> {request.data.regNumber || '—'}
-                                </p>
-                                <p className="text-gray-600 capitalize">
-                                  <span className="text-gray-500">Leave Type:</span> {request.data.type || '—'}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="w-12 h-12 rounded-full bg-orange-gradient flex items-center justify-center flex-shrink-0 ml-3">
-                              <span className="text-white font-bold text-lg">
-                                {request.data.studentName?.charAt(0).toUpperCase()}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Details Grid - 2x2 */}
-                          <div className="grid grid-cols-2 gap-2 sm:gap-3 mb-3">
-                            <div className="bg-white rounded-lg p-3 border border-gray-200">
-                              <p className="text-xs text-gray-500 mb-1">Year</p>
-                              <p className="text-sm font-bold text-gray-900">
-                                {request.data.year || '—'}
-                              </p>
-                            </div>
-                            <div className="bg-white rounded-lg p-3 border border-gray-200">
-                              <p className="text-xs text-gray-500 mb-1">Section</p>
-                              <p className="text-sm font-bold text-gray-900">
-                                {request.data.section || '—'}
-                              </p>
-                            </div>
-                            <div className="bg-white rounded-lg p-3 border border-gray-200">
-                              <p className="text-xs text-gray-500 mb-1">From</p>
-                              <p className="text-sm font-bold text-gray-900">
-                                {request.data.startDate 
-                                  ? new Date(request.data.startDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
-                                  : '—'}
-                              </p>
-                            </div>
-                            <div className="bg-white rounded-lg p-3 border border-gray-200">
-                              <p className="text-xs text-gray-500 mb-1">To</p>
-                              <p className="text-sm font-bold text-gray-900">
-                                {request.data.endDate 
-                                  ? new Date(request.data.endDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
-                                  : '—'}
-                              </p>
-                            </div>
-                          </div>
-
-                          {/* Reason */}
-                          {request.data.reason && (
-                            <div className="bg-white rounded-lg p-3 border border-gray-200 mb-3">
-                              <p className="text-xs text-gray-500 mb-1">Reason</p>
-                              <p className="text-sm text-gray-700 line-clamp-2">
-                                {request.data.reason}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Timestamp */}
-                      <p className="text-xs text-gray-500 mb-3">
-                        Requested {new Date(request.createdAt).toLocaleDateString()} at{' '}
-                        {new Date(request.createdAt).toLocaleTimeString()}
-                      </p>
-
-                      {/* Action Buttons (Desktop Only) */}
-                      <div className="hidden sm:flex gap-2 sm:gap-3">
-                        <button
-                          onClick={() => handleApprove(request)}
-                          disabled={processing === request._id}
-                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white rounded-lg font-semibold transition-all duration-200 text-sm sm:text-base"
-                        >
-                          <UserCheck className="w-4 h-4 sm:w-5 sm:h-5" />
-                          <span>{processing === request._id ? 'Processing...' : 'Accept'}</span>
-                        </button>
-                        <button
-                          onClick={() => handleReject(request)}
-                          disabled={processing === request._id}
-                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:bg-gray-400 text-white rounded-lg font-semibold transition-all duration-200 text-sm sm:text-base"
-                        >
-                          <UserX className="w-4 h-4 sm:w-5 sm:h-5" />
-                          <span>{processing === request._id ? 'Processing...' : 'Reject'}</span>
-                        </button>
-                      </div>
-                    </div>
-                  </SwipeableCard>
-                )
-              })}
+              {requests.map((request) => (
+                <HODRequestItem
+                  key={request._id}
+                  request={request}
+                  onApprove={handleApproveHandler}
+                  onReject={handleRejectHandler}
+                  processing={processing}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -1020,5 +989,5 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     </div>
   ) : null
 
-  return ReactDOM.createPortal( <>{modalContent}{rejectModal}</>, document.body)
+  return ReactDOM.createPortal(<>{modalContent}{rejectModal}</>, document.body)
 }

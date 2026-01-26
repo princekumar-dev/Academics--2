@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx'
 import { useNavigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { TableSkeleton } from '../components/SkeletonLoaders'
+import { BaseTableSkeleton as TableSkeleton } from '../components/PageSkeletons'
 import { NoMarksheets, NoSearchResults } from '../components/EmptyStates'
 import { useUndoToast } from '../components/UndoToast'
 import { useConfetti } from '../components/Confetti'
@@ -88,7 +88,7 @@ function Marksheets() {
       acc[examName].push(marksheet)
       return acc
     }, {})
-    
+
     // Sort each group by register number in ascending order
     Object.keys(grouped).forEach(examName => {
       grouped[examName].sort((a, b) => {
@@ -97,7 +97,7 @@ function Marksheets() {
         return regA.localeCompare(regB, undefined, { numeric: true, sensitivity: 'base' })
       })
     })
-    
+
     setGroupedMarksheets(grouped)
   }, [marksheets])
 
@@ -137,10 +137,10 @@ function Marksheets() {
   const areAllMarksheetsVerified = (examName) => {
     const examMarksheets = examName ? groupedMarksheets[examName] : marksheets
     if (!examMarksheets || examMarksheets.length === 0) return false
-    return examMarksheets.every(m => 
-      m.status === 'verified_by_staff' || 
-      m.status === 'dispatch_requested' || 
-      m.status === 'approved_by_hod' || 
+    return examMarksheets.every(m =>
+      m.status === 'verified_by_staff' ||
+      m.status === 'dispatch_requested' ||
+      m.status === 'approved_by_hod' ||
       m.status === 'dispatched'
     )
   }
@@ -183,7 +183,7 @@ function Marksheets() {
           fetchMarksheets(true)
           fetchExaminations(true)
         }
-      } catch (e) {}
+      } catch (e) { }
     }
     window.addEventListener('marksheetsUpdated', handler)
     window.addEventListener('notificationsUpdated', handler)
@@ -281,11 +281,11 @@ function Marksheets() {
 
       // Store the created examination details
       setCreatedExamination(createResp.examination)
-      
+
       // Show success message and proceed to import section
       setShowImportSection(true)
       setShowCreateForm(false)
-      
+
       // Refresh examinations list
       await fetchExaminations()
 
@@ -306,7 +306,7 @@ function Marksheets() {
       const form = new FormData()
       form.append('excelFile', file)
       form.append('staffId', userData._id || userData.id || localStorage.getItem('userId'))
-      
+
       // Create examination date from the form details
       const examinationDate = new Date(`${examinationDetails.examinationYear}-${String(examinationDetails.examinationMonth).padStart(2, '0')}-01`)
       form.append('examinationDate', examinationDate.toISOString())
@@ -383,7 +383,7 @@ function Marksheets() {
       await Promise.all(candidates.map(async (m) => {
         try {
           await apiClient.post('/api/marksheets?action=verify', staffSignature ? { marksheetId: m._id, staffSignature } : { marksheetId: m._id })
-        } catch (e) {}
+        } catch (e) { }
       }))
       await fetchMarksheets()
       showSuccess('✓ All Verified', `Successfully verified ${candidates.length} marksheet${candidates.length > 1 ? 's' : ''}`)
@@ -506,10 +506,10 @@ function Marksheets() {
 
   // Calculate stats for visualization
   const totalMarksheets = marksheets.length
-  const verifiedCount = marksheets.filter(m => 
-    m.status === 'verified_by_staff' || 
-    m.status === 'dispatch_requested' || 
-    m.status === 'approved_by_hod' || 
+  const verifiedCount = marksheets.filter(m =>
+    m.status === 'verified_by_staff' ||
+    m.status === 'dispatch_requested' ||
+    m.status === 'approved_by_hod' ||
     m.status === 'dispatched'
   ).length
   const dispatchRequestedCount = marksheets.filter(m => m.status === 'dispatch_requested').length
@@ -517,10 +517,10 @@ function Marksheets() {
 
   return (
     <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 no-mobile-anim">
-      <PullToRefreshIndicator 
-        pullDistance={pullDistance} 
-        threshold={threshold} 
-        isRefreshing={isRefreshing} 
+      <PullToRefreshIndicator
+        pullDistance={pullDistance}
+        threshold={threshold}
+        isRefreshing={isRefreshing}
       />
       <div className="responsive-container py-6 md:py-8">
         <div className="max-w-7xl mx-auto">
@@ -710,7 +710,7 @@ function Marksheets() {
                     </svg>
                     <h3 className="font-semibold text-green-900">Examination Created Successfully</h3>
                   </div>
-                  
+
                   {createdExamination && (
                     <div className="bg-white rounded-lg p-4 border border-green-100 mb-4">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
@@ -728,7 +728,7 @@ function Marksheets() {
                       </div>
                     </div>
                   )}
-                  
+
                   <p className="text-sm text-green-800">
                     You can now import student marks for this examination using the Excel template below.
                   </p>
@@ -741,80 +741,79 @@ function Marksheets() {
                     Name | RegNumber | Year | Section | ParentPhone | Mathematics | Physics | Chemistry | Computer | English | ...
                   </div>
                   <p className="text-xs text-yellow-700 mt-2">
-                    • First 5 columns are required student details<br/>
-                    • Remaining columns are subject names with their marks<br/>
+                    • First 5 columns are required student details<br />
+                    • Remaining columns are subject names with their marks<br />
                     • Marks should be numeric values (0-100)
                   </p>
                 </div>
 
-            {/* Import & Template actions - stacked on mobile, inline on larger screens */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-6">
-              {/* Import Excel (label) */}
-              <div className="w-full sm:w-auto flex items-center">
-                <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} className="hidden" id="excelFileMarksheets" />
-                <label
-                  htmlFor="excelFileMarksheets"
-                  className="glass-button inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 text-green-600 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-lg transition-colors duration-300 cursor-pointer w-full justify-center sm:justify-start"
-                >
-                  <svg className="w-4 sm:w-5 h-4 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                  <span className="hidden sm:inline">Import Excel</span>
-                  <span className="sm:hidden">Import</span>
-                </label>
-              </div>
+                {/* Import & Template actions - stacked on mobile, inline on larger screens */}
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-6">
+                  {/* Import Excel (label) */}
+                  <div className="w-full sm:w-auto flex items-center">
+                    <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} className="hidden" id="excelFileMarksheets" />
+                    <label
+                      htmlFor="excelFileMarksheets"
+                      className="glass-button inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 text-green-600 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-lg transition-colors duration-300 cursor-pointer w-full justify-center sm:justify-start"
+                    >
+                      <svg className="w-4 sm:w-5 h-4 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                      <span className="hidden sm:inline">Import Excel</span>
+                      <span className="sm:hidden">Import</span>
+                    </label>
+                  </div>
 
-              {/* Download Template */}
-              <button
-                type="button"
-                onClick={downloadTemplate}
-                className="glass-button inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 text-gray-600 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-lg transition-colors duration-300 w-full sm:w-auto justify-center"
-              >
-                <svg className="w-4 sm:w-5 h-4 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <span className="hidden sm:inline">Download Template</span>
-                <span className="sm:hidden">Template</span>
-              </button>
-
-              {/* Upload (show when a file is selected) */}
-              {file && (
-                <div className="w-full sm:w-auto">
+                  {/* Download Template */}
                   <button
-                    disabled={uploading}
-                    onClick={handleUpload}
-                    className={`w-full sm:w-auto inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-blue-600 text-white rounded-xl sm:rounded-2xl font-bold text-sm sm:text-lg transition-colors duration-300 shadow-md hover:shadow-lg justify-center ${uploading ? 'opacity-60' : ''}`}
+                    type="button"
+                    onClick={downloadTemplate}
+                    className="glass-button inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 text-gray-600 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-lg transition-colors duration-300 w-full sm:w-auto justify-center"
                   >
-                    {uploading ? 'Uploading...' : 'Upload'}
+                    <svg className="w-4 sm:w-5 h-4 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="hidden sm:inline">Download Template</span>
+                    <span className="sm:hidden">Template</span>
                   </button>
+
+                  {/* Upload (show when a file is selected) */}
+                  {file && (
+                    <div className="w-full sm:w-auto">
+                      <button
+                        disabled={uploading}
+                        onClick={handleUpload}
+                        className={`w-full sm:w-auto inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-blue-600 text-white rounded-xl sm:rounded-2xl font-bold text-sm sm:text-lg transition-colors duration-300 shadow-md hover:shadow-lg justify-center ${uploading ? 'opacity-60' : ''}`}
+                      >
+                        {uploading ? 'Uploading...' : 'Upload'}
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Confirm Import (session present) */}
+                  {sessionId && (
+                    <button
+                      onClick={handleConfirm}
+                      disabled={uploading}
+                      className={`w-full sm:w-auto inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-green-600 text-white rounded-xl sm:rounded-2xl font-bold text-sm sm:text-lg transition-colors duration-300 shadow-md hover:shadow-lg justify-center ${uploading ? 'opacity-60' : ''}`}
+                    >
+                      {uploading ? 'Processing...' : 'Confirm Import'}
+                    </button>
+                  )}
+
+                  {/* Verify All (responsive: full-width on mobile, pushed to right on desktop) */}
+                  <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
+                    <button
+                      onClick={verifyAll}
+                      disabled={verifyingAll || areAllMarksheetsVerified(null)}
+                      className={`flex-1 sm:flex-initial inline-flex justify-center items-center gap-2 px-4 sm:px-5 py-2 sm:py-3 rounded-xl font-semibold text-sm sm:text-base transition-colors duration-200 ${verifyingAll || areAllMarksheetsVerified(null)
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                          : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-md'
+                        }`}
+                    >
+                      {areAllMarksheetsVerified(null) ? '✓ All Verified' : verifyingAll ? 'Verifying...' : 'Verify All'}
+                    </button>
+                    <HelpTooltip content="Verify all unverified marksheets at once. This will mark them as verified by staff." />
+                  </div>
                 </div>
-              )}
-
-              {/* Confirm Import (session present) */}
-              {sessionId && (
-                <button
-                  onClick={handleConfirm}
-                  disabled={uploading}
-                  className={`w-full sm:w-auto inline-flex items-center gap-2 px-4 sm:px-6 py-2 sm:py-3 bg-green-600 text-white rounded-xl sm:rounded-2xl font-bold text-sm sm:text-lg transition-colors duration-300 shadow-md hover:shadow-lg justify-center ${uploading ? 'opacity-60' : ''}`}
-                >
-                  {uploading ? 'Processing...' : 'Confirm Import'}
-                </button>
-              )}
-
-              {/* Verify All (responsive: full-width on mobile, pushed to right on desktop) */}
-              <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
-                <button
-                  onClick={verifyAll}
-                  disabled={verifyingAll || areAllMarksheetsVerified(null)}
-                  className={`flex-1 sm:flex-initial inline-flex justify-center items-center gap-2 px-4 sm:px-5 py-2 sm:py-3 rounded-xl font-semibold text-sm sm:text-base transition-colors duration-200 ${
-                    verifyingAll || areAllMarksheetsVerified(null)
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                      : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-md'
-                  }`}
-                >
-                  {areAllMarksheetsVerified(null) ? '✓ All Verified' : verifyingAll ? 'Verifying...' : 'Verify All'}
-                </button>
-                <HelpTooltip content="Verify all unverified marksheets at once. This will mark them as verified by staff." />
-              </div>
-            </div>
               </>
             )}
 
@@ -854,29 +853,27 @@ function Marksheets() {
                       {groupedMarksheets[selectedExamination]?.length || 0} marksheets
                     </span>
                   </div>
-                  
+
                   {/* Verify All button for selected examination */}
                   <div className="flex gap-2 sm:gap-3 flex-wrap">
                     <button
                       onClick={() => verifyAll(selectedExamination)}
                       disabled={verifyingAll || areAllMarksheetsVerified(selectedExamination)}
-                      className={`inline-flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all duration-200 whitespace-nowrap ${
-                        verifyingAll || areAllMarksheetsVerified(selectedExamination)
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                      className={`inline-flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all duration-200 whitespace-nowrap ${verifyingAll || areAllMarksheetsVerified(selectedExamination)
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                           : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-0.5 hover:shadow-md'
-                      }`}
+                        }`}
                     >
                       {areAllMarksheetsVerified(selectedExamination) ? '✓ All Verified' : verifyingAll ? 'Verifying...' : 'Verify All'}
                     </button>
-                    
+
                     <button
                       onClick={() => verifyAndRequest(selectedExamination)}
                       disabled={verifyingAll || areAllMarksheetsVerified(selectedExamination)}
-                      className={`inline-flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all duration-200 whitespace-nowrap ${
-                        verifyingAll || areAllMarksheetsVerified(selectedExamination)
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                      className={`inline-flex items-center gap-2 px-3 sm:px-5 py-2 sm:py-3 rounded-xl font-semibold text-xs sm:text-sm transition-all duration-200 whitespace-nowrap ${verifyingAll || areAllMarksheetsVerified(selectedExamination)
+                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                           : 'bg-green-600 text-white hover:bg-green-700 hover:-translate-y-0.5 hover:shadow-md'
-                      }`}
+                        }`}
                     >
                       {areAllMarksheetsVerified(selectedExamination) ? '✓ All Verified' : verifyingAll ? 'Processing...' : 'Verify & Request'}
                     </button>
@@ -957,7 +954,7 @@ function Marksheets() {
                     acc[m.status] = (acc[m.status] || 0) + 1
                     return acc
                   }, {})
-                  
+
                   return (
                     <div
                       key={examName}
@@ -1014,10 +1011,10 @@ function Marksheets() {
           </div>
         </div>
       </div>
-      
+
       {/* Undo Toast Container */}
       <ToastContainer />
-      
+
       {/* Confetti Container */}
       <ConfettiContainer />
       {/* Confirmation dialog for deleting examinations */}

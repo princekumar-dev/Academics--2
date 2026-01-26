@@ -21,105 +21,82 @@ export function usePullToRefresh(onRefresh, options = {}) {
   const [startY, setStartY] = useState(0)
   const containerRef = useRef(null)
 
+  const onRefreshRef = useRef(onRefresh)
+  onRefreshRef.current = onRefresh
+  const thresholdRef = useRef(threshold)
+  thresholdRef.current = threshold
+
+  const stateRef = useRef({ isPulling, isRefreshing, pullDistance })
+  stateRef.current = { isPulling, isRefreshing, pullDistance }
+
   useEffect(() => {
     if (!enabled || !containerRef.current) return
 
     const container = containerRef.current
     let touchStartY = 0
     let touchStartX = 0
-    let lastTouchY = 0
-    let isPullingDown = false
-    let shouldPrevent = false
+    let isPullingDownLocal = false
 
     const handleTouchStart = (e) => {
-      // Check scroll position at start
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop
-      const isAtTop = scrollTop <= 3
-      
-      if (!isAtTop || isRefreshing) {
+      const isAtTop = scrollTop <= 5 // slightly more lenient
+
+      if (!isAtTop || stateRef.current.isRefreshing) {
         return
       }
 
       touchStartY = e.touches[0].clientY
       touchStartX = e.touches[0].clientX
-      lastTouchY = touchStartY
-      isPullingDown = false
-      shouldPrevent = false
-      setStartY(touchStartY)
+      isPullingDownLocal = false
     }
 
     const handleTouchMove = (e) => {
-      if (isRefreshing) return
+      if (stateRef.current.isRefreshing) return
 
       const touchY = e.touches[0].clientY
       const touchX = e.touches[0].clientX
       const deltaY = touchY - touchStartY
       const deltaX = Math.abs(touchX - touchStartX)
-      
-      // Check if we're at the top of the page
+
       const scrollTop = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop
-      const isAtTop = scrollTop <= 3
+      const isAtTop = scrollTop <= 5
 
-      // Only activate pull-to-refresh if:
-      // 1. At the top of the page
-      // 2. Pulling down (positive deltaY)
-      // 3. Vertical movement is greater than horizontal
-      // Activate pull-to-refresh only for deliberate vertical pulls.
-      // Require a larger vertical movement before preventing default to avoid
-      // interfering with normal scroll on some browsers/devices.
       if (isAtTop && deltaY > 0 && deltaY > deltaX * 2) {
-        isPullingDown = true
-        // Only attempt to prevent native scrolling after a substantial pull.
-        // This reduces accidental preventDefault() calls that can freeze touch.
-        const preventThreshold = Math.min(40, Math.floor(threshold / 2))
-        shouldPrevent = deltaY > preventThreshold
+        isPullingDownLocal = true
 
-        if (shouldPrevent && e.cancelable) {
-          try {
-            e.preventDefault()
-          } catch (err) {
-            // Silently ignore; some browsers may throw when preventDefault is disallowed.
-          }
+        if (deltaY > 10 && e.cancelable) {
+          e.preventDefault()
         }
-        
+
         setIsPulling(true)
-        
-        // Apply resistance
         const resistance = 0.35
-        const adjustedDistance = Math.min(deltaY * resistance, threshold * 1.5)
+        const adjustedDistance = Math.min(deltaY * resistance, thresholdRef.current * 1.5)
         setPullDistance(adjustedDistance)
-      } else {
-        // Reset if not pulling down or scrolled away from top
-        if (isPullingDown) {
-          setIsPulling(false)
-          setPullDistance(0)
-          isPullingDown = false
-        }
+      } else if (isPullingDownLocal) {
+        setIsPulling(false)
+        setPullDistance(0)
+        isPullingDownLocal = false
       }
-      
-      lastTouchY = touchY
     }
 
     const handleTouchEnd = async () => {
-      if (!isPullingDown || isRefreshing) {
+      if (!isPullingDownLocal || stateRef.current.isRefreshing) {
         setIsPulling(false)
         setPullDistance(0)
-        isPullingDown = false
-        shouldPrevent = false
+        isPullingDownLocal = false
         return
       }
 
+      const currentPullDistance = stateRef.current.pullDistance
       setIsPulling(false)
-      isPullingDown = false
-      shouldPrevent = false
+      isPullingDownLocal = false
 
-      // Only trigger refresh if pulled past threshold
-      if (pullDistance >= threshold) {
+      if (currentPullDistance >= thresholdRef.current) {
         setIsRefreshing(true)
-        setPullDistance(threshold)
-        
+        setPullDistance(thresholdRef.current)
+
         try {
-          await onRefresh()
+          await onRefreshRef.current()
         } catch (error) {
           console.error('Pull-to-refresh error:', error)
         } finally {
@@ -142,7 +119,7 @@ export function usePullToRefresh(onRefresh, options = {}) {
       container.removeEventListener('touchend', handleTouchEnd)
       container.removeEventListener('touchcancel', handleTouchEnd)
     }
-  }, [enabled, isPulling, isRefreshing, pullDistance, threshold, onRefresh])
+  }, [enabled])
 
   return {
     isPulling,

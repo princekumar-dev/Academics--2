@@ -31,13 +31,8 @@
    1. GPU ACCELERATION
    ======================================== */
 
-/* Enable hardware acceleration for common elements */
-/* Exclude header, modals, and dropdowns from aggressive GPU acceleration */
-.glass-card:not(.header):not(.modal):not([role="dialog"]),
-.responsive-card,
-.responsive-button,
-button:not(.header button):not(.modal button),
-a:not(.header a):not(.modal a) {
+/* Enable hardware acceleration only when specifically requested */
+.force-gpu {
   transform: translateZ(0);
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
@@ -56,7 +51,8 @@ a:not(.header a):not(.modal a) {
    ======================================== */
 
 html {
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
+  /* Changed to auto */
   -webkit-overflow-scrolling: touch;
   overflow-x: hidden;
 }
@@ -72,16 +68,16 @@ body {
 .overflow-y-auto,
 .overflow-x-auto {
   -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
 }
 
 /* Utility to lock sections to smooth scroll pacing */
 .smooth-scroll-lock {
   scroll-snap-type: y proximity;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
+  /* Changed to auto */
 }
 
-.smooth-scroll-lock > * {
+.smooth-scroll-lock>* {
   scroll-snap-align: start;
 }
 
@@ -114,6 +110,7 @@ img[loading="lazy"] {
     opacity: 0;
     transform: translate3d(0, 10px, 0);
   }
+
   to {
     opacity: 1;
     transform: translate3d(0, 0, 0);
@@ -125,6 +122,7 @@ img[loading="lazy"] {
     opacity: 0;
     transform: translate3d(0, 20px, 0);
   }
+
   to {
     opacity: 1;
     transform: translate3d(0, 0, 0);
@@ -136,6 +134,7 @@ img[loading="lazy"] {
     opacity: 0;
     transform: translate3d(0, -20px, 0);
   }
+
   to {
     opacity: 1;
     transform: translate3d(0, 0, 0);
@@ -146,16 +145,20 @@ img[loading="lazy"] {
   from {
     transform: rotate(0deg) translateZ(0);
   }
+
   to {
     transform: rotate(360deg) translateZ(0);
   }
 }
 
 @keyframes pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
     transform: scale3d(1, 1, 1);
   }
+
   50% {
     opacity: 0.8;
     transform: scale3d(1.05, 1.05, 1);
@@ -224,13 +227,14 @@ img[loading="lazy"] {
    ======================================== */
 
 @media (max-width: 768px) {
+
   /* Reduce heavy animations on mobile for better performance */
   .no-mobile-anim,
   .no-mobile-anim * {
     animation-duration: 0.2s !important;
     transition-duration: 0.15s !important;
   }
-  
+
   /* Disable expensive animations on mobile */
   .glass-card:hover,
   .desktop-hover:hover,
@@ -248,25 +252,25 @@ img[loading="lazy"] {
   textarea {
     touch-action: manipulation;
   }
-  
+
   /* Reduce blur effects on mobile */
   .glass-card {
     backdrop-filter: blur(8px) !important;
     -webkit-backdrop-filter: blur(8px) !important;
   }
-  
+
   /* Optimize shadows on mobile */
   .shadow-lg,
   .shadow-xl {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
   }
-  
+
   /* Keep essential animations but make them faster */
   .animate-spin,
   .loading-spinner {
     animation-duration: 0.8s !important;
   }
-  
+
   .animate-pulse {
     animation-duration: 1.5s !important;
   }
@@ -285,6 +289,7 @@ img[loading="lazy"] {
 }
 
 @media (hover: hover) and (pointer: fine) {
+
   .desktop-motion-rich .glass-card,
   .desktop-motion-rich .responsive-card,
   .desktop-motion-rich [data-anim="rich"],
@@ -302,6 +307,7 @@ img[loading="lazy"] {
 }
 
 @media (hover: none) and (pointer: coarse) {
+
   .motion-rich-only,
   .desktop-only-anim,
   .glass-card.motion-intensive,
@@ -336,9 +342,8 @@ img[loading="lazy"] {
   contain: strict;
 }
 
-/* Grid and flex optimization - exclude header and navigation */
-.grid:not(.header *):not(.modal *):not(nav *),
-.flex:not(.header *):not(.modal *):not(nav *) {
+/* Grid and flex optimization - only apply when specifically requested */
+.contain-flex-grid {
   contain: layout style;
 }
 
@@ -355,12 +360,10 @@ img[loading="lazy"] {
 
 /* Skeleton loading */
 .skeleton {
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.2) 50%,
-    rgba(255, 255, 255, 0) 100%
-  );
+  background: linear-gradient(90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.2) 50%,
+      rgba(255, 255, 255, 0) 100%);
   background-size: 200% 100%;
   animation: shimmer 1.5s ease-in-out infinite;
 }
@@ -369,6 +372,7 @@ img[loading="lazy"] {
   0% {
     background-position: -200% 0;
   }
+
   100% {
     background-position: 200% 0;
   }
@@ -415,6 +419,7 @@ textarea {
    ======================================== */
 
 @media (prefers-reduced-motion: reduce) {
+
   /* Only reduce decorative animations, not functional ones */
   .animate-fadeIn,
   .animate-slideUp,
@@ -429,7 +434,7 @@ textarea {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-  
+
   /* Disable scroll behavior changes */
   html,
   body {
@@ -453,6 +458,7 @@ textarea {
 .responsive-card {
   contain: layout style paint;
   content-visibility: auto;
+  /* Removed aggressive backdrop-filter here if it was present, handled in main css */
 }
 
 /* Optimize modal/overlay rendering - but allow proper stacking */
@@ -524,6 +530,7 @@ textarea {
 
 /* Prevent zoom on iOS */
 @media screen and (max-width: 768px) {
+
   input[type="text"],
   input[type="email"],
   input[type="password"],

@@ -133,7 +133,7 @@ function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-8 smooth-scroll mobile-smoothest-scroll no-mobile-anim">
+    <div className="min-h-screen flex items-center justify-center px-4 py-8">
       <style>
         {`
           @keyframes waveButtonAnimation {
@@ -157,9 +157,9 @@ function Login() {
           }
         `}
       </style>
-      
+
       <div className="relative z-10">
-        
+
         <div className="w-full max-w-md relative z-10">
           <div className="backdrop-blur-md bg-white/20 border border-white/30 p-8 rounded-3xl shadow-2xl">
             <div className="text-center mb-8">
@@ -171,7 +171,7 @@ function Login() {
               <h1 className="text-3xl sm:text-4xl font-black text-white mb-2">Welcome Back</h1>
               <p className="text-gray-100 text-lg">Sign in to your MSEC Academics account</p>
             </div>
-              
+
             {/* Error Message */}
             {error && (
               <div className="mb-6">
@@ -180,7 +180,7 @@ function Login() {
                 </div>
               </div>
             )}
-            
+
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="grid grid-cols-2 gap-3">
                 <button
@@ -262,11 +262,11 @@ function Login() {
                 </button>
               </div>
             </form>
-            
+
             {formData.loginType === 'staff' && (
               <div className="mt-8 text-center">
                 <p className="text-gray-100 text-sm">
-                  Don't have an account? 
+                  Don't have an account?
                   <span className="text-blue-600 font-semibold cursor-pointer hover:underline ml-1" onClick={() => navigate('/signup')}>
                     Sign up
                   </span>
