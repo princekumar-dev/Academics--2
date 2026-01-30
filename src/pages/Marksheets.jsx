@@ -449,22 +449,77 @@ function Marksheets() {
         return
       }
 
-      // Process sequentially to avoid overwhelming the server with concurrent requests
+      // Process in parallel with controlled concurrency to speed up bulk operations
       const staffId = userData?._id || userData?.id || localStorage.getItem('userId')
-      for (const m of candidates) {
-        try {
-          const vData = await apiClient.post('/api/marksheets?action=verify', staffSignature ? { marksheetId: m._id, staffSignature } : { marksheetId: m._id })
-          if (vData && vData.success) {
+
+      const runWithConcurrency = async (items, worker, concurrency = 4) => {
+        const results = new Array(items.length)
+        let idx = 0
+        const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+          while (true) {
+            const current = idx
+            if (current >= items.length) break
+            idx += 1
+            const item = items[current]
             try {
-              await apiClient.post('/api/marksheets?action=request-dispatch', { marksheetId: m._id, staffId }, { timeout: 60000 })
+              results[current] = await worker(item)
             } catch (e) {
-              // Log per-item failure but continue processing others
-              console.warn('[verifyAndRequest] request-dispatch failed for', m._id, e && e.message)
+              results[current] = { success: false, id: item._id, error: e && e.message ? e.message : String(e) }
             }
           }
-        } catch (e) {
-          console.warn('[verifyAndRequest] verify failed for', m._id, e && e.message)
+        })
+        await Promise.all(runners)
+        return results
+      }
+
+      const withRetries = async (fn, attempts = 2, delayMs = 500) => {
+        let lastErr = null
+        for (let i = 0; i < attempts; i++) {
+          try {
+            return await fn()
+          } catch (e) {
+            lastErr = e
+            if (i < attempts - 1) await new Promise(r => setTimeout(r, delayMs * Math.pow(2, i)))
+          }
         }
+        throw lastErr
+      }
+
+      const worker = async (m) => {
+        try {
+          // Verify with a retry and timeout
+          const verifyResp = await withRetries(() => apiClient.post('/api/marksheets?action=verify', staffSignature ? { marksheetId: m._id, staffSignature } : { marksheetId: m._id }, { timeout: 30000 }), 2, 500)
+          if (!(verifyResp && verifyResp.success)) {
+            return { success: false, id: m._id, error: verifyResp?.error || 'Verify failed' }
+          }
+
+          // Request dispatch with retry and a longer timeout
+          try {
+            const dispatchResp = await withRetries(() => apiClient.post('/api/marksheets?action=request-dispatch', { marksheetId: m._id, staffId }, { timeout: 60000 }), 2, 500)
+            if (!(dispatchResp && dispatchResp.success)) {
+              // Still consider verify successful but dispatch failed
+              return { success: false, id: m._id, verified: true, error: dispatchResp?.error || 'Dispatch request failed' }
+            }
+          } catch (dispatchErr) {
+            return { success: false, id: m._id, verified: true, error: dispatchErr && dispatchErr.message ? dispatchErr.message : String(dispatchErr) }
+          }
+
+          return { success: true, id: m._id }
+        } catch (err) {
+          console.warn('[verifyAndRequest] worker failed for', m._id, err && err.message)
+          return { success: false, id: m._id, error: err && err.message ? err.message : String(err) }
+        }
+      }
+
+      const results = await runWithConcurrency(candidates, worker, 6)
+
+      const successCount = results.filter(r => r && r.success).length
+      const failCount = results.length - successCount
+      if (successCount > 0) {
+        showSuccess('✓ Verified & Requested', `${successCount} marksheet${successCount > 1 ? 's' : ''} processed`)
+      }
+      if (failCount > 0) {
+        showError('Some failed', `${failCount} marksheet${failCount > 1 ? 's' : ''} failed — check console for details`)
       }
 
       await fetchMarksheets()
