@@ -280,18 +280,71 @@ function ApprovalRequests() {
       setActionError('')
       const hodId = userData._id || userData.id
 
-      const promises = targetRequests.map(marksheet =>
-        apiClient.post('/api/marksheets?action=hod-response', {
-          marksheetId: marksheet._id,
-          hodId,
-          response: actionType,
-          comments: ''
-        }).then(r => r).catch(e => ({ success: false, error: e.message }))
-      )
+      // Use controlled concurrency + retries to avoid client timeouts
+      const runWithConcurrency = async (items, worker, concurrency = 6) => {
+        const results = new Array(items.length)
+        let idx = 0
+        const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+          while (true) {
+            const current = idx
+            if (current >= items.length) break
+            idx += 1
+            const item = items[current]
+            try {
+              results[current] = await worker(item)
+            } catch (e) {
+              results[current] = { success: false, error: e && e.message ? e.message : String(e) }
+            }
+          }
+        })
+        await Promise.all(runners)
+        return results
+      }
 
-      const results = await Promise.all(promises)
-      const successCount = results.filter(result => result.success).length
-      const failCount = results.length - successCount
+      const withRetries = async (fn, attempts = 2, delayMs = 500) => {
+        let lastErr = null
+        for (let i = 0; i < attempts; i++) {
+          try { return await fn() } catch (e) { lastErr = e; if (i < attempts - 1) await new Promise(r => setTimeout(r, delayMs * Math.pow(2, i))) }
+        }
+        throw lastErr
+      }
+
+      const worker = async (marksheet) => {
+        try {
+          const body = { marksheetId: marksheet._id, hodId, response: actionType, comments: '' }
+          const res = await withRetries(() => apiClient.post('/api/marksheets?action=hod-response', body, { timeout: 60000 }), 2, 500)
+          return res || { success: false }
+        } catch (e) {
+          return { success: false, error: e && e.message ? e.message : String(e) }
+        }
+      }
+
+      const results = await runWithConcurrency(targetRequests, worker, 6)
+      let successCount = results.filter(result => result && result.success).length
+      let failCount = results.length - successCount
+
+      // If client-side requests timed out but server processed them, reconcile by fetching fresh pending list
+      if (successCount === 0) {
+        try {
+          const targetIds = targetRequests.map(t => t._id)
+          let fresh
+          if (userData.department === 'HNS') {
+            fresh = await apiClient.get(`/api/marksheets?year=I&status=dispatch_requested`, { cache: false, dedupe: false })
+          } else {
+            fresh = await apiClient.get(`/api/marksheets?department=${userData.department}&status=dispatch_requested`, { cache: false, dedupe: false })
+          }
+          if (fresh && fresh.success && Array.isArray(fresh.marksheets)) {
+            const remaining = fresh.marksheets.filter(m => targetIds.includes(m._id)).length
+            const processed = targetIds.length - remaining
+            if (processed > 0) {
+              successCount = processed
+              failCount = targetIds.length - processed
+            }
+          }
+        } catch (e) {
+          // ignore reconciliation errors
+        }
+      }
 
       if (successCount > 0) {
         const msg = `Successfully ${actionType} ${successCount} request${successCount > 1 ? 's' : ''}.${failCount > 0 ? ` ${failCount} failed.` : ''}`
