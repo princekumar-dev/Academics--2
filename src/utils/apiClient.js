@@ -12,7 +12,8 @@ async function request(method, url, opts = {}) {
   const {
     cache: useCache = true,
     ttl = 30 * 1000,
-    timeout = 8000,
+    // Increase default timeout to 30s to avoid frequent AbortErrors on slower endpoints
+    timeout = 30 * 1000,
     dedupe = true,
     retry = 0,
     retryDelay = 500,
