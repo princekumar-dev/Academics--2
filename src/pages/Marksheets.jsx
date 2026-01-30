@@ -338,7 +338,7 @@ function Marksheets() {
     setUploading(true)
     try {
       try {
-        const data = await apiClient.post('/api/import-excel?action=confirm', { sessionId })
+        const data = await apiClient.post('/api/import-excel?action=confirm', { sessionId }, { timeout: 120000 })
         if (!data || !data.success) {
           setErrors([data?.error || 'Confirm failed'])
         } else {
@@ -449,25 +449,23 @@ function Marksheets() {
         return
       }
 
-      await Promise.all(candidates.map(async (m) => {
+      // Process sequentially to avoid overwhelming the server with concurrent requests
+      const staffId = userData?._id || userData?.id || localStorage.getItem('userId')
+      for (const m of candidates) {
         try {
-          // Verify
-          try {
-            const vData = await apiClient.post('/api/marksheets?action=verify', staffSignature ? { marksheetId: m._id, staffSignature } : { marksheetId: m._id })
-            if (vData && vData.success) {
-              try {
-                await apiClient.post('/api/marksheets?action=request-dispatch', { marksheetId: m._id, staffId: userData?.id })
-              } catch (e) {
-                // ignore per-item failures
-              }
+          const vData = await apiClient.post('/api/marksheets?action=verify', staffSignature ? { marksheetId: m._id, staffSignature } : { marksheetId: m._id })
+          if (vData && vData.success) {
+            try {
+              await apiClient.post('/api/marksheets?action=request-dispatch', { marksheetId: m._id, staffId }, { timeout: 60000 })
+            } catch (e) {
+              // Log per-item failure but continue processing others
+              console.warn('[verifyAndRequest] request-dispatch failed for', m._id, e && e.message)
             }
-          } catch (e) {
-            // ignore per-item failures
           }
         } catch (e) {
-          // ignore per-item failures
+          console.warn('[verifyAndRequest] verify failed for', m._id, e && e.message)
         }
-      }))
+      }
 
       await fetchMarksheets()
       showSuccess('✓ Verified & Requested', `${candidates.length} marksheet${candidates.length > 1 ? 's' : ''} verified and dispatch requested`)

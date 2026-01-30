@@ -296,37 +296,48 @@ function DispatchRequests() {
 
     try {
       const origin = getPublicOrigin()
-      const results = []
 
-      for (const marksheet of approvedMarksheets) {
+      // Concurrency helper: runs worker over items with a limited number of parallel workers
+      const runWithConcurrency = async (items, worker, concurrency = 6) => {
+        const results = new Array(items.length)
+        let idx = 0
+        const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+          while (true) {
+            const current = idx
+            if (current >= items.length) break
+            idx += 1
+            const item = items[current]
+            try {
+              results[current] = await worker(item)
+            } catch (e) {
+              results[current] = { success: false, id: item._id, error: e && e.message ? e.message : String(e) }
+            }
+          }
+        })
+        await Promise.all(runners)
+        return results
+      }
+
+      const worker = async (marksheet) => {
+        const marksheetPdfUrl = origin ? `${origin}/api/generate-pdf?marksheetId=${marksheet._id}&t=${Date.now()}` : ''
+        const marksheetImageUrl = origin ? `${origin}/api/generate-pdf?marksheetId=${marksheet._id}&format=jpeg&t=${Date.now()}` : ''
         try {
-          const marksheetPdfUrl = origin ? `${origin}/api/generate-pdf?marksheetId=${marksheet._id}&t=${Date.now()}` : ''
-          const marksheetImageUrl = origin ? `${origin}/api/generate-pdf?marksheetId=${marksheet._id}&format=jpeg&t=${Date.now()}` : ''
-
-          // Call API and capture either successful response or thrown error
-          let responseData = null
-          try {
-            // Increase timeout for media send to avoid client-side aborts
-            responseData = await apiClient.post(`${origin}/api/whatsapp-dispatch?action=send-marksheet`, { marksheetId: marksheet._id, marksheetPdfUrl, marksheetImageUrl }, { timeout: 60000 })
-          } catch (apiErr) {
-            // apiClient throws Error with .data property when available (see apiClient.request)
-            const errMsg = (apiErr && (apiErr.data?.error || apiErr.data || apiErr.message)) || String(apiErr)
-            results.push({ success: false, id: marksheet._id, error: errMsg })
-            continue
-          }
-
+          const responseData = await apiClient.post(`${origin}/api/whatsapp-dispatch?action=send-marksheet`, { marksheetId: marksheet._id, marksheetPdfUrl, marksheetImageUrl }, { timeout: 60000 })
           if (responseData && responseData.success) {
-            results.push({ success: true, id: marksheet._id })
+            // Update UI state for this marksheet
             setMarksheets((prev) => prev.map((m) => m._id === marksheet._id ? { ...m, status: 'dispatched' } : m))
-          } else {
-            results.push({ success: false, id: marksheet._id, error: responseData?.error || 'Unknown API response' })
+            return { success: true, id: marksheet._id }
           }
-        } catch (err) {
-          results.push({ success: false, id: marksheet._id, error: err?.message || String(err) })
+          return { success: false, id: marksheet._id, error: responseData?.error || 'Unknown API response' }
+        } catch (apiErr) {
+          const errMsg = (apiErr && (apiErr.data?.error || apiErr.data || apiErr.message)) || String(apiErr)
+          return { success: false, id: marksheet._id, error: errMsg }
         }
       }
 
-      const successCount = results.filter(r => r.success).length
+      const results = await runWithConcurrency(approvedMarksheets, worker, 6)
+
+      const successCount = results.filter(r => r && r.success).length
       const failCount = results.length - successCount
 
       if (successCount > 0) {

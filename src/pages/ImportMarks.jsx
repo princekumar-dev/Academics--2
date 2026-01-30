@@ -54,7 +54,7 @@ function ImportMarks() {
     setUploading(true)
     try {
       try {
-        const data = await apiClient.post('/api/import-excel?action=confirm', { sessionId })
+        const data = await apiClient.post('/api/import-excel?action=confirm', { sessionId }, { timeout: 120000 })
         if (!data || !data.success) {
           setErrors([data?.error || 'Confirm failed'])
         } else {

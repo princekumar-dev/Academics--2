@@ -230,7 +230,7 @@ function ApprovalRequests() {
         hodId,
         response: actionModal.type,
         comments
-      }, { dispatch: false })
+      })
       if (!data || !data.success) throw new Error(data?.error || 'Failed to submit response')
       const actionVerb = actionModal.type === 'approved' ? 'approved' : 'rejected'
       const studentName = actionModal.marksheet?.studentDetails?.name || 'Student'
@@ -286,7 +286,7 @@ function ApprovalRequests() {
           hodId,
           response: actionType,
           comments: ''
-        }, { dispatch: false }).then(r => r).catch(e => ({ success: false, error: e.message }))
+        }).then(r => r).catch(e => ({ success: false, error: e.message }))
       )
 
       const results = await Promise.all(promises)
