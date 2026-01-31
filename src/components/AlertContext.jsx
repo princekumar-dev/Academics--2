@@ -67,6 +67,21 @@ export function AlertProvider({ children }) {
     return () => window.removeEventListener('sw:reload-request', handler);
   }, [showInfo, hideAlert]);
 
+  // Global API auth failure handler (suppressed at entrypoint) -> show friendly toast
+  useEffect(() => {
+    const authFailHandler = (e) => {
+      try {
+        const msg = e?.detail?.message || 'Authentication failed. Check credentials.'
+        showError('Login failed', msg)
+      } catch (err) {
+        // ignore
+      }
+    }
+
+    window.addEventListener('api:auth-failed', authFailHandler)
+    return () => window.removeEventListener('api:auth-failed', authFailHandler)
+  }, [showError])
+
   return (
     <AlertContext.Provider value={{ showAlert, hideAlert, showSuccess, showError, showWarning, showInfo }}>
       {children}

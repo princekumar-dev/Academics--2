@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, useCallback, memo } from 'react'
 import apiClient from '../utils/apiClient'
+import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import RefreshButton from '../components/RefreshButton'
 import SwipeableCard from '../components/SwipeableCard'
 import usePullToRefresh, { PullToRefreshIndicator } from '../hooks/usePullToRefresh.jsx'
@@ -204,7 +205,7 @@ function DispatchRequests() {
       }
     } catch (err) {
       console.error(err)
-      setError('Unexpected error while requesting dispatch')
+      setError(getUserFriendlyMessage(err, 'Could not submit dispatch request. Please try again.'))
     } finally {
       setRequestingIds((ids) => ids.filter((id) => id !== marksheetId))
       fetchVerifiedMarksheets()
@@ -280,7 +281,7 @@ function DispatchRequests() {
       await fetchVerifiedMarksheets()
     } catch (err) {
       console.error(err)
-      setError(err.message || 'Unable to dispatch marksheet.')
+      setError(getUserFriendlyMessage(err, 'Unable to dispatch marksheet. Please try again.'))
     } finally {
       setDispatchingId(null)
     }
@@ -348,7 +349,7 @@ function DispatchRequests() {
       }
     } catch (err) {
       console.error(err)
-      setError('Unexpected error while sending marksheets via WhatsApp.')
+      setError(getUserFriendlyMessage(err, 'Could not send marksheets. Please try again.'))
     } finally {
       setSendingAll(false)
       await fetchVerifiedMarksheets()
@@ -629,7 +630,7 @@ function DispatchRequests() {
                                 setFeedback(`Prepared ${candidates.length} marksheet${candidates.length > 1 ? 's' : ''} in ${zipName}.zip`)
                               } catch (err) {
                                 console.error('Download all error:', err)
-                                setError('Failed to generate ZIP. Try again.')
+                                setError(getUserFriendlyMessage(err, 'Could not generate ZIP. Please try again.'))
                               } finally {
                                 setDownloadingAll(false)
                               }
@@ -718,7 +719,7 @@ function DispatchRequests() {
                                 const successCount = results.filter(r => r.success).length
                                 setFeedback(`Successfully re-sent ${successCount} marksheet${successCount > 1 ? 's' : ''} via WhatsApp.`)
                               } catch (err) {
-                                setError('Error while re-sending history.')
+                                setError(getUserFriendlyMessage(err, 'Could not re-send history. Please try again.'))
                               } finally {
                                 setSendingAll(false)
                               }

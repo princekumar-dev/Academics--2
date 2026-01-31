@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import apiClient from '../utils/apiClient'
+import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { HelpTooltip } from '../components/ContextualHelp'
 import { deriveOverallResult, deriveSubjectResult } from '../utils/resultUtils'
 
@@ -272,7 +273,7 @@ function Reports() {
       setTimeout(() => setSuccess(''), 3000)
     } catch (error) {
       console.error('Export error:', error)
-      setError(`Failed to export report: ${error.message}`)
+      setError(getUserFriendlyMessage(error, 'Failed to export report. Please try again.'))
       // Clear error message after 5 seconds
       setTimeout(() => setError(''), 5000)
     } finally {

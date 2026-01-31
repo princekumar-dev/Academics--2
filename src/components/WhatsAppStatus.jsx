@@ -4,6 +4,7 @@ import { useAlert } from './AlertContext';
 import ConfirmDialog from './ConfirmDialog';
 import RefreshButton from './RefreshButton';
 import apiClient from '../utils/apiClient';
+import { getUserFriendlyMessage } from '../utils/apiErrorMessages';
 
 export default function WhatsAppStatus() {
   const [status, setStatus] = useState(null);
@@ -131,10 +132,10 @@ export default function WhatsAppStatus() {
           showError('No QR Code', 'No QR code was returned. The instance may need to be created first.');
         }
       } else {
-        showError('Failed to generate QR code', data.error || 'Unknown error');
+        showError('Failed to generate QR code', data.error || 'Could not generate QR code. Please try again.');
       }
     } catch (error) {
-      showError('Failed to generate QR code', error.message || 'Unknown error');
+      showError('Failed to generate QR code', getUserFriendlyMessage(error, 'Could not generate QR code. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -161,11 +162,10 @@ export default function WhatsAppStatus() {
           await fetchConnectionStatus();
         }, 1000);
       } else {
-        showError('Failed to disconnect', (data && (data.error || data.message)) || 'Unknown error');
+        showError('Failed to disconnect', (data && (data.error || data.message)) || 'Could not disconnect. Please try again.');
       }
     } catch (error) {
-      console.error('Logout error:', error);
-      showError('Failed to disconnect WhatsApp', error.message || 'Unknown error');
+      showError('Failed to disconnect WhatsApp', getUserFriendlyMessage(error, 'Could not disconnect. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -205,12 +205,11 @@ export default function WhatsAppStatus() {
           }, 2000);
         } else {
           console.error('❌ Delete instance error:', err);
-          showError('Failed to delete instance', (err && (err.message || (err.data && err.data.error))) || 'Check console for details');
+          showError('Failed to delete instance', getUserFriendlyMessage(err, 'Could not delete instance. Please try again.'));
         }
       }
     } catch (error) {
-      console.error('❌ Delete instance error:', error);
-      showError('Failed to delete instance', error.message || 'Check console for details');
+      showError('Failed to delete instance', getUserFriendlyMessage(error, 'Could not delete instance. Please try again.'));
     } finally {
       setLoading(false);
     }

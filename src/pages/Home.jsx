@@ -10,35 +10,55 @@ function Home() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Get user data from localStorage (auth check already done in App.jsx)
-    const auth = localStorage.getItem('auth')
-    
+    let authData = null
     try {
-      const authData = JSON.parse(auth)
-      // If section is missing, fetch latest user data from backend
-      if (!authData.section || authData.section === undefined) {
-        apiClient.get(`/api/users?id=${authData.id}`)
-          .then(data => {
-            if (data?.success && data.user) {
-              const updatedAuth = { ...authData, section: data.user.section, year: data.user.year, department: data.user.department }
-              localStorage.setItem('auth', JSON.stringify(updatedAuth))
-              setUserData(updatedAuth)
-              fetchDashboardData(updatedAuth)
-            } else {
-              setUserData(authData)
-              fetchDashboardData(authData)
-            }
-          })
-          .catch(() => {
+      const auth = localStorage.getItem('auth')
+      if (auth) authData = JSON.parse(auth)
+    } catch {
+      // Corrupted auth - clear and rely on App route guard to redirect
+      localStorage.removeItem('auth')
+      localStorage.removeItem('isLoggedIn')
+      localStorage.removeItem('userEmail')
+      localStorage.removeItem('userRole')
+      localStorage.removeItem('userId')
+      return
+    }
+    // Fallback to legacy auth keys if present
+    if (!authData || typeof authData !== 'object') {
+      const loggedIn = localStorage.getItem('isLoggedIn') === 'true'
+      const role = localStorage.getItem('userRole')
+      const email = localStorage.getItem('userEmail')
+      const userId = localStorage.getItem('userId')
+      if (loggedIn && role && (role === 'staff' || role === 'hod')) {
+        authData = { isAuthenticated: true, email, role, id: userId, section: '', year: '', department: '' }
+      } else {
+        return
+      }
+    }
+    if (!authData.role || (authData.role !== 'staff' && authData.role !== 'hod')) {
+      return
+    }
+    // If section is missing, fetch latest user data from backend
+    if (!authData.section || authData.section === undefined) {
+      apiClient.get(`/api/users?id=${authData.id}`)
+        .then(data => {
+          if (data?.success && data.user) {
+            const updatedAuth = { ...authData, section: data.user.section, year: data.user.year, department: data.user.department }
+            localStorage.setItem('auth', JSON.stringify(updatedAuth))
+            setUserData(updatedAuth)
+            fetchDashboardData(updatedAuth)
+          } else {
             setUserData(authData)
             fetchDashboardData(authData)
-          })
-      } else {
-        setUserData(authData)
-        fetchDashboardData(authData)
-      }
-    } catch (error) {
-      console.error('Error parsing auth data:', error)
+          }
+        })
+        .catch(() => {
+          setUserData(authData)
+          fetchDashboardData(authData)
+        })
+    } else {
+      setUserData(authData)
+      fetchDashboardData(authData)
     }
   }, [])
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import apiClient from '../utils/apiClient';
+import apiClient from '../utils/apiClient'
+import { getUserFriendlyMessage } from '../utils/apiErrorMessages';
 import { useNavigate } from 'react-router-dom';
 import { Users, QrCode, RefreshCw, Activity, Shield, PhoneCall } from 'lucide-react';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -341,7 +342,7 @@ export default function AdminDashboard() {
                     showError('Failed to generate QR', data.error || 'Unknown error');
                   } catch (err) {
                     console.error('Generate QR error:', err);
-                    showError('Failed to generate QR', err.message || err?.toString() || 'Unknown error');
+                    showError('Failed to generate QR', getUserFriendlyMessage(err, 'Could not generate QR code. Please try again.'));
                   } finally {
                     setLoading(false);
                   }

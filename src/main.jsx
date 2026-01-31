@@ -6,10 +6,24 @@ import './performance.css'
 
 // Suppress browser extension errors
 window.addEventListener('unhandledrejection', (event) => {
-  if (event.reason?.message?.includes('Receiving end does not exist') || 
-      event.reason?.message?.includes('Could not establish connection')) {
+  const msg = event.reason && (event.reason.message || event.reason.error || event.reason)
+  // Ignore common extension/background errors
+  if (typeof msg === 'string' && (msg.includes('Receiving end does not exist') || msg.includes('Could not establish connection'))) {
     event.preventDefault()
-    // Silently ignore extension errors
+    return
+  }
+
+  // Suppress expected authentication failures to avoid noisy uncaught promise logs
+  if (typeof msg === 'string' && (
+    msg.includes('Invalid registration number') ||
+    msg.includes('Invalid email or password') ||
+    msg.includes('Invalid email or password') ||
+    msg.includes('Registration number and password are required')
+  )) {
+    // preventDefault stops the UnhandledPromiseRejection from being logged as uncaught
+    try { event.preventDefault() } catch (e) { /* ignore */ }
+    // Optionally dispatch a global event so UI can show a nicer toast if desired
+    try { window.dispatchEvent(new CustomEvent('api:auth-failed', { detail: { message: msg } })) } catch (e) {}
     return
   }
 })

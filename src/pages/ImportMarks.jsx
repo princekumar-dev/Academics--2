@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import apiClient from '../utils/apiClient'
+import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 
 function ImportMarks() {
   const [userData, setUserData] = useState(() => {
@@ -40,10 +41,10 @@ function ImportMarks() {
           setErrors(data.errorMessages || [])
         }
       } catch (err) {
-        setErrors([err.message || 'Unexpected error'])
+        setErrors([getUserFriendlyMessage(err, 'Unexpected error')])
       }
     } catch (e) {
-      setErrors([e.message || 'Unexpected error'])
+      setErrors([getUserFriendlyMessage(e, 'Unexpected error')])
     } finally {
       setUploading(false)
     }
@@ -61,10 +62,10 @@ function ImportMarks() {
           setResult(data)
         }
       } catch (err) {
-        setErrors([err.message || 'Unexpected error'])
+        setErrors([getUserFriendlyMessage(err, 'Unexpected error')])
       }
     } catch (e) {
-      setErrors([e.message || 'Unexpected error'])
+      setErrors([getUserFriendlyMessage(e, 'Unexpected error')])
     } finally {
       setUploading(false)
     }

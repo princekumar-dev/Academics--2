@@ -23,21 +23,24 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const { action, userId, studentPhoneNumber, regNumber } = req.query
 
-      // Get student by phone number and/or reg number (for fetching fresh data in StudentDashboard)
-      if (studentPhoneNumber || regNumber) {
-        const query = { $or: [] }
-        
-        if (studentPhoneNumber) {
-          query.$or.push({ parentPhoneNumber: studentPhoneNumber })
-          query.$or.push({ studentPhoneNumber: studentPhoneNumber })
-        }
-        
+      // Get student by reg number or phone number. Prefer regNumber when provided
+      // to avoid ambiguous matches when multiple students share a parent phone.
+      if (regNumber || studentPhoneNumber) {
+        let student = null
+
+        // If regNumber is provided, prefer exact regNumber match
         if (regNumber) {
-          query.$or.push({ regNumber: regNumber })
+          student = await Student.findOne({ regNumber: regNumber }).lean()
         }
 
-        const student = await Student.findOne(query).lean()
-        
+        // If not found by regNumber and phone provided, fallback to phone lookup
+        if (!student && studentPhoneNumber) {
+          const query = { $or: [] }
+          query.$or.push({ parentPhoneNumber: studentPhoneNumber })
+          query.$or.push({ studentPhoneNumber: studentPhoneNumber })
+          student = await Student.findOne(query).lean()
+        }
+
         if (!student) {
           return res.status(404).json({ success: false, error: 'Student not found' })
         }

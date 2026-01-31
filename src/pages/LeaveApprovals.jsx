@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import apiClient from '../utils/apiClient'
+import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { Navigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import { usePullToRefresh } from '../hooks/usePullToRefresh'
@@ -32,7 +33,7 @@ function LeaveApprovals() {
       }
     } catch (e) {
       console.error('[LeaveApprovals] Error:', e)
-      showError('Error', e.message)
+      showError('Error', getUserFriendlyMessage(e, 'Could not load leave requests.'))
     } finally {
       setLoading(false)
     }
@@ -95,7 +96,7 @@ function LeaveApprovals() {
           showError('Timeout', 'Server took too long to respond. The approval may have completed — check request status.')
         }
       } else {
-        showError('Error', err.message)
+        showError('Error', getUserFriendlyMessage(err, 'Could not process approval. Please try again.'))
       }
     }
   }

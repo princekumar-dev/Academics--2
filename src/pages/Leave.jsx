@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import apiClient from '../utils/apiClient'
+import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { Navigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import { useConfetti } from '../components/Confetti'
@@ -37,6 +38,7 @@ function Leave() {
   const [recordingTime, setRecordingTime] = useState(0) // Timer for recording
   const [arrivalTime, setArrivalTime] = useState(null) // Store the actual arrival time
   const [confirmAction, setConfirmAction] = useState(null)
+  const [confirmingArrivalId, setConfirmingArrivalId] = useState(null)
 
   const studentId = auth.id
 
@@ -249,7 +251,7 @@ function Leave() {
         showError('Failed', data.error || 'Could not submit request')
       }
     } catch (err) {
-      showError('Error', err.message)
+      showError('Error', getUserFriendlyMessage(err, 'Could not submit. Please try again.'))
     } finally {
       setSubmitting(false)
     }
@@ -261,10 +263,26 @@ function Leave() {
   const formatDateOnly = (d) => d ? new Date(d).toLocaleString('en-IN', { dateStyle: 'medium' }) : '-'
 
   const handleConfirmArrival = async (request) => {
+    // Prevent duplicate clicks
+    if (!request || !request._id) return
+    if (confirmingArrivalId) return
+
+    // If the request status is no longer waiting for confirmation, avoid calling API
+    if (request.status !== 'waiting_for_arrival_confirmation') {
+      showError('Cannot confirm', 'This request is no longer awaiting your arrival confirmation.')
+      // Refresh list to reflect current server state
+      fetchRequests(true)
+      return
+    }
+
+    setConfirmingArrivalId(request._id)
     try {
       const data = await apiClient.patch(`/api/leaves?id=${request._id}&action=confirm-arrival`, {})
 
       if (data && data.success) {
+        // Prefer arrival time returned from server so display is accurate
+        const confirmedAt = data.request && data.request.arrivalConfirmedAt ? data.request.arrivalConfirmedAt : new Date()
+        setArrivalTime(confirmedAt)
         showSuccess('Success', 'Your arrival has been confirmed and parent has been notified!')
         localStorage.removeItem('activeTimer') // Clear timer from localStorage
         sessionStorage.removeItem('activeTimer') // Clear timer from sessionStorage
@@ -276,8 +294,19 @@ function Leave() {
         console.error('Confirm arrival error:', data)
       }
     } catch (error) {
-      showError('Error', error.message)
+      // Handle AbortError (timeout) separately for friendlier messaging
+      if (error && (error.name === 'AbortError' || (error.message && error.message.toLowerCase().includes('aborted')))) {
+        showError('Request timed out', 'The confirmation request took too long. Please try again.')
+      } else if (error && error.status === 400 && error.data && error.data.error) {
+        // Backend returned a 400 with a human-friendly message (e.g., status already changed)
+        showError('Cannot confirm', error.data.error)
+        fetchRequests(true)
+      } else {
+        showError('Error', getUserFriendlyMessage(error, 'Could not complete. Please try again.'))
+      }
       console.error('Confirm arrival exception:', error)
+    } finally {
+      setConfirmingArrivalId(null)
     }
   }
             try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
@@ -296,7 +325,7 @@ function Leave() {
         console.error('Delete error:', data)
       }
     } catch (error) {
-      showError('Error', error.message)
+      showError('Error', getUserFriendlyMessage(error, 'Could not complete. Please try again.'))
       console.error('Delete exception:', error)
     }
   }
@@ -499,17 +528,18 @@ function Leave() {
                           <div className="bg-white rounded-lg p-2 sm:p-3 mb-3 border border-green-200 text-center">
                             <p className="text-xs text-gray-600 mb-1">You reached at</p>
                             <p className="text-xl sm:text-2xl md:text-3xl font-bold text-green-600 font-mono leading-tight">
-                              {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                {arrivalTime ? new Date(arrivalTime).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                             </p>
                           </div>
                           <button
                             onClick={() => handleConfirmArrival(r)}
-                            className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
+                            disabled={confirmingArrivalId === r._id}
+                            className={`w-full px-4 py-3 font-semibold rounded-lg transition-colors ${confirmingArrivalId === r._id ? 'bg-green-300 text-white cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'}`}
                           >
                             ✅ I've Reached College
                           </button>
                           <button
-                            onClick={() => { setRecordingRequest(null); setRecordingTime(0) }}
+                            onClick={() => { setRecordingRequest(null); setRecordingTime(0); setArrivalTime(null) }}
                             className="w-full px-4 py-2 mt-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg transition-colors"
                           >
                             Cancel
@@ -558,7 +588,7 @@ function Leave() {
                           {r.type === 'late' && r.status === 'waiting_for_arrival_confirmation' && (
                             <div className="p-3 bg-yellow-50 border-t border-yellow-100 rounded-b text-center">
                               <button
-                                onClick={() => { setRecordingRequest(r); setRecordingTime(0) }}
+                                onClick={() => { setRecordingRequest(r); setRecordingTime(0); setArrivalTime(null) }}
                                 className="w-full px-3 py-2 text-sm rounded-lg bg-green-100 text-green-700 hover:bg-green-200"
                               >
                                 ⏱ Start Timer

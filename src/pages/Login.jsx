@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import apiClient from '../utils/apiClient'
+import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { useNavigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 
@@ -56,14 +57,9 @@ function Login() {
     }
 
     try {
-      // Send authentication request to the backend API
-      console.log('🔐 Login attempt:', { email: formData.email, loginType: formData.loginType })
       const data = await apiClient.post('/api/auth', formData)
-      console.log('📡 Auth API Response Data:', data)
-      console.log('📡 Auth API Response Data:', data)
 
       if (data.success) {
-        console.log('✅ Authentication successful')
         // Set authentication state in localStorage
         const authData = {
           isAuthenticated: true,
@@ -80,7 +76,6 @@ function Login() {
           loginTime: new Date().toISOString()
         }
         localStorage.setItem('auth', JSON.stringify(authData))
-        console.log('💾 Auth saved to localStorage:', authData)
 
         // Also save individual items for backward compatibility
         localStorage.setItem('isLoggedIn', 'true')
@@ -88,13 +83,24 @@ function Login() {
         localStorage.setItem('userRole', data.user.role)
         localStorage.setItem('userId', data.user.id)
 
-        // Show success alert with glassmorphism
-        showSuccess('Welcome Back!', `Logged in as ${data.user.name}`)
+        // Try to fetch canonical profile so the welcome message matches dashboard
+        let displayName = data.user.name
+        try {
+          const profile = await apiClient.get(`/api/users?id=${data.user.id}`)
+          if (profile?.success && profile.user) {
+            const merged = { ...authData, ...profile.user }
+            localStorage.setItem('auth', JSON.stringify(merged))
+            displayName = profile.user.name || displayName
+          }
+        } catch (err) {
+          // Non-fatal - proceed with server-returned name
+        }
+
+        // Show success alert with the canonical name when available
+        showSuccess('Welcome Back!', `Logged in as ${displayName}`)
 
         // Redirect to root page which will handle role-based routing
-        console.log('🔄 Redirecting to home after 500ms...')
         setTimeout(() => {
-          console.log('✈️ Navigating to / with auth:', JSON.stringify(JSON.parse(localStorage.getItem('auth')), null, 2))
           navigate('/', { replace: true })
           // Trigger a custom event to update header authentication state
           window.dispatchEvent(new Event('authStateChanged'))
@@ -105,28 +111,9 @@ function Login() {
         showError('Login Failed', errorMsg + ' Need help? Contact support@msec.edu.in')
       }
     } catch (error) {
-      console.error('Login error:', error)
-      // apiClient throws an Error with `.status` and `.data` when HTTP status !== 2xx
-      const apiErrMsg = error && error.data && (error.data.error || error.data.message)
-      if (apiErrMsg) {
-        // If server returned a pending-approval message, show it verbatim
-        setError(apiErrMsg)
-        showError('Login Failed', apiErrMsg)
-      } else {
-        let errorMsg
-        if (error.message?.includes('fetch') || error.message?.includes('network')) {
-          errorMsg = '🌐 Connection failed. Check your internet connection and try again.'
-        } else if (error.message?.includes('timeout')) {
-          errorMsg = '⏱️ Request timed out. The server is slow to respond. Please try again.'
-        } else if (error.message && error.message.startsWith('HTTP')) {
-          // Generic HTTP error without parsed body
-          errorMsg = '❌ Login failed: ' + error.message
-        } else {
-          errorMsg = '❌ Login failed: ' + (error.message || 'Unknown error. Please try again or contact support.')
-        }
-        setError(errorMsg)
-        showError('Error', errorMsg)
-      }
+      const errorMsg = getUserFriendlyMessage(error, 'Login failed. Please try again or contact support.')
+      setError(errorMsg)
+      showError('Login Failed', errorMsg)
     } finally {
       setIsLoading(false)
     }

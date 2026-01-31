@@ -23,6 +23,7 @@ import BottomNav from './components/BottomNav'
 import { AlertProvider } from './components/AlertContext'
 import apiClient from './utils/apiClient'
 import { ensureBodyScrollable } from './utils/scrollFix'
+import { getAuthOrNull } from './utils/auth'
 // Removed old notification imports for academic system
 
 // Lazy load components for better performance
@@ -50,43 +51,53 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 
 // Root route handler - checks auth and redirects accordingly
 const RootRedirect = () => {
-  const auth = localStorage.getItem('auth')
-
-  if (!auth) {
-    return <Navigate to="/login" replace />
-  }
-
-  // If authenticated, redirect based on role
-  const parsed = JSON.parse(auth)
-  if (parsed?.role === 'student') return <Navigate to="/student" replace />
-  if (parsed?.role === 'admin') return <Navigate to="/admin-dashboard" replace />
+  const parsed = getAuthOrNull()
+  if (!parsed) return <Navigate to="/login" replace />
+  if (parsed.role === 'student') return <Navigate to="/student" replace />
+  if (parsed.role === 'admin') return <Navigate to="/admin-dashboard" replace />
   return <Navigate to="/home" replace />
 }
 
 // Protected route wrapper for home/dashboard
 const ProtectedHome = () => {
-  const auth = localStorage.getItem('auth')
-  if (!auth) return <Navigate to="/login" replace />
-  const parsed = JSON.parse(auth)
-  if (parsed?.role === 'student') return <Navigate to="/student" replace />
-  if (parsed?.role === 'admin') return <Navigate to="/admin-dashboard" replace />
+  const parsed = getAuthOrNull()
+  if (!parsed) return <Navigate to="/login" replace />
+  if (parsed.role === 'student') return <Navigate to="/student" replace />
+  if (parsed.role === 'admin') return <Navigate to="/admin-dashboard" replace />
   return <Home />
 }
 
 const ProtectedStudent = () => {
-  const auth = localStorage.getItem('auth')
-  if (!auth) return <Navigate to="/login" replace />
-  const parsed = JSON.parse(auth)
-  if (parsed?.role !== 'student') return <Navigate to="/home" replace />
+  const parsed = getAuthOrNull()
+  if (!parsed) return <Navigate to="/login" replace />
+  if (parsed.role !== 'student') return <Navigate to="/home" replace />
   return <StudentDashboard />
 }
 
 const ProtectedAdmin = () => {
-  const auth = localStorage.getItem('auth')
-  if (!auth) return <Navigate to="/login" replace />
-  const parsed = JSON.parse(auth)
-  if (parsed?.role !== 'admin') return <Navigate to="/home" replace />
+  const parsed = getAuthOrNull()
+  if (!parsed) return <Navigate to="/login" replace />
+  if (parsed.role !== 'admin') return <Navigate to="/home" replace />
   return <AdminDashboard />
+}
+
+// Staff or HOD only - redirects students and unauthenticated users
+const ProtectedStaffOrHod = ({ children }) => {
+  const parsed = getAuthOrNull()
+  if (!parsed) return <Navigate to="/login" replace />
+  if (parsed.role === 'student') return <Navigate to="/student" replace />
+  if (parsed.role === 'admin') return <Navigate to="/admin-dashboard" replace />
+  if (parsed.role !== 'staff' && parsed.role !== 'hod') return <Navigate to="/home" replace />
+  return children
+}
+
+// Redirect to dashboard if already authenticated (for Login/SignUp)
+const RedirectIfAuthenticated = ({ children }) => {
+  const parsed = getAuthOrNull()
+  if (!parsed) return children
+  if (parsed.role === 'student') return <Navigate to="/student" replace />
+  if (parsed.role === 'admin') return <Navigate to="/admin-dashboard" replace />
+  return <Navigate to="/home" replace />
 }
 
 function AppContent() {
@@ -149,21 +160,20 @@ function AppContent() {
                 <Route path="/student" element={<Suspense fallback={<DashboardSkeleton />}><ProtectedStudent /></Suspense>} />
                 <Route path="/admin-dashboard" element={<Suspense fallback={<DashboardSkeleton />}><ProtectedAdmin /></Suspense>} />
                 <Route path="/leave" element={<Suspense fallback={<FormSkeleton />}><Leave /></Suspense>} />
-                {/* Staff Routes */}
-                <Route path="/import-marks" element={<Suspense fallback={<FormSkeleton />}><ImportMarks /></Suspense>} />
-                <Route path="/marksheets" element={<Suspense fallback={<ListSkeleton />}><Marksheets /></Suspense>} />
-                <Route path="/marksheets/:id" element={<Suspense fallback={<DetailSkeleton />}><MarksheetDetails /></Suspense>} />
-                <Route path="/dispatch-requests" element={<Suspense fallback={<DispatchRequestsSkeleton />}><DispatchRequests /></Suspense>} />
-                <Route path="/records" element={<Suspense fallback={<RecordsSkeleton />}><Records /></Suspense>} />
-                {/* HOD Routes */}
-                <Route path="/department-overview" element={<Suspense fallback={<DashboardSkeleton />}><DepartmentOverview /></Suspense>} />
-                <Route path="/approval-requests" element={<Suspense fallback={<ApprovalRequestsSkeleton />}><ApprovalRequests /></Suspense>} />
-                <Route path="/leave-approvals" element={<Suspense fallback={<ApprovalRequestsSkeleton />}><LeaveApprovals /></Suspense>} />
-                <Route path="/late-acknowledgment" element={<Suspense fallback={<ListSkeleton />}><LateAcknowledgment /></Suspense>} />
-                <Route path="/reports" element={<Suspense fallback={<TableSkeleton />}><Reports /></Suspense>} />
-                {/* Auth Routes */}
-                <Route path="/login" element={<Suspense fallback={<LoginSkeleton />}><Login /></Suspense>} />
-                <Route path="/signup" element={<Suspense fallback={<SignUpSkeleton />}><SignUp /></Suspense>} />
+                {/* Staff/HOD Routes - protected by role */}
+                <Route path="/import-marks" element={<Suspense fallback={<FormSkeleton />}><ProtectedStaffOrHod><ImportMarks /></ProtectedStaffOrHod></Suspense>} />
+                <Route path="/marksheets" element={<Suspense fallback={<ListSkeleton />}><ProtectedStaffOrHod><Marksheets /></ProtectedStaffOrHod></Suspense>} />
+                <Route path="/marksheets/:id" element={<Suspense fallback={<DetailSkeleton />}><ProtectedStaffOrHod><MarksheetDetails /></ProtectedStaffOrHod></Suspense>} />
+                <Route path="/dispatch-requests" element={<Suspense fallback={<DispatchRequestsSkeleton />}><ProtectedStaffOrHod><DispatchRequests /></ProtectedStaffOrHod></Suspense>} />
+                <Route path="/records" element={<Suspense fallback={<RecordsSkeleton />}><ProtectedStaffOrHod><Records /></ProtectedStaffOrHod></Suspense>} />
+                <Route path="/department-overview" element={<Suspense fallback={<DashboardSkeleton />}><ProtectedStaffOrHod><DepartmentOverview /></ProtectedStaffOrHod></Suspense>} />
+                <Route path="/approval-requests" element={<Suspense fallback={<ApprovalRequestsSkeleton />}><ProtectedStaffOrHod><ApprovalRequests /></ProtectedStaffOrHod></Suspense>} />
+                <Route path="/leave-approvals" element={<Suspense fallback={<ApprovalRequestsSkeleton />}><ProtectedStaffOrHod><LeaveApprovals /></ProtectedStaffOrHod></Suspense>} />
+                <Route path="/late-acknowledgment" element={<Suspense fallback={<ListSkeleton />}><ProtectedStaffOrHod><LateAcknowledgment /></ProtectedStaffOrHod></Suspense>} />
+                <Route path="/reports" element={<Suspense fallback={<TableSkeleton />}><ProtectedStaffOrHod><Reports /></ProtectedStaffOrHod></Suspense>} />
+                {/* Auth Routes - redirect to dashboard if already logged in */}
+                <Route path="/login" element={<Suspense fallback={<LoginSkeleton />}><RedirectIfAuthenticated><Login /></RedirectIfAuthenticated></Suspense>} />
+                <Route path="/signup" element={<Suspense fallback={<SignUpSkeleton />}><RedirectIfAuthenticated><SignUp /></RedirectIfAuthenticated></Suspense>} />
                 {/* General Routes */}
                 <Route path="/contact" element={<Suspense fallback={<ContactSkeleton />}><Contact /></Suspense>} />
                 <Route path="/privacy-policy" element={<Suspense fallback={<PrivacySkeleton />}><PrivacyPolicy /></Suspense>} />

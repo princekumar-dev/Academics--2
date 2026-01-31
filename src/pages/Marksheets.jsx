@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react'
 import apiClient from '../utils/apiClient'
+import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import * as XLSX from 'xlsx'
 import { useNavigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
@@ -275,7 +276,7 @@ function Marksheets() {
         }
       } catch (error) {
         console.error('Error creating examination:', error)
-        setErrors([error.message || 'Failed to create examination'])
+        setErrors([getUserFriendlyMessage(error, 'Failed to create examination')])
         return
       }
 
@@ -291,7 +292,7 @@ function Marksheets() {
 
     } catch (error) {
       console.error('Error creating examination:', error)
-      setErrors([error.message || 'Failed to create examination'])
+      setErrors([getUserFriendlyMessage(error, 'Failed to create examination')])
     } finally {
       setUploading(false)
     }
@@ -324,10 +325,10 @@ function Marksheets() {
           setErrors(data.errorMessages || [])
         }
       } catch (e) {
-        setErrors([e.message || 'Unexpected error'])
+        setErrors([getUserFriendlyMessage(e, 'Unexpected error')])
       }
     } catch (e) {
-      setErrors([e.message || 'Unexpected error'])
+      setErrors([getUserFriendlyMessage(e, 'Unexpected error')])
     } finally {
       setUploading(false)
     }
@@ -348,10 +349,10 @@ function Marksheets() {
           setFile(null)
         }
       } catch (e) {
-        setErrors([e.message || 'Unexpected error'])
+        setErrors([getUserFriendlyMessage(e, 'Unexpected error')])
       }
     } catch (e) {
-      setErrors([e.message || 'Unexpected error'])
+      setErrors([getUserFriendlyMessage(e, 'Unexpected error')])
     } finally {
       setUploading(false)
     }
@@ -409,7 +410,7 @@ function Marksheets() {
         }
       } catch (err) {
         console.error('Delete exam error:', err)
-        showError('Error', 'Failed to delete examination')
+        showError('Error', getUserFriendlyMessage(err, 'Failed to delete examination'))
         return
       }
       // Remove marksheets belonging to this exam from UI and refresh examinations
@@ -418,7 +419,7 @@ function Marksheets() {
       showSuccess('Deleted', `${data.deleted.marksheets || 0} marksheets and ${data.deleted.students || 0} students removed.`)
     } catch (err) {
       console.error('Delete exam error:', err)
-      showError('Error', 'Failed to delete examination')
+      showError('Error', getUserFriendlyMessage(err, 'Failed to delete examination'))
     } finally {
       setConfirmExamDoc(null)
     }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import apiClient from '../utils/apiClient'
+import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { useNavigate } from 'react-router-dom'
 import RefreshButton from '../components/RefreshButton'
 import SwipeableCard from '../components/SwipeableCard'
@@ -255,8 +256,9 @@ function ApprovalRequests() {
       // Ensure a backend-backed refresh (force) to reconcile state
       await fetchPendingRequests(true)
     } catch (err) {
-      setActionError(err.message || 'Unexpected error')
-      showError('Action Failed', err.message || 'Could not process the request')
+      const msg = getUserFriendlyMessage(err, 'Could not process the request.')
+      setActionError(msg)
+      showError('Action Failed', msg)
     } finally {
       setActionLoading(false)
     }
@@ -371,7 +373,7 @@ function ApprovalRequests() {
       try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
       await fetchPendingRequests(true)
     } catch (err) {
-      setActionError(err.message || `Failed to perform bulk ${actionType}`)
+      setActionError(getUserFriendlyMessage(err, `Failed to perform bulk ${actionType}. Please try again.`))
     } finally {
       setBulkActionLoading(false)
     }

@@ -15,8 +15,9 @@ function StudentDashboard() {
       const auth = JSON.parse(authRaw)
       if (auth.role !== 'student') return
       // Fetch fresh student data from database to get current department
-      fetchStudentData(auth)
-      fetchMarksheets(auth)
+      // Force network fetch to avoid returning stale cached data
+      fetchStudentData(auth, true)
+      fetchMarksheets(auth, true)
     } catch (e) {
       console.error('Invalid auth data', e)
     }
@@ -29,19 +30,34 @@ function StudentDashboard() {
         fetchMarksheets(auth2, true)
       } catch (e) {}
     }
+    // Refresh when authentication state changes (e.g., new login in same tab)
+    const authChangeHandler = () => {
+      try {
+        const authRaw2 = localStorage.getItem('auth')
+        if (!authRaw2) return
+        const auth2 = JSON.parse(authRaw2)
+        if (auth2.role !== 'student') return
+        // Force fresh network fetch on auth change
+        fetchStudentData(auth2, true)
+        fetchMarksheets(auth2, true)
+      } catch (e) { console.error('authStateChanged handler error', e) }
+    }
     window.addEventListener('marksheetsUpdated', handler)
     window.addEventListener('notificationsUpdated', handler)
+    window.addEventListener('authStateChanged', authChangeHandler)
     return () => {
       window.removeEventListener('marksheetsUpdated', handler)
       window.removeEventListener('notificationsUpdated', handler)
+      window.removeEventListener('authStateChanged', authChangeHandler)
     }
   }, [])
 
-  const fetchStudentData = async (auth) => {
+  const fetchStudentData = async (auth, force = false) => {
     try {
       const phoneParam = encodeURIComponent(auth.phoneNumber || auth.parentPhoneNumber)
       const regNumberParam = encodeURIComponent(auth.regNumber || '')
-      const data = await apiClient.get(`/api/users?studentPhoneNumber=${phoneParam}&regNumber=${regNumberParam}`)
+      const opts = force ? { cache: false, dedupe: false } : {}
+      const data = await apiClient.get(`/api/users?studentPhoneNumber=${phoneParam}&regNumber=${regNumberParam}`, opts)
       if (data.success && data.user) {
         // Merge fetched data with auth (preserving auth fields)
         const updatedStudent = { ...auth, ...data.user, role: 'student' }

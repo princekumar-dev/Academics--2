@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import apiClient from '../utils/apiClient'
+import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { useNavigate } from 'react-router-dom'
 
 const SINGLE_SECTION_DEPARTMENTS = ['MECH', 'CIVIL', 'EEE']
@@ -105,15 +106,10 @@ function SignUp() {
           return
         }
       } catch (err) {
-        // apiClient throws on non-ok responses
         if (err && err.status === 409) {
           setError('📧 This email is already registered. Try logging in instead, or use a different email.')
-        } else if (err && err.status === 400) {
-          setError((err.data && err.data.error) || '❌ Invalid information provided. Please check all fields and try again.')
-        } else if (err && err.status >= 500) {
-          setError('🔧 Server error. Our team has been notified. Please try again in a few minutes.')
         } else {
-          setError(err.message || '❌ Unable to create account. Please try again.')
+          setError(getUserFriendlyMessage(err, 'Unable to create account. Please check your information and try again.'))
         }
         return
       }
@@ -127,14 +123,7 @@ function SignUp() {
         setTimeout(() => navigate('/login'), 900)
       }
     } catch (err) {
-      console.error('Sign up error:', err)
-      if (err.message.includes('fetch')) {
-        setError('🌐 Network error. Please check your internet connection and try again.')
-      } else if (err.message.includes('timeout')) {
-        setError('⏱️ Request timed out. The server is taking too long to respond. Please try again.')
-      } else {
-        setError('❌ Unable to create account. ' + (err.message || 'Please verify all information and try again.'))
-      }
+      setError(getUserFriendlyMessage(err, 'Unable to create account. Please verify all information and try again.'))
     } finally {
       setIsLoading(false)
     }

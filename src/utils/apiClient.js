@@ -1,3 +1,5 @@
+import { getUserFriendlyMessage } from './apiErrorMessages'
+
 const inFlight = new Map();
 const cache = new Map();
 
@@ -69,9 +71,13 @@ async function request(method, url, opts = {}) {
 
         if (!res.ok) {
           const errData = await res.json().catch(() => null);
-          const e = new Error(`HTTP ${res.status}`);
+          const e = new Error();
           e.status = res.status;
           e.data = errData;
+          e.message = getUserFriendlyMessage(
+            { ...e, status: res.status, data: errData },
+            'Request failed. Please try again.'
+          );
           throw e;
         }
 

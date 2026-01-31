@@ -238,10 +238,13 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     return () => window.removeEventListener('authStateChanged', onAuthChange)
   }, [isOpen])
 
-  // Listen for global notification/marksheet updates so modal stays fresh
+  // Listen for global notification/marksheet updates so modal stays fresh (skip if we just did optimistic update)
   useEffect(() => {
     if (!isOpen) return
-    const handler = () => scheduleFetch({ force: true })
+    const handler = () => {
+      if (lastOptimisticUpdateRef.current && Date.now() - lastOptimisticUpdateRef.current < SKIP_REFETCH_MS) return
+      scheduleFetch({ force: true })
+    }
     window.addEventListener('notificationsUpdated', handler)
     window.addEventListener('marksheetsUpdated', handler)
     return () => {
@@ -269,6 +272,10 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
       fetchRequests()
     }
   } : {})
+
+  // When we optimistically remove an item (approve/reject), skip the next event-driven refetch to avoid double reload
+  const lastOptimisticUpdateRef = useRef(0)
+  const SKIP_REFETCH_MS = 2000
 
   // Debounced fetch helper to avoid multiple rapid refreshes
   const fetchTimerRef = useRef(null)
@@ -307,36 +314,22 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
   const fetchRequests = async (opts = {}) => {
     const { force = false } = opts
     try {
-      console.log('[NotificationRequests] fetchRequests called')
       setLoading(true)
       const auth = JSON.parse(localStorage.getItem('auth') || '{}')
-      console.log('[NotificationRequests] Full auth object:', auth)
-      console.log('[NotificationRequests] Auth user object:', auth.user)
-
       const userRole = auth?.role || auth.user?.role
       const userId = auth?.id || auth.user?.id
 
-      console.log('[NotificationRequests] Fetching for user:', userRole, userId)
-
       if (userRole === 'hod') {
         const hodId = userId
-        console.log('[NotificationRequests] HOD ID to send:', hodId)
-
         if (!hodId) {
-          console.error('[NotificationRequests] ERROR: No HOD ID found!')
           setRequests([])
           setLoading(false)
           return
         }
 
-        // Fetch both staff approval requests and leave requests
         const staffApiUrl = `/api/staff-approval?action=pending&hodId=${hodId}`
-        const auth = JSON.parse(localStorage.getItem('auth') || '{}')
         const department = auth?.department || auth.user?.department
         const leaveApiUrl = `/api/leaves?department=${department}&type=leave`
-
-        console.log('[NotificationRequests] Staff API URL:', staffApiUrl)
-        console.log('[NotificationRequests] Leave API URL:', leaveApiUrl)
 
         try {
           const getOpts = force ? { cache: false, dedupe: false } : {}
@@ -344,9 +337,6 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
             apiClient.get(staffApiUrl, getOpts),
             apiClient.get(leaveApiUrl, getOpts)
           ])
-
-          console.log('[NotificationRequests] Staff Data:', staffData)
-          console.log('[NotificationRequests] Leave Data:', leaveData)
 
           const allRequests = []
 
@@ -367,11 +357,9 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
                 status: 'pending'
               }
             }))
-            console.log('[NotificationRequests] Converted staff requests:', staffRequests)
             allRequests.push(...staffRequests)
           }
 
-          // Process leave requests
           if (leaveData.success && leaveData.requests) {
             const leaveRequests = (leaveData.requests || [])
               .filter(r => r.status === 'requested')
@@ -393,20 +381,11 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
                   status: 'pending'
                 }
               }))
-            console.log('[NotificationRequests] Converted leave requests:', leaveRequests)
             allRequests.push(...leaveRequests)
           }
 
-          console.log('[NotificationRequests] Total requests:', allRequests.length)
           setRequests(allRequests)
-          // Update header unread count if provided
-          if (setUnreadCount) {
-            try {
-              setUnreadCount(allRequests.filter(r => r.data?.status === 'pending' || !r.read).length)
-            } catch (e) {
-              setUnreadCount(allRequests.length)
-            }
-          }
+          if (setUnreadCount) setUnreadCount(allRequests.length)
         } catch (error) {
           console.error('[NotificationRequests] Error fetching requests:', error)
           setRequests([])
@@ -459,7 +438,6 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
                     status: 'pending'
                   }
                 }))
-              console.log('[NotificationRequests] Late requests for staff:', lateRequests)
               allRequests = [...allRequests, ...lateRequests]
             }
           } catch (error) {
@@ -513,13 +491,15 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
         // Step 1: Record the action (just update status, don't send notification yet)
         try {
           await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=acknowledge`, { staffId })
-          // Remove from list
           setRequests(prev => {
             const next = prev.filter(r => r._id !== request._id)
-            if (setUnreadCount) setUnreadCount(next.filter(n => !n.read).length)
+            if (setUnreadCount) setUnreadCount(next.length)
             return next
           })
-          console.log('✅ Late arrival recorded, waiting for student confirmation')
+          lastOptimisticUpdateRef.current = Date.now()
+          try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdatedImmediate && m.notifyNotificationsUpdatedImmediate()) } catch (e) { }
+          try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) { }
+          try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
         } catch (err) {
           console.error('Error recording late arrival:', err)
         }
@@ -531,43 +511,37 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
       return
     }
 
-    // For other request types: proceed normally
+    // For other request types (HOD: staff_account_approval, leave_request): proceed normally
     setProcessing(request._id)
     try {
       const auth = JSON.parse(localStorage.getItem('auth') || '{}')
       const hodId = auth?.id || auth.user?.id
 
-      let response
-
       try {
         if (request.type === 'staff_account_approval') {
           await apiClient.patch('/api/staff-approval', { requestId: request.data.requestId, action: 'approve', hodId }, { timeout: 20000, retry: 1, dispatch: false })
-          // Successfully approved staff account — refresh list (debounced, immediate)
-          await scheduleFetch({ force: true, immediate: true })
-          // Notify header and other listeners that notifications changed (debounced)
-          try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) { } }
-          try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
         } else if (request.type === 'leave_request') {
-          // Leave approvals can trigger longer server-side tasks (PDF gen / WhatsApp).
-          // Increase timeout so the client doesn't abort while server works.
           await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=approve`, { hodId }, { timeout: 60000, retry: 1, dispatch: false })
-          // Server processed the approval — refresh list to reflect change and show success
-          await scheduleFetch({ force: true, immediate: true })
-          try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) { } }
-          try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
+        } else {
+          setProcessing(null)
+          return
         }
-        // Optionally log success
-        console.log('[NotificationRequests] Request approved:', request._id)
+
+        // Optimistic update: remove from list and update count immediately (no refetch = no double reload)
+        const requestIdToRemove = request._id
+        setRequests(prev => {
+          const next = prev.filter(r => r._id !== requestIdToRemove)
+          if (setUnreadCount) setUnreadCount(next.length)
+          return next
+        })
+        lastOptimisticUpdateRef.current = Date.now()
+        try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdatedImmediate && m.notifyNotificationsUpdatedImmediate()) } catch (e) { }
+        try { if (typeof window.dispatchEvent === 'function') window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) { }
+        try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
       } catch (err) {
         console.error('Error approving request:', err)
-        // If request was aborted due to client timeout, try fetching latest state
         if (err && (err.name === 'AbortError' || (err.message && err.message.includes('aborted')))) {
-          console.warn('[NotificationRequests] Approve request aborted locally; refreshing requests to reflect server state')
-          try {
-            await fetchRequests({ force: true })
-          } catch (refreshErr) {
-            console.error('Error refreshing requests after abort:', refreshErr)
-          }
+          try { await fetchRequests({ force: true }) } catch (refreshErr) { }
         }
       }
     } catch (error) {
@@ -607,13 +581,15 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
           await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=reject`, { hodId, reason }, { dispatch: false })
         }
 
-        // Remove from list locally
+        // Optimistic update: remove from list and update count (skip event-driven refetch)
         setRequests(prev => {
           const next = prev.filter(r => r._id !== request._id)
-          if (setUnreadCount) setUnreadCount(next.filter(n => !n.read).length)
+          if (setUnreadCount) setUnreadCount(next.length)
           return next
         })
-        try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) { } }
+        lastOptimisticUpdateRef.current = Date.now()
+        try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdatedImmediate && m.notifyNotificationsUpdatedImmediate()) } catch (e) { }
+        try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) { }
         try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
       } catch (err) {
         console.error('Error rejecting request:', err)
@@ -896,8 +872,6 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
   }
 
   // HOD View - Show pending requests from staff
-  console.log('[NotificationRequests] Rendering with userRole:', userRole, 'requests count:', requests.length, 'loading:', loading)
-
   const modalContent = (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"

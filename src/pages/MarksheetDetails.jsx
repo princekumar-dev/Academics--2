@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import apiClient from '../utils/apiClient'
+import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { useAlert } from '../components/AlertContext'
 import { useParams, useNavigate } from 'react-router-dom'
 import { deriveOverallResult, deriveSubjectResult } from '../utils/resultUtils'
@@ -51,7 +52,7 @@ function MarksheetDetails() {
           }
         }
       } catch (e) {
-        setError(e.message || 'Unexpected error')
+        setError(getUserFriendlyMessage(e, 'Unexpected error'))
       } finally {
         setLoading(false)
       }
@@ -361,10 +362,10 @@ function VerifyButton({ marksheet, onVerified }) {
           onVerified(data.marksheet)
         }
       } catch (e) {
-        setError(e.message || 'Verification failed')
+        setError(getUserFriendlyMessage(e, 'Verification failed'))
       }
     } catch (e) {
-      setError(e.message || 'Unexpected error')
+      setError(getUserFriendlyMessage(e, 'Unexpected error'))
     } finally {
       setLoading(false)
     }
@@ -404,10 +405,10 @@ function SaveEditsButton({ id, form, onSaved }) {
           onSaved(data.marksheet)
         }
       } catch (e) {
-        setError(e.message || 'Save failed')
+        setError(getUserFriendlyMessage(e, 'Save failed'))
       }
     } catch (e) {
-      setError(e.message || 'Unexpected error')
+      setError(getUserFriendlyMessage(e, 'Unexpected error'))
     } finally {
       setSaving(false)
     }
@@ -436,10 +437,10 @@ function RefreshSignaturesButton({ id, onRefreshed }) {
           if (typeof onRefreshed === 'function') onRefreshed(data.marksheet)
         }
       } catch (e) {
-        showError('Refresh Failed', e.message || 'Could not refresh signatures')
+        showError('Refresh Failed', getUserFriendlyMessage(e, 'Could not refresh signatures'))
       }
     } catch (e) {
-      showError('Refresh Failed', e.message || 'Unexpected error')
+      showError('Refresh Failed', getUserFriendlyMessage(e, 'Unexpected error'))
     } finally {
       setLoading(false)
     }

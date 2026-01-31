@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import apiClient from '../utils/apiClient'
+import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { Navigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 
@@ -44,7 +45,7 @@ function LateAcknowledgment() {
         showError('Failed', data?.error || 'Could not acknowledge request')
       }
     } catch (err) {
-      showError('Error', err.message)
+      showError('Error', getUserFriendlyMessage(err, 'Could not acknowledge request. Please try again.'))
     }
   }
 
