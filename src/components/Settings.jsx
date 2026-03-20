@@ -561,22 +561,8 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
 
     return (
       <>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            if (!isInitializing) onClose()
-          }}
-          className={`absolute z-10 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation ${isFullWidthMobile ? 'top-3 right-3 sm:top-4 sm:right-4' : 'top-3 right-3'}`}
-          aria-label="Close settings"
-          style={{ touchAction: 'manipulation', boxSizing: 'border-box' }}
-        >
-          <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
         <div className="px-4 sm:px-4 py-3 sm:py-4 border-b border-[#e7edf4] hover:bg-gray-50/50 transition-colors duration-200">
-          <div className="flex items-center gap-3 pr-6">
+          <div className="flex items-center gap-3 pr-2">
             <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center flex-shrink-0 group-hover:shadow-md group-hover:scale-105 transition-all duration-200">
               <span className="text-base font-bold text-yellow-600 group-hover:text-yellow-700 transition-colors duration-200">
                 {displayInitial}
@@ -586,6 +572,20 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
               <h3 className="text-[#0b1220] font-semibold text-sm truncate group-hover:text-black transition-colors duration-200">{displayName}</h3>
               <p className="text-[#475569] text-xs capitalize group-hover:text-[#374151] transition-colors duration-200">{userRole} Account</p>
             </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                if (!isInitializing) onClose()
+              }}
+              className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-200 active:bg-gray-300 transition-colors touch-manipulation ml-auto mr-2"
+              aria-label="Close settings"
+              style={{ touchAction: 'manipulation', boxSizing: 'border-box' }}
+            >
+              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
       </>
