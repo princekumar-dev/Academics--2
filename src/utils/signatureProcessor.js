@@ -4,12 +4,12 @@
  */
 
 /**
- * Process uploaded signature image to remove white background
+ * Process uploaded signature image to remove paper background
+ * Intelligently extracts colored pen signature and converts to black
  * @param {string} dataUrl - Base64 image data URL
- * @param {number} whiteThreshold - RGB threshold for "white" (0-255, default 240)
  * @returns {Promise<string>} - Processed image data URL
  */
-export const processSignatureImage = (dataUrl, whiteThreshold = 230) => {
+export const processSignatureImage = (dataUrl) => {
   return new Promise((resolve, reject) => {
     const img = new Image()
     
@@ -28,40 +28,72 @@ export const processSignatureImage = (dataUrl, whiteThreshold = 230) => {
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
         const data = imageData.data
 
-        // Convert pixels to pure black or transparent based on threshold
+        // Step 1: Detect background color (most common color = paper)
+        const colorFreq = {}
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i]
+          const g = data[i + 1]
+          const b = data[i + 2]
+          const a = data[i + 3]
+          
+          if (a > 200) { // Only consider non-transparent pixels
+            // Create a key for the color (quantized to reduce variations)
+            const key = `${Math.round(r/10)*10},${Math.round(g/10)*10},${Math.round(b/10)*10}`
+            colorFreq[key] = (colorFreq[key] || 0) + 1
+          }
+        }
+
+        // Find the most common color (background/paper)
+        let bgColor = { r: 255, g: 255, b: 255 } // Default white
+        let maxFreq = 0
+        for (const [key, freq] of Object.entries(colorFreq)) {
+          if (freq > maxFreq) {
+            maxFreq = freq
+            const [r, g, b] = key.split(',').map(Number)
+            bgColor = { r, g, b }
+          }
+        }
+
+        // Step 2: Remove background color and convert signature to black
+        let hasSignature = false
         for (let i = 0; i < data.length; i += 4) {
           const r = data[i]
           const g = data[i + 1]
           const b = data[i + 2]
           const a = data[i + 3]
 
-          // Check if pixel is light (white/background)
-          const brightness = (r + g + b) / 3
-          
-          if (brightness >= whiteThreshold || a < 128) {
-            // Make transparent
+          // Calculate color distance from background color
+          const rDist = Math.abs(r - bgColor.r)
+          const gDist = Math.abs(g - bgColor.g)
+          const bDist = Math.abs(b - bgColor.b)
+          const colorDistance = Math.sqrt(rDist * rDist + gDist * gDist + bDist * bDist)
+
+          // If pixel is similar to background color (distance < 40), make transparent
+          // 40 is a threshold that removes the paper but keeps signature ink
+          if (colorDistance < 40 || a < 128) {
+            // Make transparent (background)
             data[i + 3] = 0
           } else {
-            // Convert to pure black for better PDF rendering
+            // This is signature ink - convert to pure black
             data[i] = 0
             data[i + 1] = 0
             data[i + 2] = 0
             data[i + 3] = 255
+            hasSignature = true
           }
         }
 
         ctx.putImageData(imageData, 0, 0)
 
-        // Find bounding box of non-transparent pixels
+        // Step 3: Find bounding box of non-transparent pixels (signature)
         const pixelData = ctx.getImageData(0, 0, canvas.width, canvas.height).data
         let minX = canvas.width
         let minY = canvas.height
         let maxX = 0
         let maxY = 0
-        let hasSignature = false
 
         for (let i = 3; i < pixelData.length; i += 4) {
-          if (pixelData[i] > 0) { // If alpha > 0
+          if (pixelData[i] > 0) { // If alpha > 0 (not transparent)
             const pixelIndex = (i / 4) | 0
             const x = pixelIndex % canvas.width
             const y = (pixelIndex / canvas.width) | 0
@@ -70,46 +102,45 @@ export const processSignatureImage = (dataUrl, whiteThreshold = 230) => {
             minY = Math.min(minY, y)
             maxX = Math.max(maxX, x)
             maxY = Math.max(maxY, y)
-            hasSignature = true
           }
         }
 
-        // Add padding around signature
+        if (!hasSignature) {
+          reject(new Error('No signature detected. Please ensure pen strokes are visible and distinct from the paper.'))
+          return
+        }
+
+        // Step 4: Add padding and crop
         const padding = 15
         minX = Math.max(0, minX - padding)
         minY = Math.max(0, minY - padding)
         maxX = Math.min(canvas.width, maxX + padding)
         maxY = Math.min(canvas.height, maxY + padding)
 
-        // If signature found, crop it
-        if (hasSignature && minX < maxX && minY < maxY) {
-          const croppedCanvas = document.createElement('canvas')
-          croppedCanvas.width = maxX - minX
-          croppedCanvas.height = maxY - minY
+        // Create cropped canvas with white background
+        const croppedCanvas = document.createElement('canvas')
+        croppedCanvas.width = maxX - minX
+        croppedCanvas.height = maxY - minY
 
-          const croppedCtx = croppedCanvas.getContext('2d')
-          croppedCtx.fillStyle = '#FFFFFF'
-          croppedCtx.fillRect(0, 0, croppedCanvas.width, croppedCanvas.height)
-          croppedCtx.drawImage(
-            canvas,
-            minX, minY, maxX - minX, maxY - minY,
-            0, 0, croppedCanvas.width, croppedCanvas.height
-          )
+        const croppedCtx = croppedCanvas.getContext('2d')
+        // Fill with white background
+        croppedCtx.fillStyle = '#FFFFFF'
+        croppedCtx.fillRect(0, 0, croppedCanvas.width, croppedCanvas.height)
+        // Draw signature
+        croppedCtx.drawImage(
+          canvas,
+          minX, minY, maxX - minX, maxY - minY,
+          0, 0, croppedCanvas.width, croppedCanvas.height
+        )
 
-          resolve(croppedCanvas.toDataURL('image/png'))
-        } else if (!hasSignature) {
-          reject(new Error('No signature detected in image. Please ensure the signature is visible and not too light.'))
-        } else {
-          // Fallback to original processed version
-          resolve(canvas.toDataURL('image/png'))
-        }
+        resolve(croppedCanvas.toDataURL('image/png'))
       } catch (error) {
         reject(error)
       }
     }
 
     img.onerror = () => {
-      reject(new Error('Failed to load image'))
+      reject(new Error('Failed to load image. Please ensure the file is a valid image.'))
     }
 
     img.src = dataUrl
