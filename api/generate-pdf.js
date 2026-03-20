@@ -417,9 +417,15 @@ const generateMarksheetPDF = (marksheet, staffSignature, hodSignature, staffName
       signatureSlots.forEach((slot, index) => {
         const slotX = doc.page.margins.left + index * slotWidth
         const imageBuffer = decodeBase64Image(slot.image)
+        
         if (imageBuffer) {
-          doc.image(imageBuffer, slotX + 15, signatureY - 50, {
-            fit: [slotWidth - 30, 42],
+          // Center signature horizontally in the slot
+          const centerX = slotX + (slotWidth / 2)
+          const signatureWidth = slotWidth - 30
+          const posX = centerX - (signatureWidth / 2) // Properly center the image
+          
+          doc.image(imageBuffer, posX, signatureY - 50, {
+            fit: [signatureWidth, 42],
             align: 'center'
           })
         }
@@ -431,14 +437,14 @@ const generateMarksheetPDF = (marksheet, staffSignature, hodSignature, staffName
           .stroke()
         doc.lineWidth(1)
 
-        // Signature label
+        // Signature label - centered
         doc.fontSize(8.5).font('Helvetica')
           .text(slot.label, slotX + 12, signatureY + 5, {
             width: slotWidth - 24,
             align: 'center'
           })
         
-        // Name below signature line with better spacing
+        // Name below signature line with better spacing - centered
         doc.fontSize(9).font('Helvetica-Bold')
           .text(slot.name, slotX + 12, signatureY + 18, {
             width: slotWidth - 24,

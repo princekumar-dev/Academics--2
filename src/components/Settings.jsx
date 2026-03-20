@@ -998,14 +998,16 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
                   id="signature-upload"
                 />
                 {uploadedSignature ? (
-                  <div className="border-2 border-gray-300 rounded-xl overflow-hidden bg-white flex items-center justify-center" style={{ height: '160px' }}>
-                    <img src={uploadedSignature} alt="Uploaded" className="max-w-full max-h-full object-contain" />
+                  <div className="border-3 border-blue-400 rounded-xl overflow-hidden bg-gradient-to-br from-blue-50 to-white flex items-center justify-center" style={{ height: '200px', padding: '12px' }}>
+                    <div className="flex items-center justify-center w-full h-full bg-white rounded-lg">
+                      <img src={uploadedSignature} alt="Uploaded" className="max-w-full max-h-full object-contain" style={{ maxWidth: '90%', maxHeight: '90%' }} />
+                    </div>
                   </div>
                 ) : (
                   <label
                     htmlFor="signature-upload"
-                    className="flex flex-col items-center justify-center border-2 border-dashed border-gray-300 rounded-xl p-8 cursor-pointer hover:border-yellow-500 hover:bg-yellow-50 transition-all"
-                    style={{ height: '160px' }}
+                    className="flex flex-col items-center justify-center border-3 border-dashed border-gray-300 rounded-xl p-8 cursor-pointer hover:border-yellow-500 hover:bg-yellow-50 transition-all"
+                    style={{ height: '200px' }}
                   >
                     <svg className="w-12 h-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
