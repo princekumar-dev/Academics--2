@@ -88,7 +88,7 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-  const { staffId, hodId, department, status, year: yearParam, includeAll, studentId, regNumber, phoneNumber, page = 1, limit = 50 } = req.query
+  const { staffId, hodId, department, status, year: yearParam, includeAll, studentId, regNumber, phoneNumber, page = 1, limit = 1000 } = req.query
       const rawId = req.query.marksheetId || req.query.id
       
       // Return single marksheet by id if requested
@@ -180,9 +180,9 @@ export default async function handler(req, res) {
         filter['studentDetails.year'] = yearParam
       }
 
-      // Pagination parameters
+      // Pagination parameters - Load all records by default (up to 1000)
       const pageNum = Math.max(1, parseInt(page) || 1)
-      const pageSize = Math.max(1, Math.min(100, parseInt(limit) || 50)) // Cap at 100
+      const pageSize = Math.max(1, Math.min(1000, parseInt(limit) || 1000)) // Cap at 1000 to load all records
       const skip = (pageNum - 1) * pageSize
 
       // Get total count for pagination metadata

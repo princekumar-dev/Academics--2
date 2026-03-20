@@ -43,9 +43,9 @@ function Marksheets() {
   const [selectedExamination, setSelectedExamination] = useState(null)
   const [createdExamination, setCreatedExamination] = useState(null)
   const [examinations, setExaminations] = useState([])
-  // Pagination state
+  // Pagination state - Load all records by default (1000 items per page)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize] = useState(50) // Items per page
+  const [pageSize] = useState(1000) // Items per page - increased to load all records
   const [totalPages, setTotalPages] = useState(1)
   const [paginationInfo, setPaginationInfo] = useState(null)
 
