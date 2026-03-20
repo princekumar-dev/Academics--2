@@ -18,9 +18,7 @@ const allowedOrigins = [
   'https://academics-5bf1.onrender.com',
   'https://academics-su1d.onrender.com',
   'https://academics-kxqc.onrender.com', // Old URL for backward compatibility
-  // Add your Vercel domain here after deployment
-  // 'https://your-app.vercel.app',
-  // 'https://your-custom-domain.com'
+  'https://msec-academics.vercel.app', // Production Vercel domain
 ];
 
 app.use(cors({
@@ -28,17 +26,27 @@ app.use(cors({
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) === -1) {
-      // Check if origin matches Vercel pattern (*.vercel.app)
-      if (origin.endsWith('.vercel.app')) {
-        return callback(null, true);
-      }
-      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-      return callback(new Error(msg), false);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
     }
-    return callback(null, true);
+    
+    // Check if origin matches Vercel pattern (*.vercel.app)
+    if (origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+    
+    // Check if origin matches Render pattern (*.onrender.com)
+    if (origin.endsWith('.onrender.com')) {
+      return callback(null, true);
+    }
+    
+    const msg = `CORS not allowed for origin: ${origin}`;
+    return callback(new Error(msg), false);
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400
 }));
 
 // Increase JSON payload limit to handle large base64-encoded signatures
