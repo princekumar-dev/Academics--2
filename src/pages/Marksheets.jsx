@@ -457,84 +457,42 @@ function Marksheets() {
         return
       }
 
-      // Process in parallel with controlled concurrency to speed up bulk operations
       const staffId = userData?._id || userData?.id || localStorage.getItem('userId')
+      const marksheetIds = candidates.map(m => m._id)
 
-      const runWithConcurrency = async (items, worker, concurrency = 4) => {
-        const results = new Array(items.length)
-        let idx = 0
-        const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-          while (true) {
-            const current = idx
-            if (current >= items.length) break
-            idx += 1
-            const item = items[current]
-            try {
-              results[current] = await worker(item)
-            } catch (e) {
-              results[current] = { success: false, id: item._id, error: e && e.message ? e.message : String(e) }
-            }
-          }
-        })
-        await Promise.all(runners)
-        return results
+      // Use batch endpoint for efficiency (single request instead of N requests)
+      const batchResp = await apiClient.post(
+        '/api/marksheets?action=batch-verify-and-dispatch',
+        {
+          marksheetIds,
+          staffId,
+          staffSignature
+        },
+        { timeout: 120000 } // 2 minute timeout for batch operation
+      )
+
+      if (!batchResp) {
+        throw new Error('No response from batch operation')
       }
 
-      const withRetries = async (fn, attempts = 2, delayMs = 500) => {
-        let lastErr = null
-        for (let i = 0; i < attempts; i++) {
-          try {
-            return await fn()
-          } catch (e) {
-            lastErr = e
-            if (i < attempts - 1) await new Promise(r => setTimeout(r, delayMs * Math.pow(2, i)))
-          }
-        }
-        throw lastErr
+      const { summary = {}, results = [] } = batchResp
+      const { verified = 0, dispatched = 0, failed = 0 } = summary
+
+      if (verified > 0) {
+        showSuccess('✓ Verified & Requested', `${verified} marksheet${verified > 1 ? 's' : ''} verified, ${dispatched} dispatch${dispatched > 1 ? 'es' : ''} requested`)
       }
-
-      const worker = async (m) => {
-        try {
-          // Verify with a retry and timeout
-          const verifyResp = await withRetries(() => apiClient.post('/api/marksheets?action=verify', staffSignature ? { marksheetId: m._id, staffSignature } : { marksheetId: m._id }, { timeout: 30000 }), 2, 500)
-          if (!(verifyResp && verifyResp.success)) {
-            return { success: false, id: m._id, error: verifyResp?.error || 'Verify failed' }
-          }
-
-          // Request dispatch with retry and a longer timeout
-          try {
-            const dispatchResp = await withRetries(() => apiClient.post('/api/marksheets?action=request-dispatch', { marksheetId: m._id, staffId }, { timeout: 60000 }), 2, 500)
-            if (!(dispatchResp && dispatchResp.success)) {
-              // Still consider verify successful but dispatch failed
-              return { success: false, id: m._id, verified: true, error: dispatchResp?.error || 'Dispatch request failed' }
-            }
-          } catch (dispatchErr) {
-            return { success: false, id: m._id, verified: true, error: dispatchErr && dispatchErr.message ? dispatchErr.message : String(dispatchErr) }
-          }
-
-          return { success: true, id: m._id }
-        } catch (err) {
-          console.warn('[verifyAndRequest] worker failed for', m._id, err && err.message)
-          return { success: false, id: m._id, error: err && err.message ? err.message : String(err) }
-        }
-      }
-
-      const results = await runWithConcurrency(candidates, worker, 6)
-
-      const successCount = results.filter(r => r && r.success).length
-      const failCount = results.length - successCount
-      if (successCount > 0) {
-        showSuccess('✓ Verified & Requested', `${successCount} marksheet${successCount > 1 ? 's' : ''} processed`)
-      }
-      if (failCount > 0) {
-        showError('Some failed', `${failCount} marksheet${failCount > 1 ? 's' : ''} failed — check console for details`)
+      if (failed > 0) {
+        showError('Some Failed', `${failed} marksheet${failed > 1 ? 's' : ''} failed. Check console for details.`)
+        console.warn('[verifyAndRequest] Failed results:', results.filter(r => !r.success))
       }
 
       await fetchMarksheets()
-      showSuccess('✓ Verified & Requested', `${candidates.length} marksheet${candidates.length > 1 ? 's' : ''} verified and dispatch requested`)
-      celebrate() // Trigger confetti!
+      if (verified > 0) {
+        celebrate() // Trigger confetti!
+      }
     } catch (error) {
-      showError('Action Failed', 'Could not complete verification and dispatch request')
+      console.error('[verifyAndRequest] Error:', error)
+      showError('Action Failed', error?.message || 'Could not complete verification and dispatch request')
     } finally {
       setVerifyingAll(false)
     }

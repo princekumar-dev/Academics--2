@@ -443,6 +443,125 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true, marksheet })
       }
 
+      if (action === 'batch-verify-and-dispatch') {
+        const { marksheetIds, staffId, staffSignature } = req.body
+
+        if (!marksheetIds || !Array.isArray(marksheetIds) || marksheetIds.length === 0) {
+          return res.status(400).json({ success: false, error: 'marksheetIds array is required' })
+        }
+
+        if (!staffId) {
+          return res.status(400).json({ success: false, error: 'staffId is required' })
+        }
+
+        const staff = await User.findById(staffId).select('name email department eSignature')
+        if (!staff) {
+          return res.status(404).json({ success: false, error: 'Staff not found' })
+        }
+
+        const results = []
+        const processed = new Set()
+
+        for (const marksheetId of marksheetIds) {
+          if (processed.has(marksheetId)) continue
+          processed.add(marksheetId)
+
+          try {
+            const marksheet = await Marksheet.findById(marksheetId)
+            if (!marksheet) {
+              results.push({ id: marksheetId, success: false, error: 'Marksheet not found' })
+              continue
+            }
+
+            // Skip if already verified
+            if (marksheet.status === 'verified_by_staff' || marksheet.status.includes('verified_by_hod')) {
+              results.push({ id: marksheetId, success: false, error: 'Already verified', verified: true })
+              continue
+            }
+
+            // Resolve signature
+            let resolvedSignature = typeof staffSignature === 'string' && staffSignature.trim().length > 0
+              ? staffSignature
+              : staff?.eSignature || null
+
+            if (!resolvedSignature) {
+              results.push({ id: marksheetId, success: false, error: 'Staff signature not available' })
+              continue
+            }
+
+            // Verify the marksheet
+            marksheet.status = 'verified_by_staff'
+            marksheet.staffSignature = resolvedSignature
+            marksheet.staffName = staff.name
+            marksheet.updatedAt = new Date()
+            await marksheet.save()
+
+            // Invalidate cached PDF
+            try { invalidatePdfCache(marksheet._id.toString()) } catch (e) {}
+
+            // Request dispatch
+            const year = marksheet.studentDetails?.year
+            const dept = marksheet.studentDetails?.department
+            const normalizedYear = String(year || '').toUpperCase().trim()
+            const hodDeptToNotify = (normalizedYear === 'I') ? 'HNS' : dept
+
+            let hod = null
+            try {
+              hod = await User.findOne({ role: 'hod', department: hodDeptToNotify })
+            } catch (e) { hod = null }
+
+            // Update marksheet with dispatch request
+            const updatePayload = {
+              status: 'awaiting_hod_approval',
+              dispatchRequestedAt: new Date(),
+              updatedAt: new Date()
+            }
+
+            if (hod && hod._id) {
+              updatePayload.hodId = hod._id
+              updatePayload.hodName = hod.name
+            }
+
+            const updated = await Marksheet.findByIdAndUpdate(
+              marksheetId,
+              updatePayload,
+              { new: true }
+            )
+
+            // Notify HOD (async, don't block)
+            if (hod?.email) {
+              sendUserNotification(
+                hod.email,
+                'New dispatch request',
+                `${staff.name} requested dispatch for ${marksheet.studentDetails?.name} (${marksheet.studentDetails?.regNumber}).`,
+                '/approval-requests'
+              ).catch(() => {})
+            }
+
+            results.push({ id: marksheetId, success: true, verified: true, dispatched: true })
+          } catch (err) {
+            results.push({ id: marksheetId, success: false, error: err.message || String(err) })
+          }
+        }
+
+        const successCount = results.filter(r => r.success).length
+        const verifiedCount = results.filter(r => r.verified).length
+        const dispatchCount = results.filter(r => r.dispatched).length
+        const failCount = results.length - successCount
+
+        return res.status(200).json({
+          success: failCount === 0,
+          results,
+          summary: {
+            total: results.length,
+            success: successCount,
+            verified: verifiedCount,
+            dispatched: dispatchCount,
+            failed: failCount
+          }
+        })
+      }
+
       if (action === 'hod-response') {
         const { marksheetId, hodId, response, comments } = req.body
         
