@@ -49,6 +49,30 @@ app.use(cors({
   maxAge: 86400
 }));
 
+// Explicit OPTIONS handler for preflight requests (some proxies need this)
+app.options('*', cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
+    if (origin.endsWith('.vercel.app')) return callback(null, true);
+    if (origin.endsWith('.onrender.com')) return callback(null, true);
+    callback(null, true); // Allow preflight for all origins to avoid blocking
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400
+}));
+
+// Add CORS logging for debugging (remove in production if too verbose)
+app.use((req, res, next) => {
+  const origin = req.get('origin');
+  if (origin && req.method === 'OPTIONS') {
+    console.log(`[CORS] Preflight request from: ${origin}`);
+  }
+  next();
+});
+
 // Increase JSON payload limit to handle large base64-encoded signatures
 // Default is 100KB which is too small for signatures + batch operations
 app.use(express.json({ limit: '50mb' }));
