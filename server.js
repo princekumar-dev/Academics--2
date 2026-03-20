@@ -49,20 +49,7 @@ app.use(cors({
   maxAge: 86400
 }));
 
-// Explicit OPTIONS handler for preflight requests (some proxies need this)
-app.options('*', cors({
-  origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) return callback(null, true);
-    if (origin.endsWith('.vercel.app')) return callback(null, true);
-    if (origin.endsWith('.onrender.com')) return callback(null, true);
-    callback(null, true); // Allow preflight for all origins to avoid blocking
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  maxAge: 86400
-}));
+// Global CORS is already applied above, explicit OPTIONS handler removed
 
 // Add CORS logging for debugging (remove in production if too verbose)
 app.use((req, res, next) => {
