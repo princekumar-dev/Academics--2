@@ -98,11 +98,19 @@ const MarksheetSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 })
 
-// Add indexes for query performance
+// Add compound indexes for query performance (most frequently used query patterns)
+// Staff viewing their marksheets by various statuses (heavily used)
 MarksheetSchema.index({ staffId: 1, status: 1, createdAt: -1 })
+// Department/Year/Status filters (used for HOD and staff views)
 MarksheetSchema.index({ 'studentDetails.department': 1, status: 1, createdAt: -1 })
-MarksheetSchema.index({ 'studentDetails.year': 1, createdAt: -1 })
+MarksheetSchema.index({ 'studentDetails.year': 1, 'studentDetails.department': 1, createdAt: -1 })
+// Status-only queries (used for bulk operations)
 MarksheetSchema.index({ status: 1, createdAt: -1 })
+// Student-specific lookups
+MarksheetSchema.index({ studentId: 1, createdAt: -1 })
+MarksheetSchema.index({ 'studentDetails.regNumber': 1 })
+// Dispatch tracking
+MarksheetSchema.index({ 'dispatchStatus.dispatched': 1, createdAt: -1 })
 // Note: marksheetId already has unique: true in schema, no need for separate index
 
 // Excel Import Session Schema - for temporary storage during import

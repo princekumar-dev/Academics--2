@@ -88,25 +88,23 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-  const { staffId, hodId, department, status, year: yearParam, includeAll, studentId, regNumber, phoneNumber } = req.query
+  const { staffId, hodId, department, status, year: yearParam, includeAll, studentId, regNumber, phoneNumber, page = 1, limit = 50 } = req.query
       const rawId = req.query.marksheetId || req.query.id
       
       // Return single marksheet by id if requested
       if (rawId) {
         let one = null
         try {
-          // Try Mongo _id lookup first
+          // Try Mongo _id lookup first (no populate needed for single document)
           one = await Marksheet.findById(rawId)
-            .populate('staffId', 'name email department class')
-            .populate('hodId', 'name email')
+            .select('-__v')
             .lean()
         } catch {}
 
         // If not found, try by business marksheetId (e.g., MS123...)
         if (!one) {
           one = await Marksheet.findOne({ marksheetId: rawId })
-            .populate('staffId', 'name email department class')
-            .populate('hodId', 'name email')
+            .select('-__v')
             .lean()
         }
 
@@ -146,19 +144,24 @@ export default async function handler(req, res) {
         ]
       }
       
-      // Filter by HOD's department (pre-fetch if needed)
+      // Filter by HOD's department - cache department lookup OR pass it as param
       if (hodId) {
-        const hod = await User.findById(hodId).select('department').lean()
-        if (hod) {
-          hodDept = hod.department
-          filter['studentDetails.department'] = hodDept
+        // Optimize: Accept department param to avoid extra lookup, or cache HOD departments
+        if (department) {
+          filter['studentDetails.department'] = department
+        } else {
+          // Only do lookup if department not provided
+          const hod = await User.findById(hodId).select('department').lean()
+          if (hod) {
+            hodDept = hod.department
+            filter['studentDetails.department'] = hodDept
+          }
         }
       }
       
       // Filter by department
       if (department) {
         filter['studentDetails.department'] = department
-        console.log(`[Marksheets API] Filtering by department: ${department}`)
       }
       
       // Filter by status (support comma-separated multiple statuses)
@@ -177,19 +180,37 @@ export default async function handler(req, res) {
         filter['studentDetails.year'] = yearParam
       }
 
-      console.log('[Marksheets API] Filter:', JSON.stringify(filter))
+      // Pagination parameters
+      const pageNum = Math.max(1, parseInt(page) || 1)
+      const pageSize = Math.max(1, Math.min(100, parseInt(limit) || 50)) // Cap at 100
+      const skip = (pageNum - 1) * pageSize
 
-      // Optimized query with field selection and limit
+      // Get total count for pagination metadata
+      const totalCount = await Marksheet.countDocuments(filter)
+
+      // Optimized query: No populate, use lean() for speed, paginate results
       const marksheets = await Marksheet.find(filter)
-        .select('-__v') // Exclude version key
-        .populate('staffId', 'name email department')
-        .populate('hodId', 'name email')
+        .select('-__v -dispatchStatus.whatsappError') // Exclude unnecessary fields
         .sort({ createdAt: -1 })
-        .limit(500) // Reasonable limit to prevent large payloads
+        .skip(skip)
+        .limit(pageSize)
         .lean()
+        .exec()
 
-      console.log(`[Marksheets API] Found ${marksheets.length} marksheets`)
-      return res.status(200).json({ success: true, marksheets })
+      const totalPages = Math.ceil(totalCount / pageSize)
+
+      return res.status(200).json({ 
+        success: true, 
+        marksheets,
+        pagination: {
+          currentPage: pageNum,
+          pageSize: pageSize,
+          totalCount: totalCount,
+          totalPages: totalPages,
+          hasNextPage: pageNum < totalPages,
+          hasPreviousPage: pageNum > 1
+        }
+      })
     }
 
     if (req.method === 'POST') {

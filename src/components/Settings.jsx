@@ -12,6 +12,7 @@ import {
   getNotificationPermission,
   checkCurrentSubscription
 } from '../utils/notifications'
+import { processSignatureImage, validateSignatureFile, optimizeSignatureForPDF } from '../utils/signatureProcessor'
 
 function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
   const navigate = useNavigate()
@@ -405,88 +406,35 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
     setIsDrawing(false)
   }
 
-  const handleSignatureUpload = (e) => {
+  const handleSignatureUpload = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    if (file.size > 2 * 1024 * 1024) {
-      showError('File too large', 'Maximum 2MB allowed')
+    // Validate file
+    const validation = validateSignatureFile(file)
+    if (!validation.valid) {
+      showError('Invalid file', validation.error)
       return
     }
 
-    const reader = new FileReader()
-    reader.onload = (event) => {
-      const img = new Image()
-      img.onload = () => {
-        // Create canvas for processing
-        const canvas = document.createElement('canvas')
-        canvas.width = img.width
-        canvas.height = img.height
-        const ctx = canvas.getContext('2d')
-
-        // Draw white background
-        ctx.fillStyle = '#FFFFFF'
-        ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-        // Draw the image
-        ctx.drawImage(img, 0, 0)
-
-        // Get image data to find signature bounds
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
-        const data = imageData.data
-
-        // Find bounding box of non-white pixels (signature)
-        let minX = canvas.width
-        let minY = canvas.height
-        let maxX = 0
-        let maxY = 0
-
-        for (let i = 0; i < data.length; i += 4) {
-          const r = data[i]
-          const g = data[i + 1]
-          const b = data[i + 2]
-          const a = data[i + 3]
-
-          // Check if pixel is not white and not transparent
-          if ((r < 250 || g < 250 || b < 250) && a > 128) {
-            const pixelIndex = i / 4
-            const x = pixelIndex % canvas.width
-            const y = Math.floor(pixelIndex / canvas.width)
-
-            minX = Math.min(minX, x)
-            minY = Math.min(minY, y)
-            maxX = Math.max(maxX, x)
-            maxY = Math.max(maxY, y)
-          }
-        }
-
-        // Add padding around signature
-        const padding = 10
-        minX = Math.max(0, minX - padding)
-        minY = Math.max(0, minY - padding)
-        maxX = Math.min(canvas.width, maxX + padding)
-        maxY = Math.min(canvas.height, maxY + padding)
-
-        // If signature found, crop it
-        if (minX < maxX && minY < maxY) {
-          const croppedCanvas = document.createElement('canvas')
-          croppedCanvas.width = maxX - minX
-          croppedCanvas.height = maxY - minY
-
-          const croppedCtx = croppedCanvas.getContext('2d')
-          croppedCtx.fillStyle = '#FFFFFF'
-          croppedCtx.fillRect(0, 0, croppedCanvas.width, croppedCanvas.height)
-          croppedCtx.drawImage(canvas, minX, minY, maxX - minX, maxY - minY, 0, 0, croppedCanvas.width, croppedCanvas.height)
-
-          setUploadedSignature(croppedCanvas.toDataURL('image/png'))
-        } else {
-          // No signature found, use original with white background
-          setUploadedSignature(canvas.toDataURL('image/png'))
+    try {
+      const reader = new FileReader()
+      reader.onload = async (event) => {
+        try {
+          // Process the signature image to remove white background
+          const processedSignature = await processSignatureImage(event.target.result, 230)
+          setUploadedSignature(processedSignature)
+          showSuccess('Signature processed', 'White background removed successfully')
+        } catch (error) {
+          showError('Processing failed', error.message || 'Could not process signature image')
+          // Fallback: use original image
+          setUploadedSignature(event.target.result)
         }
       }
-      img.src = event.target.result
+      reader.readAsDataURL(file)
+    } catch (error) {
+      showError('Error', 'Failed to read file')
     }
-    reader.readAsDataURL(file)
   }
 
   const clearSignature = () => {
@@ -499,7 +447,7 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
   }
 
   const saveSignature = async () => {
-    const signatureData = signatureMode === 'draw'
+    let signatureData = signatureMode === 'draw'
       ? canvasRef.current?.toDataURL('image/png')
       : uploadedSignature
 
@@ -509,6 +457,9 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
     }
 
     try {
+      // Optimize signature for PDF display
+      signatureData = await optimizeSignatureForPDF(signatureData)
+
       const auth = JSON.parse(localStorage.getItem('auth') || '{}')
       const userId = auth?.id || localStorage.getItem('userId')
 

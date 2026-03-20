@@ -18,6 +18,11 @@ const ExaminationSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 })
 
+// Add indexes for query performance (most frequent queries)
+ExaminationSchema.index({ staffId: 1, createdAt: -1 })
+ExaminationSchema.index({ department: 1, createdAt: -1 })
+ExaminationSchema.index({ staffId: 1, department: 1, status: 1 })
+
 // Create the model
 const Examination = mongoose.models.Examination || mongoose.model('Examination', ExaminationSchema)
 
@@ -103,10 +108,11 @@ export default async function handler(req, res) {
         query.department = department
       }
 
-      // Get examinations
+      // Get examinations - optimized with lean() and no populate
       const examinations = await Examination.find(query)
+        .select('-__v') // Exclude version field
         .sort({ createdAt: -1 })
-        .populate('staffId', 'name department')
+        .lean() // Skip unwrapping to plain objects for speed
 
       return res.status(200).json({
         success: true,

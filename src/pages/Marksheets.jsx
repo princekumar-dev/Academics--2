@@ -41,13 +41,18 @@ function Marksheets() {
   })
   const [showImportSection, setShowImportSection] = useState(false)
   const [selectedExamination, setSelectedExamination] = useState(null)
-  const [groupedMarksheets, setGroupedMarksheets] = useState({})
   const [createdExamination, setCreatedExamination] = useState(null)
   const [examinations, setExaminations] = useState([])
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize] = useState(50) // Items per page
+  const [totalPages, setTotalPages] = useState(1)
+  const [paginationInfo, setPaginationInfo] = useState(null)
 
   // Pull-to-refresh functionality
   const handleRefresh = async () => {
-    await Promise.all([fetchMarksheets(), fetchExaminations()])
+    setCurrentPage(1) // Reset to first page on refresh
+    await Promise.all([fetchMarksheets(false, 1), fetchExaminations()])
     showInfo('🔄 Refreshed', 'Marksheets data updated')
   }
 
@@ -74,13 +79,13 @@ function Marksheets() {
 
   useEffect(() => {
     if (userData && userData.role === 'staff') {
-      fetchMarksheets()
+      fetchMarksheets(false, currentPage)
       fetchExaminations()
     }
   }, [userData])
 
-  // Group marksheets by examination name and sort by register number
-  useEffect(() => {
+  // Memoize grouping logic to prevent recalculation on every render
+  const groupedMarksheets = useMemo(() => {
     const grouped = marksheets.reduce((acc, marksheet) => {
       const examName = marksheet.examinationName || 'Unknown Examination'
       if (!acc[examName]) {
@@ -99,7 +104,7 @@ function Marksheets() {
       })
     })
 
-    setGroupedMarksheets(grouped)
+    return grouped
   }, [marksheets])
 
   // Helper function to refresh userData from localStorage (and server if needed)
@@ -146,13 +151,15 @@ function Marksheets() {
     )
   }
 
-  const fetchMarksheets = async (force = false) => {
+  const fetchMarksheets = async (force = false, page = 1) => {
     try {
       const staffId = userData?._id || userData?.id || localStorage.getItem('userId')
       const opts = force ? { cache: false, dedupe: false } : {}
-      const data = await apiClient.get(`/api/marksheets?staffId=${staffId}`, opts)
+      const data = await apiClient.get(`/api/marksheets?staffId=${staffId}&page=${page}&limit=${pageSize}`, opts)
       if (data.success) {
         setMarksheets(data.marksheets)
+        setPaginationInfo(data.pagination)
+        setTotalPages(data.pagination?.totalPages || 1)
       }
     } catch (error) {
       console.error('Error fetching marksheets:', error)
