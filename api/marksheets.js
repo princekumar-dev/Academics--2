@@ -510,10 +510,19 @@ export default async function handler(req, res) {
               hod = await User.findOne({ role: 'hod', department: hodDeptToNotify })
             } catch (e) { hod = null }
 
-            // Update marksheet with dispatch request
+            // Update marksheet with dispatch request (matching individual request-dispatch endpoint)
             const updatePayload = {
-              status: 'awaiting_hod_approval',
-              dispatchRequestedAt: new Date(),
+              status: 'dispatch_requested',
+              'dispatchRequest.requestedAt': new Date(),
+              'dispatchRequest.requestedBy': staff.name,
+              'dispatchRequest.status': 'pending',
+              'dispatchRequest.hodResponse': null,
+              'dispatchRequest.hodComments': null,
+              'dispatchRequest.scheduledDispatchDate': null,
+              'dispatchRequest.respondedAt': null,
+              'dispatchRequest.preDispatchNotificationSent': false,
+              'dispatchRequest.autoDispatched': false,
+              'dispatchRequest.autoDispatchFailed': false,
               updatedAt: new Date()
             }
 
@@ -529,14 +538,40 @@ export default async function handler(req, res) {
             )
 
             // Notify HOD (async, don't block)
-            if (hod?.email) {
-              sendUserNotification(
-                hod.email,
-                'New dispatch request',
-                `${staff.name} requested dispatch for ${marksheet.studentDetails?.name} (${marksheet.studentDetails?.regNumber}).`,
-                '/approval-requests'
-              ).catch(() => {})
-            }
+            try {
+              if (hod?.email) {
+                await sendUserNotification(
+                  hod.email,
+                  'New dispatch request',
+                  `${staff.name} requested dispatch for ${updated.studentDetails?.name} (${updated.studentDetails?.regNumber}).`,
+                  '/approval-requests'
+                )
+              } else {
+                // Fallback: notify department HOD if HNS not found and it's not already the department hod
+                const fallbackHod = await User.findOne({ role: 'hod', department: dept })
+                if (fallbackHod?.email) {
+                  await sendUserNotification(
+                    fallbackHod.email,
+                    'New dispatch request',
+                    `${staff.name} requested dispatch for ${updated.studentDetails?.name} (${updated.studentDetails?.regNumber}).`,
+                    '/approval-requests'
+                  )
+                }
+              }
+            } catch {}
+
+            // Send broadcast notification for dispatch request
+            try {
+              await sendBroadcastNotification(
+                '📤 Dispatch Request',
+                `${staff.name} requested dispatch for ${updated.studentDetails?.name}`,
+                {
+                  type: 'dispatch_request',
+                  marksheetId: updated._id.toString(),
+                  studentName: updated.studentDetails?.name
+                }
+              )
+            } catch {}
 
             results.push({ id: marksheetId, success: true, verified: true, dispatched: true })
           } catch (err) {
