@@ -483,71 +483,75 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     // For late arrival: only record (mark as waiting for student confirmation)
     if (request.type === 'late_arrival') {
       setProcessing(request._id)
-
-      try {
-        const auth = JSON.parse(localStorage.getItem('auth') || '{}')
-        const staffId = auth?.id || auth.user?.id
-
-        // Step 1: Record the action (just update status, don't send notification yet)
-        try {
-          await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=acknowledge`, { staffId })
-          setRequests(prev => {
-            const next = prev.filter(r => r._id !== request._id)
-            if (setUnreadCount) setUnreadCount(next.length)
-            return next
-          })
-          lastOptimisticUpdateRef.current = Date.now()
-          try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdatedImmediate && m.notifyNotificationsUpdatedImmediate()) } catch (e) { }
-          try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) { }
-          try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
-        } catch (err) {
-          console.error('Error recording late arrival:', err)
-        }
-      } catch (error) {
-        console.error('Error recording late arrival:', error)
-      } finally {
-        setProcessing(null)
+      
+      // Optimistically update UI immediately
+      setRequests(prev => {
+        const next = prev.filter(r => r._id !== request._id)
+        if (setUnreadCount) setUnreadCount(next.length)
+        return next
+      })
+      
+      // Close modal immediately if no more requests
+      if (requests.length <= 1) {
+        onClose()
       }
+      
+      // Notify other components immediately
+      try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdatedImmediate && m.notifyNotificationsUpdatedImmediate()) } catch (e) { }
+      try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) { }
+      try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
+
+      // Fire backend update in background (don't wait for it)
+      const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+      const staffId = auth?.id || auth.user?.id
+      apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=acknowledge`, { staffId }).catch(err => {
+        console.error('Error recording late arrival:', err)
+      }).finally(() => {
+        setProcessing(null)
+      })
       return
     }
 
     // For other request types (HOD: staff_account_approval, leave_request): proceed normally
     setProcessing(request._id)
-    try {
-      const auth = JSON.parse(localStorage.getItem('auth') || '{}')
-      const hodId = auth?.id || auth.user?.id
+    
+    // Optimistically update UI immediately
+    setRequests(prev => {
+      const next = prev.filter(r => r._id !== request._id)
+      if (setUnreadCount) setUnreadCount(next.length)
+      return next
+    })
+    
+    // Close modal immediately if no more requests remain
+    if (requests.length <= 1) {
+      onClose()
+    }
+    
+    // Notify other components immediately
+    try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdatedImmediate && m.notifyNotificationsUpdatedImmediate()) } catch (e) { }
+    try { if (typeof window.dispatchEvent === 'function') window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) { }
+    try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
 
-      try {
-        if (request.type === 'staff_account_approval') {
-          await apiClient.patch('/api/staff-approval', { requestId: request.data.requestId, action: 'approve', hodId }, { timeout: 20000, retry: 1, dispatch: false })
-        } else if (request.type === 'leave_request') {
-          await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=approve`, { hodId }, { timeout: 60000, retry: 1, dispatch: false })
-        } else {
-          setProcessing(null)
-          return
-        }
-
-        // Optimistic update: remove from list and update count immediately (no refetch = no double reload)
-        const requestIdToRemove = request._id
-        setRequests(prev => {
-          const next = prev.filter(r => r._id !== requestIdToRemove)
-          if (setUnreadCount) setUnreadCount(next.length)
-          return next
-        })
-        lastOptimisticUpdateRef.current = Date.now()
-        try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdatedImmediate && m.notifyNotificationsUpdatedImmediate()) } catch (e) { }
-        try { if (typeof window.dispatchEvent === 'function') window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) { }
-        try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
-      } catch (err) {
-        console.error('Error approving request:', err)
-        if (err && (err.name === 'AbortError' || (err.message && err.message.includes('aborted')))) {
-          try { await fetchRequests({ force: true }) } catch (refreshErr) { }
-        }
-      }
-    } catch (error) {
-      console.error('Error approving request:', error)
-    } finally {
-      setProcessing(null)
+    // Fire backend update in background (don't wait for it)
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    const hodId = auth?.id || auth.user?.id
+    
+    const requestType = request.type === 'staff_account_approval' ? 'Staff account' : 'Leave request'
+    console.log(`✅ ${requestType} approved successfully`)
+    
+    // Send backend update asynchronously without waiting
+    if (request.type === 'staff_account_approval') {
+      apiClient.patch('/api/staff-approval', { requestId: request.data.requestId, action: 'approve', hodId }, { timeout: 20000, retry: 1, dispatch: false }).catch(err => {
+        console.error('Error approving staff account in background:', err)
+      }).finally(() => {
+        setProcessing(null)
+      })
+    } else if (request.type === 'leave_request') {
+      apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=approve`, { hodId }, { timeout: 60000, retry: 1, dispatch: false }).catch(err => {
+        console.error('Error approving leave request in background:', err)
+      }).finally(() => {
+        setProcessing(null)
+      })
     }
   }
 
@@ -569,35 +573,48 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     if (!rejectDialog || !rejectDialog.request) return
     const request = rejectDialog.request
     setProcessing(request._id)
-    try {
-      const auth = JSON.parse(localStorage.getItem('auth') || '{}')
-      const hodId = auth?.id || auth.user?.id
-      const reason = (rejectDialog.reason || '').trim()
-
-      try {
-        if (request.type === 'staff_account_approval') {
-          await apiClient.patch('/api/staff-approval', { requestId: request.data.requestId, action: 'reject', hodId, rejectionReason: reason }, { dispatch: false })
-        } else if (request.type === 'leave_request') {
-          await apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=reject`, { hodId, reason }, { dispatch: false })
-        }
-
-        // Optimistic update: remove from list and update count (skip event-driven refetch)
-        setRequests(prev => {
-          const next = prev.filter(r => r._id !== request._id)
-          if (setUnreadCount) setUnreadCount(next.length)
-          return next
-        })
-        lastOptimisticUpdateRef.current = Date.now()
-        try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdatedImmediate && m.notifyNotificationsUpdatedImmediate()) } catch (e) { }
-        try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) { }
-        try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
-      } catch (err) {
-        console.error('Error rejecting request:', err)
-      }
-    } catch (error) {
-      console.error('Error rejecting request:', error)
-    } finally {
-      closeReject()
+    
+    // Optimistically update UI immediately
+    setRequests(prev => {
+      const next = prev.filter(r => r._id !== request._id)
+      if (setUnreadCount) setUnreadCount(next.length)
+      return next
+    })
+    
+    // Close reject dialog immediately
+    closeReject()
+    
+    // Close modal if no more requests remain
+    if (requests.length <= 1) {
+      onClose()
+    }
+    
+    // Notify other components immediately
+    try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdatedImmediate && m.notifyNotificationsUpdatedImmediate()) } catch (e) { }
+    try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) { }
+    try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
+    
+    // Fire backend update in background (don't wait for it)
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+    const hodId = auth?.id || auth.user?.id
+    const reason = (rejectDialog.reason || '').trim()
+    
+    const requestType = request.type === 'staff_account_approval' ? 'Staff account' : 'Leave request'
+    console.log(`⛔ ${requestType} rejected successfully`)
+    
+    // Send backend update asynchronously without waiting
+    if (request.type === 'staff_account_approval') {
+      apiClient.patch('/api/staff-approval', { requestId: request.data.requestId, action: 'reject', hodId, rejectionReason: reason }, { dispatch: false }).catch(err => {
+        console.error('Error rejecting staff account in background:', err)
+      }).finally(() => {
+        setProcessing(null)
+      })
+    } else if (request.type === 'leave_request') {
+      apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=reject`, { hodId, reason }, { dispatch: false }).catch(err => {
+        console.error('Error rejecting leave request in background:', err)
+      }).finally(() => {
+        setProcessing(null)
+      })
     }
   }
 

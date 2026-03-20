@@ -466,12 +466,13 @@ function Marksheets() {
   const handleConfirmDelete = async () => {
     if (!confirmExamDoc) return
     setConfirmOpen(false)
+    let deleteData = null
     try {
       const staffId = userData?._id || userData?.id || localStorage.getItem('userId')
       try {
-        const data = await apiClient.del('/api/examinations', { body: { examinationId: confirmExamDoc._id, staffId } })
-        if (!data || !data.success) {
-          showError('Delete Failed', data?.error || 'Could not delete examination')
+        deleteData = await apiClient.del('/api/examinations', { body: { examinationId: confirmExamDoc._id, staffId } })
+        if (!deleteData || !deleteData.success) {
+          showError('Delete Failed', deleteData?.error || 'Could not delete examination')
           return
         }
       } catch (err) {
@@ -482,7 +483,7 @@ function Marksheets() {
       // Remove marksheets belonging to this exam from UI and refresh examinations
       setMarksheets(prev => prev.filter(m => m.examinationName !== confirmExamDoc.examinationName))
       await fetchExaminations()
-      showSuccess('Deleted', `${data.deleted.marksheets || 0} marksheets and ${data.deleted.students || 0} students removed.`)
+      showSuccess('Deleted', `${deleteData.deleted.marksheets || 0} marksheets and ${deleteData.deleted.students || 0} students removed.`)
     } catch (err) {
       console.error('Delete exam error:', err)
       showError('Error', getUserFriendlyMessage(err, 'Failed to delete examination'))

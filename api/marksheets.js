@@ -144,14 +144,14 @@ export default async function handler(req, res) {
         ]
       }
       
-      // Filter by HOD's department - use cached department lookup
+      // Filter by HOD's department - optimize by accepting department param to avoid extra lookup
       if (hodId) {
-        // Optimize: Accept department param to avoid extra lookup, or cache HOD departments
+        // Optimize: Accept department param to avoid extra lookup
         if (department) {
           filter['studentDetails.department'] = department
         } else {
           // Only do lookup if department not provided - use select to get only what we need
-          const hod = await User.findById(hodId).select('department').lean().cache(30) // Cache for 30 seconds
+          const hod = await User.findById(hodId).select('department').lean()
           if (hod) {
             hodDept = hod.department
             filter['studentDetails.department'] = hodDept

@@ -260,12 +260,28 @@ function SignUp() {
 
               <div>
                 <label className="block text-sm font-bold text-white mb-3">Password</label>
-                <input type="password" name="password" value={formData.password} onChange={handleInputChange} className="w-full px-4 py-4 border-0 rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200" placeholder="Create a password" required />
+                <input
+                  type="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-4 border-0 rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200"
+                  placeholder="Create a password"
+                  required
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-bold text-white mb-3">Confirm Password</label>
-                <input type="password" name="confirmPassword" value={formData.confirmPassword} onChange={handleInputChange} className="w-full px-4 py-4 border-0 rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200" placeholder="Repeat password" required />
+                <input
+                  type="password"
+                  name="confirmPassword"
+                  value={formData.confirmPassword}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-4 border-0 rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200"
+                  placeholder="Repeat password"
+                  required
+                />
               </div>
 
               <div className="pt-4">
