@@ -388,13 +388,39 @@ function Marksheets() {
         setVerifyingAll(false)
         return
       }
-      await Promise.all(candidates.map(async (m) => {
-        try {
-          await apiClient.post('/api/marksheets?action=verify', staffSignature ? { marksheetId: m._id, staffSignature } : { marksheetId: m._id })
-        } catch (e) { }
-      }))
+
+      // Process in chunks to avoid overwhelming the server
+      const CHUNK_SIZE = 5
+      let successCount = 0
+      let failCount = 0
+
+      for (let i = 0; i < candidates.length; i += CHUNK_SIZE) {
+        const chunk = candidates.slice(i, i + CHUNK_SIZE)
+        await Promise.all(chunk.map(async (m) => {
+          try {
+            await apiClient.post('/api/marksheets?action=verify', 
+              staffSignature ? { marksheetId: m._id, staffSignature } : { marksheetId: m._id },
+              { timeout: 30000 }
+            )
+            successCount++
+          } catch (e) { 
+            failCount++
+            console.warn('[verifyAll] Failed to verify', m._id, e?.message)
+          }
+        }))
+        // Small delay between chunks
+        if (i + CHUNK_SIZE < candidates.length) {
+          await new Promise(r => setTimeout(r, 300))
+        }
+      }
+
       await fetchMarksheets()
-      showSuccess('✓ All Verified', `Successfully verified ${candidates.length} marksheet${candidates.length > 1 ? 's' : ''}`)
+      if (successCount > 0) {
+        showSuccess('✓ Verified', `${successCount} marksheet${successCount > 1 ? 's' : ''} verified`)
+      }
+      if (failCount > 0) {
+        showError('Some Failed', `${failCount} marksheet${failCount > 1 ? 's' : ''} failed to verify`)
+      }
       celebrate() // Trigger confetti!
     } catch (error) {
       showError('Verification Failed', 'Could not verify all marksheets')
@@ -458,36 +484,69 @@ function Marksheets() {
       }
 
       const staffId = userData?._id || userData?.id || localStorage.getItem('userId')
-      const marksheetIds = candidates.map(m => m._id)
 
-      // Use batch endpoint for efficiency (single request instead of N requests)
-      const batchResp = await apiClient.post(
-        '/api/marksheets?action=batch-verify-and-dispatch',
-        {
-          marksheetIds,
-          staffId,
-          staffSignature
-        },
-        { timeout: 120000 } // 2 minute timeout for batch operation
-      )
-
-      if (!batchResp) {
-        throw new Error('No response from batch operation')
+      // Process in chunks to avoid timeout on large batches
+      const CHUNK_SIZE = 15
+      const chunks = []
+      for (let i = 0; i < candidates.length; i += CHUNK_SIZE) {
+        chunks.push(candidates.slice(i, i + CHUNK_SIZE))
       }
 
-      const { summary = {}, results = [] } = batchResp
-      const { verified = 0, dispatched = 0, failed = 0 } = summary
+      let totalVerified = 0
+      let totalDispatched = 0
+      let totalFailed = 0
+      const failedItems = []
 
-      if (verified > 0) {
-        showSuccess('✓ Verified & Requested', `${verified} marksheet${verified > 1 ? 's' : ''} verified, ${dispatched} dispatch${dispatched > 1 ? 'es' : ''} requested`)
+      // Process each chunk sequentially
+      for (let chunkIdx = 0; chunkIdx < chunks.length; chunkIdx++) {
+        const chunk = chunks[chunkIdx]
+        const marksheetIds = chunk.map(m => m._id)
+
+        try {
+          // Use batch endpoint for this chunk
+          const batchResp = await apiClient.post(
+            '/api/marksheets?action=batch-verify-and-dispatch',
+            {
+              marksheetIds,
+              staffId,
+              staffSignature
+            },
+            { timeout: 60000 } // 60 second timeout per chunk
+          )
+
+          if (batchResp) {
+            const { summary = {}, results = [] } = batchResp
+            totalVerified += summary.verified || 0
+            totalDispatched += summary.dispatched || 0
+            totalFailed += summary.failed || 0
+            failedItems.push(...results.filter(r => !r.success))
+          }
+        } catch (chunkErr) {
+          console.error(`[verifyAndRequest] Chunk ${chunkIdx + 1} failed:`, chunkErr)
+          // Mark all items in this chunk as failed
+          chunk.forEach(m => {
+            totalFailed++
+            failedItems.push({ id: m._id, error: chunkErr.message })
+          })
+        }
+
+        // Small delay between chunks to avoid overwhelming server
+        if (chunkIdx < chunks.length - 1) {
+          await new Promise(r => setTimeout(r, 500))
+        }
       }
-      if (failed > 0) {
-        showError('Some Failed', `${failed} marksheet${failed > 1 ? 's' : ''} failed. Check console for details.`)
-        console.warn('[verifyAndRequest] Failed results:', results.filter(r => !r.success))
+
+      // Show results
+      if (totalVerified > 0) {
+        showSuccess('✓ Verified & Requested', `${totalVerified} marksheet${totalVerified > 1 ? 's' : ''} verified, ${totalDispatched} dispatch${totalDispatched > 1 ? 'es' : ''} requested`)
+      }
+      if (totalFailed > 0) {
+        showError('Some Failed', `${totalFailed} marksheet${totalFailed > 1 ? 's' : ''} failed — check console for details`)
+        console.warn('[verifyAndRequest] Failed items:', failedItems)
       }
 
       await fetchMarksheets()
-      if (verified > 0) {
+      if (totalVerified > 0) {
         celebrate() // Trigger confetti!
       }
     } catch (error) {
