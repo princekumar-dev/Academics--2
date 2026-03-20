@@ -397,15 +397,30 @@ function Marksheets() {
       for (let i = 0; i < candidates.length; i += CHUNK_SIZE) {
         const chunk = candidates.slice(i, i + CHUNK_SIZE)
         await Promise.all(chunk.map(async (m) => {
-          try {
-            await apiClient.post('/api/marksheets?action=verify', 
-              staffSignature ? { marksheetId: m._id, staffSignature } : { marksheetId: m._id },
-              { timeout: 30000 }
-            )
-            successCount++
-          } catch (e) { 
-            failCount++
-            console.warn('[verifyAll] Failed to verify', m._id, e?.message)
+          let attempts = 0
+          let verified = false
+          
+          while (attempts < 3 && !verified) {
+            try {
+              await apiClient.post('/api/marksheets?action=verify', 
+                staffSignature ? { marksheetId: m._id, staffSignature } : { marksheetId: m._id },
+                { timeout: 90000 }
+              )
+              successCount++
+              verified = true
+            } catch (e) { 
+              attempts++
+              const isTimeout = e?.name === 'AbortError' || e?.message?.includes('timeout')
+              const errorMsg = isTimeout ? 'timeout' : (e?.message || 'unknown error')
+              console.warn(`[verifyAll] Failed to verify ${m._id} (attempt ${attempts}/3) - ${errorMsg}`)
+              
+              if (attempts < 3 && isTimeout) {
+                // Retry on timeout with backoff
+                await new Promise(r => setTimeout(r, 1000 * attempts))
+              } else if (attempts >= 3) {
+                failCount++
+              }
+            }
           }
         }))
         // Small delay between chunks
