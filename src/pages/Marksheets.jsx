@@ -43,11 +43,12 @@ function Marksheets() {
   const [selectedExamination, setSelectedExamination] = useState(null)
   const [createdExamination, setCreatedExamination] = useState(null)
   const [examinations, setExaminations] = useState([])
-  // Pagination state - Load all records by default (1000 items per page)
+  // Pagination state - Load smaller batches for faster initial render (100 items per page)
   const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize] = useState(1000) // Items per page - increased to load all records
+  const [pageSize] = useState(100) // Items per page - reduced for faster initial load
   const [totalPages, setTotalPages] = useState(1)
   const [paginationInfo, setPaginationInfo] = useState(null)
+  const [allLoadedMarksheets, setAllLoadedMarksheets] = useState([]) // Cache all loaded pages
 
   // Pull-to-refresh functionality
   const handleRefresh = async () => {
@@ -157,14 +158,24 @@ function Marksheets() {
       const opts = force ? { cache: false, dedupe: false } : {}
       const data = await apiClient.get(`/api/marksheets?staffId=${staffId}&page=${page}&limit=${pageSize}`, opts)
       if (data.success) {
-        setMarksheets(data.marksheets)
+        // Merge new page with existing loaded marksheets for smoother pagination
+        if (page === 1) {
+          setAllLoadedMarksheets(data.marksheets)
+          setMarksheets(data.marksheets)
+        } else {
+          // Append new page results
+          const combined = [...allLoadedMarksheets, ...data.marksheets]
+          setAllLoadedMarksheets(combined)
+          setMarksheets(combined)
+        }
         setPaginationInfo(data.pagination)
         setTotalPages(data.pagination?.totalPages || 1)
+        setCurrentPage(page)
       }
     } catch (error) {
       console.error('Error fetching marksheets:', error)
     } finally {
-      setLoading(false)
+      if (page === 1) setLoading(false)
     }
   }
 
@@ -180,6 +191,13 @@ function Marksheets() {
       console.error('Error fetching examinations:', error)
     }
   }
+
+  // Load next page of marksheets (for infinite scroll or pagination)
+  const loadMoreMarksheets = useCallback(async () => {
+    if (currentPage < totalPages && !loading) {
+      await fetchMarksheets(false, currentPage + 1)
+    }
+  }, [currentPage, totalPages, loading])
 
   // Listen for external events that indicate marksheets changed elsewhere
   useEffect(() => {

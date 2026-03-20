@@ -66,7 +66,8 @@ export default async function handler(req, res) {
           return res.status(400).json({ success: false, error: 'userId is required' })
         }
 
-        const user = await User.findById(userId).lean()
+        // Select only needed fields for faster query
+        const user = await User.findById(userId).select('_id name email role department year section phoneNumber eSignature').lean()
         if (!user) {
           return res.status(404).json({ success: false, error: 'User not found' })
         }
@@ -87,8 +88,8 @@ export default async function handler(req, res) {
         })
       }
 
-      // list users for academic system
-      const users = await User.find().sort({ createdAt: -1 }).lean()
+      // list users for academic system - select only needed fields
+      const users = await User.find().select('_id name email role department year section phoneNumber').sort({ createdAt: -1 }).lean()
       // Remove sensitive fields before sending to client
       const safe = users.map(u => ({
         id: u._id,

@@ -13,12 +13,12 @@ function buildUrl(url) {
 async function request(method, url, opts = {}) {
   const {
     cache: useCache = true,
-    ttl = 30 * 1000,
+    ttl = method === 'GET' ? 60 * 1000 : 0, // Cache GET requests for 60s, don't cache mutations
     // Increase default timeout to 90s to handle batch operations with many marksheets
     // Batch verify/dispatch operations can take 30-60s or more depending on server load
-    timeout = 90 * 1000,
+    timeout = method === 'GET' ? 60 * 1000 : 90 * 1000, // GET: 60s, POST/PATCH: 90s
     dedupe = true,
-    retry = 0,
+    retry = method === 'GET' ? 2 : 0, // Retry GET requests, not mutations
     retryDelay = 500,
     body,
     headers,
