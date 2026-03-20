@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react'
+import { useEffect, useCallback, useRef } from 'react'
 
 /**
  * Hook to listen for push notifications from service worker
@@ -40,13 +40,31 @@ export function usePushNotifications(handlers = {}) {
 
 /**
  * Hook to trigger automatic refresh when page comes into focus
+ * Includes debouncing and minimum interval to prevent excessive requests
  */
-export function usePageFocus(callback) {
+export function usePageFocus(callback, minIntervalMs = 30000) {
+  const lastCallTimeRef = useRef(0);
+  const callbackRef = useRef(callback);
+  
+  // Update callback ref when callback changes, but don't re-register listener
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
+
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (!document.hidden) {
-        console.log('📱 Page came into focus, refreshing data...')
-        callback?.()
+        const now = Date.now();
+        const timeSinceLastCall = now - lastCallTimeRef.current;
+        
+        // Only call if minimum interval has passed
+        if (timeSinceLastCall >= minIntervalMs) {
+          console.log('📱 Page came into focus, refreshing data...')
+          lastCallTimeRef.current = now;
+          callbackRef.current?.();
+        } else {
+          console.log(`📱 Page came into focus, but skipping refresh (${Math.round(minIntervalMs - timeSinceLastCall)}ms until next allowed)`)
+        }
       }
     }
 
@@ -55,5 +73,5 @@ export function usePageFocus(callback) {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [callback])
+  }, [minIntervalMs])
 }

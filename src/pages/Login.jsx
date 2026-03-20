@@ -73,6 +73,7 @@ function Login() {
           regNumber: data.user.regNumber,
           phoneNumber: data.user.phoneNumber,
           parentPhoneNumber: data.user.parentPhoneNumber,
+          eSignature: data.user.eSignature || null,
           loginTime: new Date().toISOString()
         }
         localStorage.setItem('auth', JSON.stringify(authData))
@@ -86,7 +87,7 @@ function Login() {
         // Try to fetch canonical profile so the welcome message matches dashboard
         let displayName = data.user.name
         try {
-          const profile = await apiClient.get(`/api/users?id=${data.user.id}`)
+          const profile = await apiClient.get(`/api/users?action=profile&userId=${data.user.id}`)
           if (profile?.success && profile.user) {
             const merged = { ...authData, ...profile.user }
             localStorage.setItem('auth', JSON.stringify(merged))

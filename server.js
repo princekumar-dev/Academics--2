@@ -41,7 +41,10 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json());
+// Increase JSON payload limit to handle large base64-encoded signatures
+// Default is 100KB which is too small for signatures + batch operations
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Lightweight timing middleware to log slow requests (helps diagnose slow deployed API)
 app.use((req, res, next) => {

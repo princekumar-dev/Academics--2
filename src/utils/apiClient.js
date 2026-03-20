@@ -14,8 +14,9 @@ async function request(method, url, opts = {}) {
   const {
     cache: useCache = true,
     ttl = 30 * 1000,
-    // Increase default timeout to 30s to avoid frequent AbortErrors on slower endpoints
-    timeout = 30 * 1000,
+    // Increase default timeout to 90s to handle batch operations with many marksheets
+    // Batch verify/dispatch operations can take 30-60s or more depending on server load
+    timeout = 90 * 1000,
     dedupe = true,
     retry = 0,
     retryDelay = 500,
@@ -124,13 +125,21 @@ async function request(method, url, opts = {}) {
 
         return data;
       } catch (err) {
-        attempt += 1;
-        // If aborted due to controller or last attempt, rethrow
+        // Always clear the timeout, even on error
+        clearTimeout(timer);
+        
+        // Check if this is an abort/timeout error
         const isAbort = err && (err.name === 'AbortError' || err.message && err.message.includes('aborted'));
-        if (attempt > retry || isAbort && attempt > retry) {
+        
+        attempt += 1;
+        
+        // Never retry on AbortError - the timeout already fired so retrying won't help
+        // Only retry on actual network/server errors with exponential backoff
+        if (isAbort || attempt > retry) {
           throw err;
         }
-        // wait with exponential backoff
+        
+        // wait with exponential backoff before retrying
         const delay = Math.max(0, retryDelay * Math.pow(2, attempt - 1));
         await new Promise(r => setTimeout(r, delay));
         // continue to next attempt
