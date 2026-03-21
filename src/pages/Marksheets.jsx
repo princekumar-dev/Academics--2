@@ -669,12 +669,12 @@ function Marksheets() {
         threshold={threshold}
         isRefreshing={isRefreshing}
       />
-      <div className="responsive-container py-6 md:py-8">
+      <div className="responsive-container py-4 sm:py-6 md:py-8">
         <div className="max-w-7xl mx-auto">
           {/* Header Section */}
-          <div className="mb-6 md:mb-8">
-            <div className="glass-card no-mobile-backdrop responsive-spacing rounded-3xl">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div className="mb-4 sm:mb-6 md:mb-8">
+            <div className="glass-card no-mobile-backdrop responsive-spacing rounded-xl sm:rounded-3xl">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 sm:gap-4">
                 <div>
                   <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#111418] mb-2">
                     Marksheets
@@ -704,28 +704,29 @@ function Marksheets() {
               </div>
             </div>
           </div>
-          <div className="glass-card p-8 rounded-3xl mb-8">
+          <div className="glass-card p-4 sm:p-6 md:p-8 rounded-xl sm:rounded-3xl mb-4 sm:mb-6 md:mb-8">
 
             {/* Create Marksheet Button - Only show on main examinations page */}
             {!showCreateForm && !showImportSection && !selectedExamination && (
-              <div className="text-center mb-8">
+              <div className="text-center mb-6 sm:mb-8">
                 <button
                   onClick={() => setShowCreateForm(true)}
-                  className="inline-flex items-center gap-2 px-4 sm:px-8 py-2 sm:py-4 bg-blue-600 text-white rounded-xl font-semibold text-sm sm:text-lg hover:bg-blue-700 transition-colors shadow-lg"
+                  className="inline-flex items-center gap-2 px-3 sm:px-8 py-2 sm:py-4 bg-blue-600 text-white rounded-lg sm:rounded-xl font-semibold text-xs sm:text-lg hover:bg-blue-700 transition-colors shadow-lg"
                 >
-                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
-                  Create New Marksheet
+                  <span className="hidden sm:inline">Create New Marksheet</span>
+                  <span className="sm:hidden">New</span>
                 </button>
               </div>
             )}
 
             {/* Create Examination Form */}
             {showCreateForm && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6 mb-8">
-                <h3 className="text-xl font-bold text-gray-900 mb-6">Create New Examination</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+              <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6 mb-4 sm:mb-8">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-6">Create New Examination</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Examination Name</label>
                     <input
@@ -829,7 +830,7 @@ function Marksheets() {
                     />
                   </div>
                 </div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 mt-6">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 mt-4 sm:mt-6">
                   <button
                     onClick={handleCreateExamination}
                     disabled={uploading}
@@ -850,7 +851,7 @@ function Marksheets() {
             {/* Import Section - Only show after creating examination */}
             {showImportSection && (
               <>
-                <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
+                <div className="bg-green-50 border border-green-200 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
                   <div className="flex items-center gap-2 mb-3">
                     <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -881,7 +882,7 @@ function Marksheets() {
                   </p>
                 </div>
 
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
+                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 sm:p-4 mb-4 sm:mb-6">
                   <h4 className="font-semibold text-yellow-900 mb-2">📋 Required Excel Format:</h4>
                   <p className="text-sm text-yellow-800 mb-2">Your Excel file should contain the following columns in this exact order:</p>
                   <div className="bg-white rounded-lg p-3 font-mono text-xs border">
@@ -895,7 +896,7 @@ function Marksheets() {
                 </div>
 
                 {/* Import & Template actions - stacked on mobile, inline on larger screens */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-6">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mb-4 sm:mb-6">
                   {/* Import Excel (label) */}
                   <div className="w-full sm:w-auto flex items-center">
                     <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileChange} className="hidden" id="excelFileMarksheets" />
@@ -996,7 +997,7 @@ function Marksheets() {
                       Back to Examinations
                     </button>
                     <h2 className="text-xl sm:text-2xl font-bold text-gray-900">{selectedExamination}</h2>
-                    <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap">
+                    <span className="w-fit px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs sm:text-sm font-semibold whitespace-nowrap">
                       {groupedMarksheets[selectedExamination]?.length || 0} marksheets
                     </span>
                   </div>
@@ -1028,28 +1029,24 @@ function Marksheets() {
                 </div>
                 {(() => {
                   const source = groupedMarksheets[selectedExamination] || []
-                  const itemCount = source.length
-                  const ITEM_HEIGHT = 140 // px per card (approx)
-                  const listHeight = Math.min(600, ITEM_HEIGHT * itemCount)
+                  const onView = (marksheet) => navigate(`/marksheets/${marksheet._id || marksheet.marksheetId}`)
 
-                  const Row = memo(({ index, style, data }) => {
-                    const marksheet = data.items[index]
-                    const onView = data.onView
-                    return (
-                      <div style={style} className="px-0 py-2">
-                        <div key={marksheet._id} className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border border-gray-200 transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-gray-300 h-full">
-                          <div className="flex items-start justify-between mb-4">
-                            <h3 className="text-base sm:text-lg font-semibold text-gray-900 break-words flex-1 pr-4">
+                  return (
+                    <div className="space-y-2 sm:space-y-4">
+                      {source.map((marksheet) => (
+                        <div key={marksheet._id} className="bg-white p-3 sm:p-6 rounded-xl shadow-sm border border-gray-200 transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-gray-300">
+                          <div className="flex flex-row items-start justify-between gap-2 mb-2 sm:mb-3">
+                            <h3 className="text-sm sm:text-lg font-semibold text-gray-900 break-words flex-1 min-w-0">
                               {marksheet.studentDetails?.name || 'Unknown student'}
                             </h3>
-                            <span className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-semibold uppercase tracking-wide flex items-center gap-0.5 sm:gap-1 flex-shrink-0 whitespace-nowrap ${statusStyles[marksheet.status] || 'bg-gray-100 text-gray-700'}`}>
+                            <span className={`w-fit inline-flex items-center gap-0.5 sm:gap-1 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-semibold uppercase tracking-tight sm:tracking-wide flex-shrink-0 ${statusStyles[marksheet.status] || 'bg-gray-100 text-gray-700'}`}>
                               <span className="text-xs sm:text-sm">{statusIcons[marksheet.status] || '📄'}</span>
-                              <span className="text-xs">{(marksheet.status || 'unknown').replace(/_/g, ' ')}</span>
+                              <span className="text-xs leading-tight whitespace-nowrap">{(marksheet.status || 'unknown').replace(/_/g, ' ')}</span>
                             </span>
                           </div>
 
-                          <div className="space-y-3 mb-4">
-                            <p className="text-gray-600 text-xs sm:text-sm">
+                          <div className="space-y-1 mb-2 sm:mb-3">
+                            <p className="text-gray-600 text-xs sm:text-sm leading-snug">
                               {marksheet.studentDetails?.regNumber || '—'} • Class {(() => {
                                 const year = (marksheet.studentDetails?.year || '').toString()
                                 const section = (marksheet.studentDetails?.section || '').toString()
@@ -1059,40 +1056,23 @@ function Marksheets() {
                                 return '—'
                               })()}
                             </p>
-                            <p className="text-xs sm:text-sm text-gray-500">
+                            <p className="text-xs sm:text-sm text-gray-500 leading-snug">
                               Overall Result: <span className="font-semibold text-gray-900">{deriveOverallResult(marksheet)}</span>
                             </p>
                           </div>
 
-                          <div>
-                            <button onClick={() => onView(marksheet)} className="text-blue-600 hover:text-blue-800 text-xs sm:text-sm font-medium">
-                              View Details
-                            </button>
-                          </div>
+                          <button onClick={() => onView(marksheet)} className="text-blue-600 hover:text-blue-800 hover:underline text-xs sm:text-sm font-medium mt-2">
+                            View Details
+                          </button>
                         </div>
-                      </div>
-                    )
-                  })
-
-                  const onView = (marksheet) => navigate(`/marksheets/${marksheet._id || marksheet.marksheetId}`)
-                  const itemData = { items: source, onView }
-
-                  return (
-                    <List
-                      height={listHeight || ITEM_HEIGHT * Math.min(5, itemCount)}
-                      itemCount={itemCount}
-                      itemSize={ITEM_HEIGHT}
-                      width="100%"
-                      itemData={itemData}
-                    >
-                      {Row}
-                    </List>
+                      ))}
+                    </div>
                   )
                 })()}
               </div>
             ) : (
               // Show grouped examinations
-              <div className="space-y-4">
+              <div className="space-y-2 sm:space-y-4">
                 <h2 className="text-xl font-bold text-gray-900 mb-4">Examinations</h2>
                 {Object.keys(groupedMarksheets).map((examName) => {
                   const examMarksheets = groupedMarksheets[examName]

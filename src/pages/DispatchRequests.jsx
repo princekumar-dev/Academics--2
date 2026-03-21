@@ -498,8 +498,8 @@ function DispatchRequests() {
         threshold={threshold}
       />
 
-      <div ref={containerRef} className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="max-w-6xl mx-auto">
+      <div ref={containerRef} className="container mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 md:py-8">
+        <div className="max-w-7xl mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-gray-900 mb-4">Dispatch Requests</h1>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
@@ -507,7 +507,7 @@ function DispatchRequests() {
               Request approval, send reports, and manage dispatch status for your students.
             </p>
           </div>
-          <div className="glass-card p-8 rounded-3xl mb-8">
+          <div className="glass-card responsive-spacing rounded-3xl mb-8">
 
             {loading ? (
               <div className="text-center py-12">
@@ -595,7 +595,7 @@ function DispatchRequests() {
                           <button
                             onClick={requestDispatchAll}
                             disabled={batching || marksheets.every((m) => m.status !== 'verified_by_staff')}
-                            className={`btn-fill inline-flex items-center gap-2 px-4 sm:px-6 py-2 rounded-lg font-semibold whitespace-nowrap ${batching || marksheets.every((m) => m.status !== 'verified_by_staff')
+                            className={`btn-fill inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1 sm:py-2 rounded-lg font-medium sm:font-semibold text-xs sm:text-sm whitespace-nowrap ${batching || marksheets.every((m) => m.status !== 'verified_by_staff')
                                 ? 'cursor-not-allowed border border-gray-200 text-gray-500'
                                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors'
                               }`}
@@ -619,7 +619,7 @@ function DispatchRequests() {
                           <button
                             onClick={sendAllApproved}
                             disabled={sendingAll || marksheets.every((m) => m.status !== 'approved_by_hod')}
-                            className={`btn-fill inline-flex items-center gap-2 px-4 sm:px-6 py-2 rounded-lg font-semibold whitespace-nowrap ${sendingAll || marksheets.every((m) => m.status !== 'approved_by_hod')
+                            className={`btn-fill inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1 sm:py-2 rounded-lg font-medium sm:font-semibold text-xs sm:text-sm whitespace-nowrap ${sendingAll || marksheets.every((m) => m.status !== 'approved_by_hod')
                                 ? 'cursor-not-allowed border border-gray-200 text-gray-500'
                                 : 'bg-green-600 text-white hover:bg-green-700 transition-colors'
                               }`}
@@ -710,7 +710,7 @@ function DispatchRequests() {
                             disabled={downloadingAll || approvedCount === 0}
                             aria-disabled={downloadingAll || approvedCount === 0}
                             title={downloadingAll ? 'Preparing ZIP...' : (approvedCount === 0 ? 'Disabled until HOD approval (no approved marksheets).' : 'Download all approved marksheets as ZIP')}
-                            className={`btn-fill inline-flex items-center gap-2 px-4 sm:px-6 py-2 rounded-lg font-semibold whitespace-nowrap ${(downloadingAll || approvedCount === 0) ? 'cursor-not-allowed border border-gray-200 text-gray-500' : 'bg-indigo-600 text-white hover:bg-indigo-700 transition-colors'}`}
+                            className={`btn-fill inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1 sm:py-2 rounded-lg font-medium sm:font-semibold text-xs sm:text-sm whitespace-nowrap ${(downloadingAll || approvedCount === 0) ? 'cursor-not-allowed border border-gray-200 text-gray-500' : 'bg-indigo-600 text-white hover:bg-indigo-700 transition-colors'}`}
                           >
                             {/* indigo fill overlay when preparing */}
                             {downloadingAll && (
@@ -754,7 +754,7 @@ function DispatchRequests() {
                               }
                             }}
                             disabled={regenerating || marksheets.length === 0}
-                            className={`btn-fill inline-flex items-center gap-2 px-4 sm:px-6 py-2 rounded-lg font-semibold whitespace-nowrap ${regenerating || marksheets.length === 0 ? 'cursor-not-allowed border border-gray-200 text-gray-500' : 'bg-yellow-500 text-white hover:bg-yellow-600 transition-colors'}`}
+                            className={`btn-fill inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-1 sm:py-2 rounded-lg font-medium sm:font-semibold text-xs sm:text-sm whitespace-nowrap ${regenerating || marksheets.length === 0 ? 'cursor-not-allowed border border-gray-200 text-gray-500' : 'bg-yellow-500 text-white hover:bg-yellow-600 transition-colors'}`}
                           >
                             {/* yellow fill overlay when regenerating */}
                             {regenerating && (
@@ -887,135 +887,43 @@ function DispatchRequests() {
 
                         return (
                           <SwipeableCard key={marksheet._id} actions={swipeActions}>
-                            <div className="bg-white">
-                              {/* Header Section */}
-                              <div className="p-4 sm:p-6 pb-3 sm:pb-4">
-                                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
-                                  <div className="flex-1 min-w-0">
-                                    <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1 break-words">{marksheet.studentDetails?.name}</h3>
-                                    <p className="text-xs sm:text-sm text-gray-600">{marksheet.studentDetails?.regNumber} • {formatYear(marksheet.studentDetails)}</p>
-                                  </div>
-                                  <span className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-semibold uppercase tracking-wide flex items-center gap-0.5 sm:gap-1 flex-shrink-0 whitespace-nowrap ${statusStyles[marksheet.status] || 'bg-gray-100 text-gray-700'}`}>
-                                    <span className="text-xs sm:text-sm">{statusIcons[marksheet.status] || '📄'}</span>
-                                    <span className="text-xs">{(marksheet.status || '').replace(/_/g, ' ')}</span>
-                                  </span>
-                                </div>
-
-                                {/* Desktop: Info Grid with Button on Right | Mobile: Full Width */}
-                                <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
-                                  {/* Info Grid */}
-                                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6 text-xs sm:text-sm flex-1">
-                                    <div>
-                                      <p className="text-gray-500 mb-1 font-medium">Parent:</p>
-                                      <p className="font-medium text-gray-900 truncate">{marksheet.studentDetails?.parentPhoneNumber || '—'}</p>
-                                    </div>
-                                    <div>
-                                      <p className="text-gray-500 mb-1 font-medium">Requested:</p>
-                                      <p className="font-medium text-gray-900">{marksheet.dispatchRequest?.requestedAt ? new Date(marksheet.dispatchRequest.requestedAt).toLocaleDateString() : '—'}</p>
-                                    </div>
-                                    <div>
-                                      <p className="text-gray-500 mb-1 font-medium">HOD Decision:</p>
-                                      <p className="font-medium text-gray-900">{marksheet.dispatchRequest?.hodResponse ? marksheet.dispatchRequest.hodResponse.toUpperCase() : '—'}</p>
-                                    </div>
-                                  </div>
-
-                                  {/* Action Button - Desktop Only (hidden on mobile) */}
-                                  <div className="hidden sm:block w-full md:w-auto md:flex-shrink-0">
-                                    {marksheet.status === 'verified_by_staff' && (
-                                      <button
-                                        onClick={() => handleRequest(marksheet._id)}
-                                        disabled={requestingIds.includes(marksheet._id)}
-                                        className={`w-full md:px-6 px-3 sm:px-4 py-2 rounded-lg font-medium text-white text-xs sm:text-sm transition-colors duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-offset-1 ${requestingIds.includes(marksheet._id) ? 'bg-blue-300 cursor-wait' : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'}`}
-                                      >
-                                        {requestingIds.includes(marksheet._id) ? 'Requesting…' : 'Request Dispatch'}
-                                      </button>
-                                    )}
-
-                                    {marksheet.status === 'approved_by_hod' && (
-                                      <button
-                                        onClick={() => sendDispatch(marksheet)}
-                                        disabled={dispatchingId === marksheet._id}
-                                        className={`w-full md:px-6 px-3 sm:px-4 py-2 rounded-lg font-medium text-white text-xs sm:text-sm transition-colors duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-offset-1 ${dispatchingId === marksheet._id ? 'bg-green-300 cursor-wait' : 'bg-green-600 hover:bg-green-700 focus:ring-green-500'}`}
-                                      >
-                                        {dispatchingId === marksheet._id ? 'Sending…' : 'Send via WhatsApp'}
-                                      </button>
-                                    )}
-
-                                    {marksheet.status === 'approved_by_hod' && (
-                                      <button
-                                        onClick={async (e) => {
-                                          e.preventDefault()
-                                          const ts = Date.now()
-                                          const origin = getPublicOrigin()
-                                          const url = origin ? `${origin}/api/generate-pdf?marksheetId=${marksheet._id}&t=${ts}` : `/api/generate-pdf?marksheetId=${marksheet._id}&t=${ts}`
-                                          window.open(url, '_blank')
-
-                                          // Mark as dispatched when downloaded
-                                          try {
-                                            await apiClient.put('/api/marksheets', { marksheetId: marksheet._id, status: 'dispatched' })
-                                            moveToDispatchHistory([marksheet._id], (current) => ({
-                                              ...current,
-                                              status: 'dispatched',
-                                              dispatchStatus: {
-                                                ...(current.dispatchStatus || {}),
-                                                dispatched: true,
-                                                dispatchedAt: new Date().toISOString()
-                                              }
-                                            }))
-                                          } catch (err) {
-                                            console.error('Error marking marksheet as dispatched:', err)
-                                          }
-                                        }}
-                                        className="mt-2 block w-full md:px-6 px-3 sm:px-4 py-2 rounded-lg font-medium text-yellow-600 border border-yellow-300 bg-white hover:bg-yellow-50 hover:border-yellow-400 text-center text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-1"
-                                      >
-                                        Download PDF
-                                      </button>
-                                    )}
-
-                                    {marksheet.status === 'rejected_by_hod' && (
-                                      <a
-                                        href={`/marksheets/${marksheet._id}`}
-                                        className="block w-full md:px-6 px-3 sm:px-4 py-2 rounded-lg font-medium text-red-600 border border-red-200 bg-white hover:bg-red-50 text-center text-xs sm:text-sm transition-colors duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
-                                      >
-                                        Review Marksheet
-                                      </a>
-                                    )}
-
-                                    {marksheet.status === 'dispatched' && (
-                                      <>
-                                        <button
-                                          onClick={() => sendDispatch(marksheet)}
-                                          disabled={dispatchingId === marksheet._id}
-                                          className={`w-full md:px-6 px-3 sm:px-4 py-2 rounded-lg font-medium text-white text-xs sm:text-sm transition-colors duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-offset-1 ${dispatchingId === marksheet._id ? 'bg-green-300 cursor-wait' : 'bg-green-600 hover:bg-green-700 focus:ring-green-500'}`}
-                                        >
-                                          {dispatchingId === marksheet._id ? 'Sending…' : '📤 Re-send'}
-                                        </button>
-                                        <a
-                                          href={`/api/generate-pdf?marksheetId=${marksheet._id}`}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="mt-2 block w-full md:px-6 px-3 sm:px-4 py-2 rounded-lg font-medium text-yellow-600 border border-yellow-300 bg-white hover:bg-yellow-50 hover:border-yellow-400 text-center text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-1"
-                                        >
-                                          Download PDF
-                                        </a>
-                                      </>
-                                    )}
-                                  </div>
-                                </div>
-
-                                {marksheet.dispatchRequest?.hodComments && (
-                                  <div className="mt-4 bg-gray-50 border border-dashed border-gray-200 rounded-lg p-3">
-                                    <p className="text-xs text-gray-500 mb-1 font-medium">HOD Comments:</p>
-                                    <p className="text-gray-700 text-xs sm:text-sm">{marksheet.dispatchRequest.hodComments}</p>
-                                  </div>
-                                )}
+                            <div className="bg-white p-3 sm:p-6 rounded-xl shadow-sm border border-gray-200 transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-gray-300">
+                              {/* Header with name and status badge */}
+                              <div className="flex flex-row items-start justify-between gap-2 mb-2 sm:mb-3">
+                                <h3 className="text-sm sm:text-lg font-semibold text-gray-900 break-words flex-1 min-w-0">
+                                  {marksheet.studentDetails?.name}
+                                </h3>
+                                <span className={`w-fit inline-flex items-center gap-0.5 sm:gap-1 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-semibold uppercase tracking-tight sm:tracking-wide flex-shrink-0 ${statusStyles[marksheet.status] || 'bg-gray-100 text-gray-700'}`}>
+                                  <span className="text-xs sm:text-sm">{statusIcons[marksheet.status] || '📄'}</span>
+                                  <span className="text-xs leading-tight whitespace-nowrap">{(marksheet.status || 'unknown').replace(/_/g, ' ')}</span>
+                                </span>
                               </div>
 
-                              {/* Mobile: Swipe instruction hint */}
-                              <div className="sm:hidden p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-blue-100">
-                                <p className="text-xs text-center text-gray-600 flex items-center justify-center gap-2">
-                                  <span>👈</span>
-                                  <span className="font-medium">Swipe left for actions</span>
+                              {/* Register number and class */}
+                              <p className="text-gray-600 text-xs sm:text-sm leading-snug mb-2 sm:mb-3">
+                                {marksheet.studentDetails?.regNumber || '—'} • {formatYear(marksheet.studentDetails)}
+                              </p>
+
+                              {/* Info Grid */}
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4 text-xs sm:text-sm">
+                                <div>
+                                  <p className="text-gray-500 mb-0.5 font-medium">Parent:</p>
+                                  <p className="font-medium text-gray-900 truncate">{marksheet.studentDetails?.parentPhoneNumber || '—'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500 mb-0.5 font-medium">Requested:</p>
+                                  <p className="font-medium text-gray-900">{marksheet.dispatchRequest?.requestedAt ? new Date(marksheet.dispatchRequest.requestedAt).toLocaleDateString() : '—'}</p>
+                                </div>
+                                <div>
+                                  <p className="text-gray-500 mb-0.5 font-medium">HOD Decision:</p>
+                                  <p className="font-medium text-gray-900">{marksheet.dispatchRequest?.hodResponse ? marksheet.dispatchRequest.hodResponse.toUpperCase() : '—'}</p>
+                                </div>
+                              </div>
+
+                              {/* Hint message - mobile only */}
+                              <div className="sm:hidden mt-2 bg-yellow-100 border border-yellow-300 rounded-lg p-2">
+                                <p className="text-xs text-yellow-800 font-medium text-center flex items-center justify-center gap-1">
+                                  👉 Swipe left for actions
                                 </p>
                               </div>
                             </div>

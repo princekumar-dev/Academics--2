@@ -151,12 +151,10 @@ function Reports() {
     marksheets.forEach(m => {
       m.subjects?.forEach(subject => {
         const subName = subject.subjectName
-        const subCode = subject.subjectCode || 'N/A'
         
         if (!subjectStats[subName]) {
           subjectStats[subName] = {
             subjectName: subName,
-            subjectCode: subCode,
             totalEnrollments: 0,
             passCount: 0,
             passRate: 0,
@@ -168,7 +166,8 @@ function Reports() {
             marksCount: 0,
             highest: 0,
             lowest: Infinity,
-            average: 0
+            average: 0,
+            allMarks: [] // Track all marks for lowest calculation
           }
         }
         
@@ -189,11 +188,12 @@ function Reports() {
           statsEntry.passCount++
         }
 
-        if (hasMarks) {
+        if (hasMarks && result !== 'Absent') {
           statsEntry.totalMarks += marksValue
           statsEntry.marksCount++
           statsEntry.highest = Math.max(statsEntry.highest, marksValue)
           statsEntry.lowest = Math.min(statsEntry.lowest, marksValue)
+          statsEntry.allMarks.push(marksValue)
         }
       })
     })
@@ -216,6 +216,7 @@ function Reports() {
       } else if (!Number.isFinite(stats.lowest)) {
         stats.lowest = 0
       }
+      delete stats.allMarks // Remove helper array before storing
     })
 
     setReportData({ type: 'subject_analysis', data: subjectStats })
@@ -766,14 +767,13 @@ function Reports() {
                             </div>
                             <div className="flex-1">
                               <h5 className="text-sm md:text-base font-bold text-purple-900">{subject}</h5>
-                              <p className="text-xs text-purple-700">Subject Code: {stats.subjectCode}</p>
                             </div>
-                            <span className="text-xs font-semibold text-purple-600 bg-purple-200 px-2 py-1 rounded-full">
+                            <span className="w-fit text-xs font-semibold text-purple-600 bg-purple-200 px-2 py-1 rounded-full">
                               {stats.totalEnrollments} Students
                             </span>
                           </div>
                           
-                          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
                             <div className="bg-white p-3 rounded-lg">
                               <p className="text-xs text-gray-500 mb-1">Average</p>
                               <p className="text-lg md:text-xl font-bold text-purple-700">{stats.average.toFixed(1)}</p>
@@ -789,6 +789,10 @@ function Reports() {
                             <div className="bg-white p-3 rounded-lg">
                               <p className="text-xs text-gray-500 mb-1">Pass Rate</p>
                               <p className="text-lg md:text-xl font-bold text-blue-600">{stats.passRate.toFixed(1)}%</p>
+                            </div>
+                            <div className="bg-white p-3 rounded-lg">
+                              <p className="text-xs text-gray-500 mb-1">Fail Count</p>
+                              <p className="text-lg md:text-xl font-bold text-red-500">{stats.failCount}</p>
                             </div>
                           </div>
                         </div>
