@@ -887,13 +887,13 @@ function DispatchRequests() {
 
                         return (
                           <SwipeableCard key={marksheet._id} actions={swipeActions}>
-                            <div className="bg-white p-3 sm:p-6 rounded-xl shadow-sm border border-gray-200 transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-gray-300">
+                            <div className="relative bg-white p-3 sm:p-6 md:pr-[15rem] rounded-xl shadow-sm border border-gray-200 transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-gray-300">
                               {/* Header with name and status badge */}
-                              <div className="flex flex-row items-start justify-between gap-2 mb-2 sm:mb-3">
+                              <div className="flex flex-row items-start justify-between gap-3 mb-2 sm:mb-3">
                                 <h3 className="text-sm sm:text-lg font-semibold text-gray-900 break-words flex-1 min-w-0">
                                   {marksheet.studentDetails?.name}
                                 </h3>
-                                <span className={`w-fit inline-flex items-center gap-0.5 sm:gap-1 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-semibold uppercase tracking-tight sm:tracking-wide flex-shrink-0 ${statusStyles[marksheet.status] || 'bg-gray-100 text-gray-700'}`}>
+                                <span className={`w-fit inline-flex md:hidden items-center gap-0.5 sm:gap-1 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-semibold uppercase tracking-tight sm:tracking-wide flex-shrink-0 ${statusStyles[marksheet.status] || 'bg-gray-100 text-gray-700'}`}>
                                   <span className="text-xs sm:text-sm">{statusIcons[marksheet.status] || '📄'}</span>
                                   <span className="text-xs leading-tight whitespace-nowrap">{(marksheet.status || 'unknown').replace(/_/g, ' ')}</span>
                                 </span>
@@ -905,7 +905,7 @@ function DispatchRequests() {
                               </p>
 
                               {/* Info Grid */}
-                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4 text-xs sm:text-sm">
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4 text-xs sm:text-sm items-start">
                                 <div>
                                   <p className="text-gray-500 mb-0.5 font-medium">Parent:</p>
                                   <p className="font-medium text-gray-900 truncate">{marksheet.studentDetails?.parentPhoneNumber || '—'}</p>
@@ -917,6 +917,96 @@ function DispatchRequests() {
                                 <div>
                                   <p className="text-gray-500 mb-0.5 font-medium">HOD Decision:</p>
                                   <p className="font-medium text-gray-900">{marksheet.dispatchRequest?.hodResponse ? marksheet.dispatchRequest.hodResponse.toUpperCase() : '—'}</p>
+                                </div>
+                              </div>
+
+                              {/* Desktop Actions - Separate from record details */}
+                              <div className="hidden md:flex absolute right-6 top-1/2 -translate-y-1/2 w-[200px] justify-center">
+                                <div className="flex w-full flex-col gap-2.5">
+                                  <span className={`hidden md:inline-flex w-fit self-center items-center gap-0.5 sm:gap-1 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-semibold uppercase tracking-tight sm:tracking-wide ${statusStyles[marksheet.status] || 'bg-gray-100 text-gray-700'}`}>
+                                    <span className="text-xs sm:text-sm">{statusIcons[marksheet.status] || 'ðŸ“„'}</span>
+                                    <span className="text-xs leading-tight whitespace-nowrap">{(marksheet.status || 'unknown').replace(/_/g, ' ')}</span>
+                                  </span>
+                                  {marksheet.status === 'verified_by_staff' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRequest(marksheet._id)}
+                                      disabled={requestingIds.includes(marksheet._id)}
+                                      className={`w-full inline-flex items-center justify-center px-4 py-2 rounded-xl font-semibold text-sm transition-colors duration-200 ${requestingIds.includes(marksheet._id) ? 'bg-blue-300 text-white cursor-wait' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                                    >
+                                      Request
+                                    </button>
+                                  )}
+
+                                  {marksheet.status === 'approved_by_hod' && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => sendDispatch(marksheet)}
+                                        disabled={dispatchingId === marksheet._id}
+                                        className={`w-full inline-flex items-center justify-center px-4 py-2 rounded-xl font-semibold text-sm transition-colors duration-200 ${dispatchingId === marksheet._id ? 'bg-green-300 text-white cursor-wait' : 'bg-green-600 text-white hover:bg-green-700'}`}
+                                      >
+                                        Send
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={async (e) => {
+                                          e.preventDefault()
+                                          const ts = Date.now()
+                                          const origin = getPublicOrigin()
+                                          const url = origin ? `${origin}/api/generate-pdf?marksheetId=${marksheet._id}&t=${ts}` : `/api/generate-pdf?marksheetId=${marksheet._id}&t=${ts}`
+                                          window.open(url, '_blank')
+                                          try {
+                                            await apiClient.put('/api/marksheets', { marksheetId: marksheet._id, status: 'dispatched' })
+                                            moveToDispatchHistory([marksheet._id], (current) => ({
+                                              ...current,
+                                              status: 'dispatched',
+                                              dispatchStatus: {
+                                                ...(current.dispatchStatus || {}),
+                                                dispatched: true,
+                                                dispatchedAt: new Date().toISOString()
+                                              }
+                                            }))
+                                          } catch (err) {
+                                            console.error('Error marking marksheet as dispatched:', err)
+                                          }
+                                        }}
+                                        className="w-full inline-flex items-center justify-center px-4 py-2 rounded-xl font-semibold text-sm transition-colors duration-200 bg-yellow-500 text-white hover:bg-yellow-600"
+                                      >
+                                        Download
+                                      </button>
+                                    </>
+                                  )}
+
+                                  {marksheet.status === 'rejected_by_hod' && (
+                                    <a
+                                      href={`/marksheets/${marksheet._id}`}
+                                      className="block w-full px-4 py-2 rounded-xl text-sm font-semibold text-red-600 border-2 border-red-300 bg-white hover:bg-red-50 text-center transition-colors duration-200"
+                                    >
+                                      Review
+                                    </a>
+                                  )}
+
+                                  {marksheet.status === 'dispatched' && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() => sendDispatch(marksheet)}
+                                        disabled={dispatchingId === marksheet._id}
+                                        className={`w-full inline-flex items-center justify-center px-4 py-2 rounded-lg font-semibold text-sm transition-colors duration-200 ${dispatchingId === marksheet._id ? 'bg-green-300 text-white cursor-wait' : 'bg-green-600 text-white hover:bg-green-700'}`}
+                                      >
+                                        Re-send
+                                      </button>
+                                      <a
+                                        href={`/api/generate-pdf?marksheetId=${marksheet._id}`}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="block w-full px-4 py-2 rounded-lg text-sm font-semibold text-yellow-600 border-2 border-yellow-300 bg-white hover:bg-yellow-50 text-center transition-colors duration-200"
+                                      >
+                                        Download
+                                      </a>
+                                    </>
+                                  )}
                                 </div>
                               </div>
 
