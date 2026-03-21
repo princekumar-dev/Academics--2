@@ -14,16 +14,21 @@ function LateAcknowledgment() {
   const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(false)
 
-  const fetchRequests = async () => {
+  const fetchRequests = async (force = false) => {
     try {
       setLoading(true)
-      const params = new URLSearchParams({ department: auth.department, type: 'late', status: 'requested' })
-      const data = await apiClient.get(`/api/leaves?${params.toString()}`)
+      const params = new URLSearchParams({
+        department: auth.department,
+        type: 'late',
+        status: 'requested',
+        // Ask backend to filter by year/section too (smaller payload => faster render)
+        year: auth.year,
+        section: auth.section
+      })
+      const opts = force ? { cache: false, dedupe: false } : {}
+      const data = await apiClient.get(`/api/leaves?${params.toString()}`, opts)
       if (data.success) {
-        const filtered = (data.requests || []).filter(r => (
-          r.studentDetails?.year === auth.year && r.studentDetails?.section === auth.section
-        ))
-        setRequests(filtered)
+        setRequests(data.requests || [])
       }
     } catch (e) {
       // silent
@@ -32,14 +37,14 @@ function LateAcknowledgment() {
     }
   }
 
-  useEffect(() => { fetchRequests() }, [])
+  useEffect(() => { fetchRequests(false) }, [])
 
   const acknowledge = async (id) => {
     try {
       const data = await apiClient.patch(`/api/leaves?id=${id}&action=acknowledge`, { staffId: auth.id })
       if (data && data.success) {
         showSuccess('Acknowledged', 'Late arrival recorded and parent notified')
-        fetchRequests()
+        fetchRequests(true)
         try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) {}
       } else {
         showError('Failed', data?.error || 'Could not acknowledge request')

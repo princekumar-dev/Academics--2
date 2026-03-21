@@ -13,6 +13,7 @@ import { HelpTooltip } from '../components/ContextualHelp'
 import { deriveOverallResult } from '../utils/resultUtils'
 import usePullToRefresh, { PullToRefreshIndicator } from '../hooks/usePullToRefresh.jsx'
 import { FixedSizeList as List } from 'react-window'
+import AnimatedCount from '../components/AnimatedCount'
 
 function Marksheets() {
   const navigate = useNavigate()
@@ -49,6 +50,13 @@ function Marksheets() {
   const [totalPages, setTotalPages] = useState(1)
   const [paginationInfo, setPaginationInfo] = useState(null)
   const [allLoadedMarksheets, setAllLoadedMarksheets] = useState([]) // Cache all loaded pages
+
+  const isVerifiedStatus = useCallback((status) => (
+    status === 'verified_by_staff' ||
+    status === 'dispatch_requested' ||
+    status === 'approved_by_hod' ||
+    status === 'dispatched'
+  ), [])
 
   // Pull-to-refresh functionality
   const handleRefresh = async () => {
@@ -144,12 +152,7 @@ function Marksheets() {
   const areAllMarksheetsVerified = (examName) => {
     const examMarksheets = examName ? groupedMarksheets[examName] : marksheets
     if (!examMarksheets || examMarksheets.length === 0) return false
-    return examMarksheets.every(m =>
-      m.status === 'verified_by_staff' ||
-      m.status === 'dispatch_requested' ||
-      m.status === 'approved_by_hod' ||
-      m.status === 'dispatched'
-    )
+    return examMarksheets.every((m) => isVerifiedStatus(m.status))
   }
 
   const fetchMarksheets = async (force = false, page = 1) => {
@@ -191,6 +194,17 @@ function Marksheets() {
       console.error('Error fetching examinations:', error)
     }
   }
+
+  const updateLoadedMarksheets = useCallback((ids, updater) => {
+    if (!Array.isArray(ids) || ids.length === 0) return
+    const idSet = new Set(ids)
+    const applyUpdates = (list) => list.map((marksheet) => (
+      idSet.has(marksheet._id) ? updater(marksheet) : marksheet
+    ))
+
+    setMarksheets((prev) => applyUpdates(prev))
+    setAllLoadedMarksheets((prev) => applyUpdates(prev))
+  }, [])
 
   // Load next page of marksheets (for infinite scroll or pagination)
   const loadMoreMarksheets = useCallback(async () => {
@@ -389,7 +403,7 @@ function Marksheets() {
     if (!source || source.length === 0) return
     setVerifyingAll(true)
     try {
-      const candidates = source.filter(m => m.status !== 'verified_by_staff')
+      const candidates = source.filter((m) => !isVerifiedStatus(m.status))
       if (candidates.length === 0) {
         showInfo('Already Verified', 'All marksheets are already verified')
         setVerifyingAll(false)
@@ -414,6 +428,7 @@ function Marksheets() {
 
       for (let i = 0; i < candidates.length; i += CHUNK_SIZE) {
         const chunk = candidates.slice(i, i + CHUNK_SIZE)
+        const verifiedIds = []
         await Promise.all(chunk.map(async (m) => {
           let attempts = 0
           let verified = false
@@ -426,6 +441,7 @@ function Marksheets() {
               )
               successCount++
               verified = true
+              verifiedIds.push(m._id)
             } catch (e) { 
               attempts++
               const isTimeout = e?.name === 'AbortError' || e?.message?.includes('timeout')
@@ -441,13 +457,18 @@ function Marksheets() {
             }
           }
         }))
+        updateLoadedMarksheets(verifiedIds, (marksheet) => ({
+          ...marksheet,
+          status: 'verified_by_staff',
+          staffSignature
+        }))
         // Small delay between chunks
         if (i + CHUNK_SIZE < candidates.length) {
           await new Promise(r => setTimeout(r, 300))
         }
       }
 
-      await fetchMarksheets()
+      await fetchMarksheets(true, 1)
       if (successCount > 0) {
         showSuccess('✓ Verified', `${successCount} marksheet${successCount > 1 ? 's' : ''} verified`)
       }
@@ -499,7 +520,7 @@ function Marksheets() {
     if (!source || source.length === 0) return
     setVerifyingAll(true)
     try {
-      const candidates = source.filter(m => m.status !== 'verified_by_staff')
+      const candidates = source.filter((m) => !isVerifiedStatus(m.status))
       if (candidates.length === 0) {
         showInfo('Already Complete', 'All marksheets are already verified')
         setVerifyingAll(false)
@@ -554,6 +575,25 @@ function Marksheets() {
             totalDispatched += summary.dispatched || 0
             totalFailed += summary.failed || 0
             failedItems.push(...results.filter(r => !r.success))
+            const successfulIds = results.filter((r) => r?.success).map((r) => r.id)
+            updateLoadedMarksheets(successfulIds, (marksheet) => ({
+              ...marksheet,
+              status: 'dispatch_requested',
+              staffSignature,
+              dispatchRequest: {
+                ...(marksheet.dispatchRequest || {}),
+                requestedAt: new Date().toISOString(),
+                requestedBy: currentUserData?.name || userData?.name || 'Staff',
+                status: 'pending',
+                hodResponse: null,
+                hodComments: null,
+                scheduledDispatchDate: null,
+                respondedAt: null,
+                preDispatchNotificationSent: false,
+                autoDispatched: false,
+                autoDispatchFailed: false
+              }
+            }))
           }
         } catch (chunkErr) {
           console.error(`[verifyAndRequest] Chunk ${chunkIdx + 1} failed:`, chunkErr)
@@ -579,7 +619,7 @@ function Marksheets() {
         console.warn('[verifyAndRequest] Failed items:', failedItems)
       }
 
-      await fetchMarksheets()
+      await fetchMarksheets(true, 1)
       if (totalVerified > 0) {
         celebrate() // Trigger confetti!
       }
@@ -618,12 +658,7 @@ function Marksheets() {
 
   // Calculate stats for visualization
   const totalMarksheets = marksheets.length
-  const verifiedCount = marksheets.filter(m =>
-    m.status === 'verified_by_staff' ||
-    m.status === 'dispatch_requested' ||
-    m.status === 'approved_by_hod' ||
-    m.status === 'dispatched'
-  ).length
+  const verifiedCount = marksheets.filter((m) => isVerifiedStatus(m.status)).length
   const dispatchRequestedCount = marksheets.filter(m => m.status === 'dispatch_requested').length
   const dispatchedCount = marksheets.filter(m => m.status === 'dispatched').length
 
@@ -651,19 +686,19 @@ function Marksheets() {
                 <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3">
                   <div className="glass-card px-3 py-2 rounded-xl text-center sm:text-left">
                     <div className="text-xs text-gray-500 whitespace-nowrap">Total Marksheets</div>
-                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-theme-gold-600">{totalMarksheets}</div>
+                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-theme-gold-600"><AnimatedCount value={totalMarksheets} /></div>
                   </div>
                   <div className="glass-card px-3 py-2 rounded-xl text-center sm:text-left">
                     <div className="text-xs text-gray-500">Verified</div>
-                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-green-600">{verifiedCount}</div>
+                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-green-600"><AnimatedCount value={verifiedCount} /></div>
                   </div>
                   <div className="glass-card px-3 py-2 rounded-xl text-center sm:text-left">
                     <div className="text-xs text-gray-500 whitespace-nowrap">Dispatch Requested</div>
-                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-yellow-600">{dispatchRequestedCount}</div>
+                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-yellow-600"><AnimatedCount value={dispatchRequestedCount} /></div>
                   </div>
                   <div className="glass-card px-3 py-2 rounded-xl text-center sm:text-left">
                     <div className="text-xs text-gray-500">Dispatched</div>
-                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-purple-600">{dispatchedCount}</div>
+                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-purple-600"><AnimatedCount value={dispatchedCount} /></div>
                   </div>
                 </div>
               </div>

@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState, useCallback, memo } from 'react'
+import { useEffect, useMemo, useState, useCallback, memo, useRef } from 'react'
 import apiClient from '../utils/apiClient'
 import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import RefreshButton from '../components/RefreshButton'
 import SwipeableCard from '../components/SwipeableCard'
+import AnimatedCount from '../components/AnimatedCount'
 import usePullToRefresh, { PullToRefreshIndicator } from '../hooks/usePullToRefresh.jsx'
 import { usePushNotifications, usePageFocus } from '../hooks/usePushNotifications'
 import JSZip from 'jszip'
@@ -38,10 +39,12 @@ function DispatchRequests() {
   const [refreshing, setRefreshing] = useState(false)
   const [viewTab, setViewTab] = useState('active') // 'active' or 'history'
   const [currentExaminationId, setCurrentExaminationId] = useState(null) // Track current exam for filtering dispatch history
+  const activeMarksheetsRef = useRef([])
+  const dispatchedMarksheetsRef = useRef([])
 
   // Pull-to-refresh functionality
   const handlePullRefresh = async () => {
-    await fetchVerifiedMarksheets()
+    await fetchVerifiedMarksheets(true)
     setFeedback('Refreshed successfully')
     setTimeout(() => setFeedback(''), 2000)
   }
@@ -53,11 +56,19 @@ function DispatchRequests() {
 
   useEffect(() => {
     if (userData?.role === 'staff') {
-      fetchVerifiedMarksheets()
+      fetchVerifiedMarksheets(true)
     } else {
       setLoading(false)
     }
   }, [userData])
+
+  useEffect(() => {
+    activeMarksheetsRef.current = marksheets
+  }, [marksheets])
+
+  useEffect(() => {
+    dispatchedMarksheetsRef.current = dispatchedMarksheets
+  }, [dispatchedMarksheets])
 
   // Listen for global updates and force-fetch to avoid stale cached responses
   useEffect(() => {
@@ -76,19 +87,19 @@ function DispatchRequests() {
   usePushNotifications({
     'dispatch_request': () => {
       console.log('🔔 Dispatch request notification triggered refresh')
-      fetchVerifiedMarksheets()
+      fetchVerifiedMarksheets(true)
     },
     'marksheet_dispatch': () => {
       console.log('🔔 Marksheet dispatch notification triggered refresh')
-      fetchVerifiedMarksheets()
+      fetchVerifiedMarksheets(true)
     },
     'marksheet_approval': () => {
       console.log('🔔 Marksheet approval notification triggered refresh')
-      fetchVerifiedMarksheets()
+      fetchVerifiedMarksheets(true)
     }
   })
 
-  usePageFocus(() => fetchVerifiedMarksheets())
+  usePageFocus(() => fetchVerifiedMarksheets(true))
 
   const fetchVerifiedMarksheets = async (force = false) => {
     if (!userData) return
@@ -97,7 +108,7 @@ function DispatchRequests() {
       const staffId = userData?._id || userData?.id || localStorage.getItem('userId')
       // Fetch active (non-dispatched) marksheets only
       const opts = force ? { cache: false, dedupe: false } : undefined
-      const data = await apiClient.get(`/api/marksheets?staffId=${staffId}&status=verified_by_staff,dispatch_requested,approved_by_hod,rejected_by_hod`, opts)
+      const data = await apiClient.get(`/api/marksheets?staffId=${staffId}&status=verified_by_staff,dispatch_requested,approved_by_hod,rejected_by_hod&compact=1`, opts)
       if (data.success) {
         const normalizeStatus = (sheet) => {
           if (sheet?.status === 'rescheduled_by_hod') {
@@ -117,7 +128,7 @@ function DispatchRequests() {
       // Fetch already-dispatched marksheets separately for history view
       let historyData = { success: false, marksheets: [] }
       try {
-        historyData = await apiClient.get(`/api/marksheets?staffId=${staffId}&status=dispatched`, opts)
+        historyData = await apiClient.get(`/api/marksheets?staffId=${staffId}&status=dispatched&compact=1`, opts)
         if (historyData.success) {
           const normalizeStatus = (sheet) => sheet?.status === 'rescheduled_by_hod'
             ? { ...sheet, status: 'dispatch_requested', dispatchRequest: { ...(sheet.dispatchRequest || {}), hodResponse: null } }
@@ -161,11 +172,42 @@ function DispatchRequests() {
   const handleRefresh = async () => {
     setRefreshing(true)
     try {
-      await fetchVerifiedMarksheets()
+      await fetchVerifiedMarksheets(true)
     } finally {
       setRefreshing(false)
     }
   }
+
+  const updateActiveMarksheets = useCallback((ids, updater) => {
+    if (!Array.isArray(ids) || ids.length === 0) return
+    const idSet = new Set(ids)
+    const nextActive = activeMarksheetsRef.current.map((marksheet) => (
+      idSet.has(marksheet._id) ? updater(marksheet) : marksheet
+    ))
+    activeMarksheetsRef.current = nextActive
+    setMarksheets(nextActive)
+  }, [])
+
+  const moveToDispatchHistory = useCallback((ids, updater = null) => {
+    if (!Array.isArray(ids) || ids.length === 0) return
+    const idSet = new Set(ids)
+    const movedMarksheets = activeMarksheetsRef.current
+      .filter((marksheet) => idSet.has(marksheet._id))
+      .map((marksheet) => (updater ? updater(marksheet) : marksheet))
+
+    if (movedMarksheets.length === 0) return
+
+    const nextActive = activeMarksheetsRef.current.filter((marksheet) => !idSet.has(marksheet._id))
+    const nextHistory = [
+      ...movedMarksheets,
+      ...dispatchedMarksheetsRef.current.filter((marksheet) => !idSet.has(marksheet._id))
+    ]
+
+    activeMarksheetsRef.current = nextActive
+    dispatchedMarksheetsRef.current = nextHistory
+    setMarksheets(nextActive)
+    setDispatchedMarksheets(nextHistory)
+  }, [])
 
   const requestDispatch = useCallback(async (marksheetId) => {
     try {
@@ -208,7 +250,7 @@ function DispatchRequests() {
       setError(getUserFriendlyMessage(err, 'Could not submit dispatch request. Please try again.'))
     } finally {
       setRequestingIds((ids) => ids.filter((id) => id !== marksheetId))
-      fetchVerifiedMarksheets()
+      fetchVerifiedMarksheets(true)
     }
   }, [requestDispatch, userData, fetchVerifiedMarksheets])
 
@@ -223,6 +265,21 @@ function DispatchRequests() {
       for (const sheet of candidates) {
         const result = await requestDispatch(sheet._id)
         results.push(result)
+        if (result?.success) {
+          updateActiveMarksheets([sheet._id], (marksheet) => ({
+            ...marksheet,
+            status: 'dispatch_requested',
+            dispatchRequest: {
+              ...(marksheet.dispatchRequest || {}),
+              requestedAt: new Date().toISOString(),
+              requestedBy: userData?.name || userData?._id || userData?.id,
+              status: 'pending',
+              hodResponse: null,
+              hodComments: null,
+              scheduledDispatchDate: null
+            }
+          }))
+        }
       }
       const okCount = results.filter((r) => r?.success).length
       const failCount = results.length - okCount
@@ -234,7 +291,7 @@ function DispatchRequests() {
       }
     } finally {
       setBatching(false)
-      fetchVerifiedMarksheets()
+      fetchVerifiedMarksheets(true)
     }
   }
 
@@ -275,17 +332,24 @@ function DispatchRequests() {
         }
       }
       setFeedback('Marksheet dispatched to parent via WhatsApp.')
-      // Update both marksheets and dispatchedMarksheets to ensure it works from both views
-      setMarksheets((prev) => prev.map((m) => m._id === marksheet._id ? { ...m, status: 'dispatched' } : m))
-      setDispatchedMarksheets((prev) => prev.map((m) => m._id === marksheet._id ? { ...m, status: 'dispatched' } : m))
-      await fetchVerifiedMarksheets()
+      moveToDispatchHistory([marksheet._id], (current) => ({
+        ...current,
+        status: 'dispatched',
+        dispatchStatus: {
+          ...(current.dispatchStatus || {}),
+          dispatched: true,
+          dispatchedAt: new Date().toISOString(),
+          whatsappStatus: 'sent'
+        }
+      }))
+      await fetchVerifiedMarksheets(true)
     } catch (err) {
       console.error(err)
       setError(getUserFriendlyMessage(err, 'Unable to dispatch marksheet. Please try again.'))
     } finally {
       setDispatchingId(null)
     }
-  }, [fetchVerifiedMarksheets])
+  }, [fetchVerifiedMarksheets, moveToDispatchHistory])
 
   const sendAllApproved = async () => {
     const approvedMarksheets = marksheets.filter((m) => m.status === 'approved_by_hod')
@@ -325,8 +389,16 @@ function DispatchRequests() {
         try {
           const responseData = await apiClient.post(`${origin}/api/whatsapp-dispatch?action=send-marksheet`, { marksheetId: marksheet._id, marksheetPdfUrl, marksheetImageUrl }, { timeout: 60000 })
           if (responseData && responseData.success) {
-            // Update UI state for this marksheet
-            setMarksheets((prev) => prev.map((m) => m._id === marksheet._id ? { ...m, status: 'dispatched' } : m))
+            moveToDispatchHistory([marksheet._id], (current) => ({
+              ...current,
+              status: 'dispatched',
+              dispatchStatus: {
+                ...(current.dispatchStatus || {}),
+                dispatched: true,
+                dispatchedAt: new Date().toISOString(),
+                whatsappStatus: 'sent'
+              }
+            }))
             return { success: true, id: marksheet._id }
           }
           return { success: false, id: marksheet._id, error: responseData?.error || 'Unknown API response' }
@@ -352,7 +424,7 @@ function DispatchRequests() {
       setError(getUserFriendlyMessage(err, 'Could not send marksheets. Please try again.'))
     } finally {
       setSendingAll(false)
-      await fetchVerifiedMarksheets()
+      await fetchVerifiedMarksheets(true)
     }
   }
 
@@ -454,13 +526,13 @@ function DispatchRequests() {
                     onClick={() => { setViewTab('active'); setStatusFilter('all') }}
                     className={`px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${viewTab === 'active' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-900'}`}
                   >
-                    Active ({marksheets.length})
+                    Active (<AnimatedCount value={marksheets.length} />)
                   </button>
                   <button
                     onClick={() => { setViewTab('history'); setStatusFilter('all') }}
                     className={`px-4 py-3 font-semibold text-sm border-b-2 transition-colors ${viewTab === 'history' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-600 hover:text-gray-900'}`}
                   >
-                    Dispatched History ({dispatchedMarksheets.length})
+                    Dispatched History (<AnimatedCount value={dispatchedMarksheets.length} />)
                   </button>
                 </div>
 
@@ -489,7 +561,7 @@ function DispatchRequests() {
                               >
                                 {filter.label}
                                 <span className={`ml-1 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs font-semibold ${statusFilter === filter.id ? 'bg-white/25 text-white' : 'bg-gray-100 text-gray-700'}`}>
-                                  {filter.count}
+                                  <AnimatedCount value={filter.count} />
                                 </span>
                               </button>
                             ))}
@@ -678,7 +750,7 @@ function DispatchRequests() {
                                 if (failCount > 0) setError(`Failed to regenerate ${failCount} marksheet${failCount > 1 ? 's' : ''}.`)
                               } finally {
                                 setRegenerating(false)
-                                await fetchVerifiedMarksheets()
+                                await fetchVerifiedMarksheets(true)
                               }
                             }}
                             disabled={regenerating || marksheets.length === 0}
@@ -764,9 +836,15 @@ function DispatchRequests() {
 
                                 try {
                                   await apiClient.put('/api/marksheets', { marksheetId: marksheet._id, status: 'dispatched' });
-                                  setMarksheets((prev) => prev.map((m) =>
-                                    m._id === marksheet._id ? { ...m, status: 'dispatched' } : m
-                                  ));
+                                  moveToDispatchHistory([marksheet._id], (current) => ({
+                                    ...current,
+                                    status: 'dispatched',
+                                    dispatchStatus: {
+                                      ...(current.dispatchStatus || {}),
+                                      dispatched: true,
+                                      dispatchedAt: new Date().toISOString()
+                                    }
+                                  }));
                                 } catch (err) {
                                   console.error('Error marking marksheet as dispatched:', err);
                                 }
@@ -875,10 +953,15 @@ function DispatchRequests() {
                                           // Mark as dispatched when downloaded
                                           try {
                                             await apiClient.put('/api/marksheets', { marksheetId: marksheet._id, status: 'dispatched' })
-                                            // Update local state
-                                            setMarksheets((prev) => prev.map((m) =>
-                                              m._id === marksheet._id ? { ...m, status: 'dispatched' } : m
-                                            ))
+                                            moveToDispatchHistory([marksheet._id], (current) => ({
+                                              ...current,
+                                              status: 'dispatched',
+                                              dispatchStatus: {
+                                                ...(current.dispatchStatus || {}),
+                                                dispatched: true,
+                                                dispatchedAt: new Date().toISOString()
+                                              }
+                                            }))
                                           } catch (err) {
                                             console.error('Error marking marksheet as dispatched:', err)
                                           }

@@ -66,6 +66,12 @@ function Header() {
     const handleNotificationsUpdated = () => {
       try {
         if (!(isLoggedIn && userEmail && userRole)) return
+
+        // If the notification list/count was updated optimistically,
+        // avoid fetching stale server values for a short window.
+        const optimisticTs = window.__msecOptimisticNotificationsTs
+        if (optimisticTs && Date.now() - optimisticTs < 2500) return
+
         if (notifDebounceRef.current) clearTimeout(notifDebounceRef.current)
         notifDebounceRef.current = setTimeout(() => {
           fetchUnreadCount(userEmail, userRole, true).catch(()=>{})
@@ -79,12 +85,12 @@ function Header() {
       if (isLoggedIn && userEmail && (userRole === 'hod' || userRole === 'staff' || userRole === 'admin')) {
         if (typeof requestIdleCallback === 'function') {
           try {
-            requestIdleCallback(() => fetchUnreadCount(userEmail, userRole), { timeout: 2000 });
+              requestIdleCallback(() => fetchUnreadCount(userEmail, userRole, true), { timeout: 2000 });
           } catch (e) {
-            fetchUnreadCount(userEmail, userRole);
+              fetchUnreadCount(userEmail, userRole, true);
           }
         } else {
-          fetchUnreadCount(userEmail, userRole);
+            fetchUnreadCount(userEmail, userRole, true);
         }
       }
     }, 30000);
@@ -103,7 +109,12 @@ function Header() {
   useEffect(() => {
     try {
       window.refreshNotificationCount = () => {
-        try { if (isLoggedIn && userEmail && userRole) fetchUnreadCount(userEmail, userRole, true) } catch (e) {}
+        try {
+          if (!(isLoggedIn && userEmail && userRole)) return
+          const optimisticTs = window.__msecOptimisticNotificationsTs
+          if (optimisticTs && Date.now() - optimisticTs < 2500) return
+          fetchUnreadCount(userEmail, userRole, true)
+        } catch (e) {}
       }
     } catch (e) {}
     return () => {
@@ -194,7 +205,8 @@ function Header() {
           const opts = force ? { cache: false, dedupe: false } : {}
           const [staffData, leaveData] = await Promise.all([
             apiClient.get(`/api/staff-approval?action=pending&hodId=${hodId}`, opts),
-            apiClient.get(`/api/leaves?department=${department}&type=leave`, opts)
+            // Only pending leave requests should contribute to the unread badge.
+            apiClient.get(`/api/leaves?department=${department}&type=leave&status=requested`, opts)
           ])
           
           let staffCount = 0
@@ -205,7 +217,7 @@ function Header() {
           }
           
           if (leaveData.success && leaveData.requests) {
-            leaveCount = leaveData.requests.filter(r => r.status === 'requested').length
+            leaveCount = leaveData.requests.length
           }
           
           setUnreadCount(staffCount + leaveCount)
@@ -234,13 +246,14 @@ function Header() {
         // Check late arrival requests
         if (year && section && department) {
           try {
-            const lateData = await apiClient.get(`/api/leaves?department=${department}&type=late&status=requested`, force ? { cache: false, dedupe: false } : {})
+            const lateData = await apiClient.get(
+              `/api/leaves?department=${department}&type=late&status=requested&year=${encodeURIComponent(year)}&section=${encodeURIComponent(section)}`,
+              force ? { cache: false, dedupe: false } : {}
+            )
             
             if (lateData.success && lateData.requests) {
-              const lateCount = (lateData.requests || [])
-                .filter(r => r.studentDetails?.year === year && r.studentDetails?.section === section)
-                .length
-              totalCount += lateCount
+              // Backend already filtered by year/section.
+              totalCount += lateData.requests.length
             }
           } catch (error) {
             console.error('Error fetching late arrivals:', error)
@@ -824,7 +837,11 @@ function Header() {
         onClose={() => {
           setIsNotificationsOpen(false)
           if (userEmail && userRole) {
-            fetchUnreadCount(userEmail, userRole)
+            // If modal closed right after an optimistic action,
+            // bypass apiClient GET cache to avoid showing stale counts.
+            const optimisticTs = window.__msecOptimisticNotificationsTs
+            const force = optimisticTs && Date.now() - optimisticTs < 2500
+            fetchUnreadCount(userEmail, userRole, !!force)
           }
         }}
         setUnreadCount={setUnreadCount}

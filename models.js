@@ -173,6 +173,8 @@ const LeaveRequestSchema = new mongoose.Schema({
 })
 
 LeaveRequestSchema.index({ 'studentDetails.department': 1, type: 1, status: 1, createdAt: -1 })
+// Speed up common "late" queries filtered by staff's year/section.
+LeaveRequestSchema.index({ 'studentDetails.department': 1, 'studentDetails.year': 1, 'studentDetails.section': 1, type: 1, status: 1, createdAt: -1 })
 LeaveRequestSchema.index({ studentId: 1, type: 1, createdAt: -1 })
 
 LeaveRequestSchema.pre('save', function(next) {

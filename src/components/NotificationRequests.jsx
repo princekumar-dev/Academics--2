@@ -225,7 +225,11 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
       const userRole = auth?.role || auth.user?.role || ''
       setUserRole(userRole)
       setLoading(true)
-      scheduleFetch({ force: false, immediate: true })
+      // If we just did an optimistic approve/reject, bypass apiClient GET cache
+      // so reopening the modal doesn't show stale pending items.
+      const optimisticTs = window.__msecOptimisticNotificationsTs
+      const force = optimisticTs && Date.now() - optimisticTs < 2500
+      scheduleFetch({ force: !!force, immediate: true })
     }
   }, [isOpen])
 
@@ -257,19 +261,19 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
   usePushNotifications(isOpen ? {
     'late_arrival': () => {
       console.log('🔔 Late arrival notification triggered refresh in NotificationRequests')
-      fetchRequests()
+      fetchRequests({ force: true })
     },
     'leave_request': () => {
       console.log('🔔 Leave request notification triggered refresh in NotificationRequests')
-      fetchRequests()
+      fetchRequests({ force: true })
     },
     'staff_approval': () => {
       console.log('🔔 Staff approval notification triggered refresh in NotificationRequests')
-      fetchRequests()
+      fetchRequests({ force: true })
     },
     'marksheet_dispatch': () => {
       console.log('🔔 Marksheet dispatch notification triggered refresh in NotificationRequests')
-      fetchRequests()
+      fetchRequests({ force: true })
     }
   } : {})
 
@@ -329,7 +333,9 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
 
         const staffApiUrl = `/api/staff-approval?action=pending&hodId=${hodId}`
         const department = auth?.department || auth.user?.department
-        const leaveApiUrl = `/api/leaves?department=${department}&type=leave`
+        // Only fetch leave requests that are pending HOD approval.
+        // This reduces payload size and makes the modal/badge feel faster.
+        const leaveApiUrl = `/api/leaves?department=${department}&type=leave&status=requested`
 
         try {
           const getOpts = force ? { cache: false, dedupe: false } : {}
@@ -361,9 +367,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
           }
 
           if (leaveData.success && leaveData.requests) {
-            const leaveRequests = (leaveData.requests || [])
-              .filter(r => r.status === 'requested')
-              .map(req => ({
+            const leaveRequests = (leaveData.requests || []).map(req => ({
                 _id: req._id,
                 type: 'leave_request',
                 createdAt: req.createdAt,
@@ -416,12 +420,14 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
         // Fetch late arrival requests for staff's year/section
         if (auth?.year && auth?.section && auth?.department) {
           try {
-            const lateData = await apiClient.get(`/api/leaves?department=${auth.department}&type=late&status=requested`, force ? { cache: false, dedupe: false } : {})
+            // Ask backend to filter by year/section too (less payload => faster render).
+            const lateData = await apiClient.get(
+              `/api/leaves?department=${auth.department}&type=late&status=requested&year=${encodeURIComponent(auth.year)}&section=${encodeURIComponent(auth.section)}`,
+              force ? { cache: false, dedupe: false } : {}
+            )
 
             if (lateData.success && lateData.requests) {
-              const lateRequests = (lateData.requests || [])
-                .filter(r => r.studentDetails?.year === auth.year && r.studentDetails?.section === auth.section)
-                .map(req => ({
+              const lateRequests = (lateData.requests || []).map(req => ({
                   _id: req._id,
                   type: 'late_arrival',
                   createdAt: req.createdAt,
@@ -483,6 +489,11 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     // For late arrival: only record (mark as waiting for student confirmation)
     if (request.type === 'late_arrival') {
       setProcessing(request._id)
+
+      // Mark optimistic update so event-driven refetches/count refreshes
+      // don't immediately pull stale server data.
+      lastOptimisticUpdateRef.current = Date.now()
+      try { window.__msecOptimisticNotificationsTs = Date.now() } catch (e) { }
       
       // Optimistically update UI immediately
       setRequests(prev => {
@@ -499,7 +510,6 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
       // Notify other components immediately
       try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdatedImmediate && m.notifyNotificationsUpdatedImmediate()) } catch (e) { }
       try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) { }
-      try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
 
       // Fire backend update in background (don't wait for it)
       const auth = JSON.parse(localStorage.getItem('auth') || '{}')
@@ -514,6 +524,11 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
 
     // For other request types (HOD: staff_account_approval, leave_request): proceed normally
     setProcessing(request._id)
+
+    // Mark optimistic update so event-driven refetches/count refreshes
+    // don't immediately pull stale server data.
+    lastOptimisticUpdateRef.current = Date.now()
+    try { window.__msecOptimisticNotificationsTs = Date.now() } catch (e) { }
     
     // Optimistically update UI immediately
     setRequests(prev => {
@@ -530,7 +545,6 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     // Notify other components immediately
     try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdatedImmediate && m.notifyNotificationsUpdatedImmediate()) } catch (e) { }
     try { if (typeof window.dispatchEvent === 'function') window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) { }
-    try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
 
     // Fire backend update in background (don't wait for it)
     const auth = JSON.parse(localStorage.getItem('auth') || '{}')
@@ -573,6 +587,11 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     if (!rejectDialog || !rejectDialog.request) return
     const request = rejectDialog.request
     setProcessing(request._id)
+
+    // Mark optimistic update so event-driven refetches/count refreshes
+    // don't immediately pull stale server data.
+    lastOptimisticUpdateRef.current = Date.now()
+    try { window.__msecOptimisticNotificationsTs = Date.now() } catch (e) { }
     
     // Optimistically update UI immediately
     setRequests(prev => {
@@ -592,7 +611,6 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     // Notify other components immediately
     try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdatedImmediate && m.notifyNotificationsUpdatedImmediate()) } catch (e) { }
     try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (e) { }
-    try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
     
     // Fire backend update in background (don't wait for it)
     const auth = JSON.parse(localStorage.getItem('auth') || '{}')

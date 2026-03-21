@@ -88,7 +88,12 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-  const { staffId, hodId, department, status, year: yearParam, includeAll, studentId, regNumber, phoneNumber, page = 1, limit = 1000 } = req.query
+      const { staffId, hodId, department, status, year: yearParam, includeAll, studentId, regNumber, phoneNumber, page = 1, limit = 1000 } = req.query
+      const compact = (() => {
+        const v = req.query.compact
+        if (v === undefined || v === null) return false
+        return String(v).toLowerCase() === '1' || String(v).toLowerCase() === 'true'
+      })()
       const rawId = req.query.marksheetId || req.query.id
       
       // Return single marksheet by id if requested
@@ -189,8 +194,14 @@ export default async function handler(req, res) {
       const totalCount = await Marksheet.countDocuments(filter)
 
       // Optimized query: No populate, use lean() for speed, paginate results
+      let selectFields = '-__v -dispatchStatus.whatsappError -principalSignature -hodSignature'
+      if (compact) {
+        // List views only need basic fields + subjects count.
+        // Removing large signatures and subject marks/results reduces payload size a lot.
+        selectFields += ' -staffSignature -subjects.marks -subjects.result'
+      }
       const marksheets = await Marksheet.find(filter)
-        .select('-__v -dispatchStatus.whatsappError -principalSignature -hodSignature') // Exclude unnecessary fields and large images
+        .select(selectFields) // Exclude unnecessary fields and large images
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(pageSize)

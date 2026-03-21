@@ -169,6 +169,12 @@ export default async function handler(req, res) {
       if (type) filter.type = type
       if (status) filter.status = status
 
+      // Optional filters to reduce payload for late-arrival views.
+      // Frontend often fetches late requests for a specific year/section.
+      const { year, section } = req.query
+      if (year) filter['studentDetails.year'] = year
+      if (section) filter['studentDetails.section'] = section
+
       console.log('[leaves] GET query:', { filter, queryParams: req.query })
       const requests = await LeaveRequest.find(filter).sort({ createdAt: -1 }).lean()
       console.log('[leaves] Found requests:', requests.length)

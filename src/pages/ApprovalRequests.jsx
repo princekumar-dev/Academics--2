@@ -70,15 +70,15 @@ function ApprovalRequests() {
     threshold: 80
   })
 
-  const fetchLeaveRequests = async () => {
+  const fetchLeaveRequests = async (force = false) => {
     if (!userData) return
     try {
+      const opts = force ? { cache: false, dedupe: false } : {}
       // Fetch leave requests just to show the notice if any exist
-      const params = new URLSearchParams({ department: userData.department, type: 'leave' })
-      const data = await apiClient.get(`/api/leaves?${params.toString()}`)
+      const params = new URLSearchParams({ department: userData.department, type: 'leave', status: 'requested' })
+      const data = await apiClient.get(`/api/leaves?${params.toString()}`, opts)
       if (data.success) {
-        const requested = (data.requests || []).filter(r => r.status === 'requested')
-        setLeaveRequests(requested)
+        setLeaveRequests(data.requests || [])
       } else {
         setLeaveRequests([])
       }
@@ -117,25 +117,25 @@ function ApprovalRequests() {
   usePushNotifications({
     'leave_request': () => {
       console.log('🔔 Leave request notification triggered refresh')
-      fetchLeaveRequests()
+      fetchLeaveRequests(true)
     },
     'leave_approval': () => {
       console.log('🔔 Leave approval notification triggered refresh')
-      fetchLeaveRequests()
+      fetchLeaveRequests(true)
     },
     'marksheet_approval': () => {
       console.log('🔔 Marksheet approval notification triggered refresh')
-      fetchPendingRequests()
+      fetchPendingRequests(true)
     },
     'dispatch_request': () => {
       console.log('🔔 Dispatch request notification triggered refresh')
-      fetchPendingRequests()
+      fetchPendingRequests(true)
     }
   })
 
   usePageFocus(() => {
-    fetchPendingRequests()
-    fetchLeaveRequests()
+    fetchPendingRequests(true)
+    fetchLeaveRequests(true)
   })
 
   const fetchPendingRequests = async (force = false) => {
@@ -147,10 +147,10 @@ function ApprovalRequests() {
       const getOpts = force ? { cache: false, dedupe: false } : {}
       if (userData.department === 'HNS') {
         console.log('[ApprovalRequests] HNS HOD detected — fetching Year I pending requests across departments')
-        data = await apiClient.get(`/api/marksheets?year=I&status=dispatch_requested`, getOpts)
+        data = await apiClient.get(`/api/marksheets?year=I&status=dispatch_requested&compact=1`, getOpts)
       } else {
         console.log('[ApprovalRequests] Fetching with department:', userData.department)
-        data = await apiClient.get(`/api/marksheets?department=${userData.department}&status=dispatch_requested`, getOpts)
+        data = await apiClient.get(`/api/marksheets?department=${userData.department}&status=dispatch_requested&compact=1`, getOpts)
       }
       console.log('[ApprovalRequests] Response:', data)
       if (data && data.success) {
@@ -331,9 +331,9 @@ function ApprovalRequests() {
           const targetIds = targetRequests.map(t => t._id)
           let fresh
           if (userData.department === 'HNS') {
-            fresh = await apiClient.get(`/api/marksheets?year=I&status=dispatch_requested`, { cache: false, dedupe: false })
+            fresh = await apiClient.get(`/api/marksheets?year=I&status=dispatch_requested&compact=1`, { cache: false, dedupe: false })
           } else {
-            fresh = await apiClient.get(`/api/marksheets?department=${userData.department}&status=dispatch_requested`, { cache: false, dedupe: false })
+            fresh = await apiClient.get(`/api/marksheets?department=${userData.department}&status=dispatch_requested&compact=1`, { cache: false, dedupe: false })
           }
           if (fresh && fresh.success && Array.isArray(fresh.marksheets)) {
             const remaining = fresh.marksheets.filter(m => targetIds.includes(m._id)).length
