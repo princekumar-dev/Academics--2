@@ -214,12 +214,46 @@ const generateMarksheetPDF = (marksheet, staffSignature, hodSignature, staffName
 
       doc.y = headerBottom + 22
 
+      const isAttendanceSubject = (subjectName = '') => {
+        const normalized = String(subjectName).trim().toUpperCase().replace(/\s+/g, '')
+        return normalized.startsWith('ATTENDANCE')
+      }
+
+      const formatAttendance = (value) => {
+        if (value === undefined || value === null) return '—'
+        const raw = String(value).trim()
+        if (!raw) return '—'
+
+        const toPercent = (num) => `${Number(num.toFixed(2))}%`
+
+        if (raw.endsWith('%')) {
+          const numeric = Number(raw.slice(0, -1).trim())
+          if (Number.isNaN(numeric)) return raw
+          const normalized = numeric >= 0 && numeric <= 1 ? numeric * 100 : numeric
+          return toPercent(normalized)
+        }
+
+        const numeric = Number(raw)
+        if (Number.isNaN(numeric)) return raw
+        const normalized = numeric >= 0 && numeric <= 1 ? numeric * 100 : numeric
+        return toPercent(normalized)
+      }
+
+      const allSubjects = marksheet.subjects || []
+      const subjects = allSubjects.filter((subject) => !isAttendanceSubject(subject?.subjectName))
+      const attendanceFromSubject = allSubjects.find((subject) => isAttendanceSubject(subject?.subjectName))
+      const attendanceValue = marksheet.studentDetails?.attendance
+        ?? attendanceFromSubject?.marks
+        ?? attendanceFromSubject?.result
+        ?? null
+
       // Student Information with better spacing
       const infoRows = [
         { label: 'Register Number', value: marksheet.studentDetails.regNumber },
         { label: 'Student Name', value: marksheet.studentDetails.name },
         { label: 'Department', value: `B.Tech ${expandDepartmentName(marksheet.studentDetails.department)}` },
-        { label: 'Year/Semester', value: `${marksheet.studentDetails.year}${marksheet.semester ? `/${marksheet.semester}` : ''}` }
+        { label: 'Year/Semester', value: `${marksheet.studentDetails.year}${marksheet.semester ? `/${marksheet.semester}` : ''}` },
+        { label: 'Attendance', value: formatAttendance(attendanceValue) }
       ]
 
       const infoLabelWidth = 130
@@ -251,11 +285,35 @@ const generateMarksheetPDF = (marksheet, staffSignature, hodSignature, staffName
 
       const tableTop = doc.y + 8
       const footerReserve = 150
-      const subjects = marksheet.subjects || []
       const baseRowHeight = 32
       const rowFontSize = 10.5
       const columnPaddingX = 10
       const columnPaddingY = 8
+
+      const deriveSubjectResult = (subject = {}) => {
+        const resultToken = (subject.result || '').toString().trim().toLowerCase()
+        if (resultToken === 'pass' || resultToken === 'fail' || resultToken === 'absent') {
+          return resultToken[0].toUpperCase() + resultToken.slice(1)
+        }
+
+        const marks = Number(subject.marks)
+        if (!Number.isNaN(marks)) {
+          return marks >= 50 ? 'Pass' : 'Fail'
+        }
+
+        return 'Pass'
+      }
+
+      const deriveOverallFromSubjects = (subjectList = []) => {
+        if (!subjectList.length) return marksheet.overallResult || '—'
+        let hasFail = false
+        for (const subject of subjectList) {
+          const result = deriveSubjectResult(subject)
+          if (result === 'Absent') return 'Absent'
+          if (result === 'Fail') hasFail = true
+        }
+        return hasFail ? 'Fail' : 'Pass'
+      }
 
       const getResultColor = (value) => {
         const normalized = (value || '').toString().toLowerCase()
@@ -343,7 +401,7 @@ const generateMarksheetPDF = (marksheet, staffSignature, hodSignature, staffName
           sno: index + 1,
           course: subject.subjectName,
           mark: subject.marks,
-          result: subject.result || '—'
+          result: deriveSubjectResult(subject)
         }
 
         const rowHeight = getRowHeight(rowValues)
@@ -387,7 +445,7 @@ const generateMarksheetPDF = (marksheet, staffSignature, hodSignature, staffName
       
       // Overall result and total subjects with better spacing
       doc.moveDown(0.5)
-      const overallResultText = marksheet.overallResult || '—'
+      const overallResultText = deriveOverallFromSubjects(subjects)
       doc.fontSize(11).font('Helvetica-Bold')
         .fillColor('#000000')
         .text('Overall Result: ', doc.page.margins.left, tableBottom, {

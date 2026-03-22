@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, useCallback, memo, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import apiClient from '../utils/apiClient'
 import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import RefreshButton from '../components/RefreshButton'
@@ -20,6 +21,7 @@ const getPublicOrigin = () => {
 }
 
 function DispatchRequests() {
+  const navigate = useNavigate()
   const [userData] = useState(() => {
     const auth = localStorage.getItem('auth')
     return auth ? JSON.parse(auth) : null
@@ -815,7 +817,14 @@ function DispatchRequests() {
                     <div className="space-y-4">
                       {filteredMarksheets.map((marksheet) => {
                         // Build swipe actions using stable handlers passed as props
-                        const swipeActions = [];
+                        const swipeActions = [
+                          {
+                            label: 'Details',
+                            icon: '👁️',
+                            className: 'border-slate-300 text-slate-600 hover:border-slate-500 hover:bg-slate-50',
+                            onClick: () => navigate(`/marksheets/${marksheet._id}`)
+                          }
+                        ];
 
                         if (marksheet.status === 'verified_by_staff') {
                           swipeActions.push({
@@ -925,7 +934,7 @@ function DispatchRequests() {
                               </div>
 
                               {/* Desktop Actions - Separate from record details */}
-                              <div className="hidden md:flex absolute right-6 top-1/2 -translate-y-1/2 w-[200px] justify-center">
+                              <div className="hidden md:flex absolute right-6 top-6 w-[200px] justify-center">
                                 <div className="flex w-full flex-col gap-2.5">
                                   <span className={`hidden md:inline-flex w-fit self-center items-center gap-0.5 sm:gap-1 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-semibold uppercase tracking-tight sm:tracking-wide ${statusStyles[marksheet.status] || 'bg-gray-100 text-gray-700'}`}>
                                     <span className="text-xs sm:text-sm">{statusIcons[marksheet.status] || 'ðŸ“„'}</span>
@@ -1014,10 +1023,11 @@ function DispatchRequests() {
                                 </div>
                               </div>
 
-                              {/* Hint message - mobile only */}
-                              <div className="sm:hidden mt-2 bg-yellow-100 border border-yellow-300 rounded-lg p-2">
-                                <p className="text-xs text-yellow-800 font-medium text-center flex items-center justify-center gap-1">
-                                  👉 Swipe left for actions
+                              {/* Mobile: Swipe instruction hint */}
+                              <div className="sm:hidden -mx-3 -mb-3 mt-2 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-blue-100">
+                                <p className="text-xs text-center text-gray-700 flex items-center justify-center gap-2">
+                                  <span>👈</span>
+                                  <span className="font-medium">Swipe left for actions</span>
                                 </p>
                               </div>
                             </div>

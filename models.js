@@ -28,6 +28,7 @@ const StudentSchema = new mongoose.Schema({
   studentPhoneNumber: { type: String },
   studentPasswordHash: { type: String },
   parentPhoneNumber: { type: String, required: true },
+  attendance: { type: String },
   // Optional fields populated from import sessions
   examinationName: { type: String },
   examinationDate: { type: Date },
@@ -46,6 +47,7 @@ const MarksheetSchema = new mongoose.Schema({
     department: String,
     studentPhoneNumber: String,
     parentPhoneNumber: String,
+    attendance: String,
     examinationName: String,
     examinationDate: Date
   },
@@ -129,6 +131,7 @@ const ImportSessionSchema = new mongoose.Schema({
     section: String,
     studentPhoneNumber: String,
     parentPhoneNumber: String,
+    attendance: String,
     examinationName: String,
     examinationDate: Date,
     subjects: [{

@@ -1,5 +1,6 @@
 const PASS_THRESHOLD = 50
 const ABSENT_TOKENS = ['AB', 'ABS', 'ABSENT']
+const ATTENDANCE_ALIASES = ['ATTENDANCE', 'ATTENDANCE %', 'ATTENDANCE%']
 
 const normalizeString = (value) => {
   if (typeof value === 'number') return value.toString().trim().toUpperCase()
@@ -14,6 +15,12 @@ const normalizeResultToken = (value) => {
   if (normalized === 'FAIL' || normalized === 'F') return 'Fail'
   if (normalized === 'PASS' || normalized === 'P') return 'Pass'
   return null
+}
+
+const isAttendanceSubject = (subject = {}) => {
+  const name = normalizeString(subject?.subjectName)
+  if (!name) return false
+  return ATTENDANCE_ALIASES.includes(name)
 }
 
 export const deriveResultFromGrade = (grade) => {
@@ -53,20 +60,23 @@ export const deriveOverallResult = (marksheetOrSubjects = {}) => {
     return computeOverallFromSubjects(marksheetOrSubjects)
   }
 
+  const subjects = marksheetOrSubjects?.subjects || []
+  if (subjects.length > 0) {
+    return computeOverallFromSubjects(subjects)
+  }
+
   const stored = normalizeResultToken(marksheetOrSubjects?.overallResult)
     || deriveResultFromGrade(marksheetOrSubjects?.overallGrade)
   if (stored) return stored
 
-  const subjects = marksheetOrSubjects?.subjects || []
-  if (subjects.length === 0) return 'Pass'
-
-  return computeOverallFromSubjects(subjects)
+  return 'Pass'
 }
 
 const computeOverallFromSubjects = (subjects = []) => {
-  if (!subjects.length) return 'Pass'
+  const academicSubjects = subjects.filter((subject) => !isAttendanceSubject(subject))
+  if (!academicSubjects.length) return 'Pass'
   let hasFail = false
-  for (const subject of subjects) {
+  for (const subject of academicSubjects) {
     const result = deriveSubjectResult(subject)
     if (result === 'Absent') return 'Absent'
     if (result === 'Fail') hasFail = true
@@ -74,4 +84,4 @@ const computeOverallFromSubjects = (subjects = []) => {
   return hasFail ? 'Fail' : 'Pass'
 }
 
-export { PASS_THRESHOLD, ABSENT_TOKENS }
+export { PASS_THRESHOLD, ABSENT_TOKENS, isAttendanceSubject }

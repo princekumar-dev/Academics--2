@@ -30,6 +30,33 @@ const normalizePhone = (value) => {
   return cleaned.startsWith('91') ? `+${cleaned}` : `+91${cleaned}`
 }
 
+const normalizeAttendance = (value) => {
+  if (value === undefined || value === null) return ''
+  const raw = value.toString().trim()
+  if (!raw) return ''
+  const formatPercent = (num) => {
+    const rounded = Number(num.toFixed(2))
+    return `${rounded}%`
+  }
+
+  if (raw.endsWith('%')) {
+    const numericRaw = raw.slice(0, -1).trim()
+    const numeric = Number(numericRaw)
+    if (!Number.isNaN(numeric)) {
+      const normalized = numeric >= 0 && numeric <= 1 ? numeric * 100 : numeric
+      return formatPercent(normalized)
+    }
+    return raw
+  }
+
+  const num = Number(raw)
+  if (!Number.isNaN(num)) {
+    const normalized = num >= 0 && num <= 1 ? num * 100 : num
+    return formatPercent(normalized)
+  }
+  return raw
+}
+
 const isAbsentValue = (value) => {
   if (value === undefined || value === null) return false
   if (typeof value === 'string') {
@@ -40,9 +67,17 @@ const isAbsentValue = (value) => {
 }
 
 const getResultFromMarks = (marks) => (Number(marks) >= PASS_MARK_THRESHOLD ? 'Pass' : 'Fail')
+const isAttendanceColumn = (value) => {
+  if (!value) return false
+  const normalized = value.toString().trim().toUpperCase().replace(/\s+/g, '')
+  return normalized.startsWith('ATTENDANCE')
+}
+
 const getOverallResult = (subjects = []) => {
+  const academicSubjects = subjects.filter((subject) => !isAttendanceColumn(subject?.subjectName))
+  if (!academicSubjects.length) return 'Pass'
   let hasFail = false
-  for (const subject of subjects) {
+  for (const subject of academicSubjects) {
     if (subject.result === 'Absent') return 'Absent'
     if (subject.result === 'Fail') hasFail = true
   }
@@ -120,17 +155,20 @@ export default async function handler(req, res) {
             for (let i = 0; i < jsonData.length; i++) {
               const row = jsonData[i]
               const rowNum = i + 2 // Excel row number (1-indexed + header)
+              const attendanceRaw = row.Attendance ?? row['Attendance %'] ?? row['Attendance%'] ?? row.attendance
+              const parentPhoneRaw = row.ParentPhone ?? row.ParentPhoneNumber ?? row.parentPhone
 
               // Required fields validation
-              if (!row.Name || !row.RegNumber || !row.Section || !row.ParentPhone) {
-                errorMessages.push(`Row ${rowNum}: Missing required fields (Name, RegNumber, Section, ParentPhone)`)
+              if (!row.Name || !row.RegNumber || !row.Section || !parentPhoneRaw || attendanceRaw === undefined || attendanceRaw === null || attendanceRaw === '') {
+                errorMessages.push(`Row ${rowNum}: Missing required fields (Name, RegNumber, Section, ParentPhone, Attendance)`)
                 continue
               }
 
               // Extract subject marks (all columns that aren't basic student info)
               const subjects = []
               const subjectFields = Object.keys(row).filter(key => 
-                !['Name', 'RegNumber', 'Year', 'Section', 'ParentPhone', 'ExaminationName', 'ExaminationDate'].includes(key)
+                !['Name', 'RegNumber', 'Year', 'Section', 'ParentPhone', 'ParentPhoneNumber', 'parentPhone', 'Attendance', 'Attendance %', 'Attendance%', 'attendance', 'ExaminationName', 'ExaminationDate'].includes(key) &&
+                !isAttendanceColumn(key)
               )
 
               for (const subjectName of subjectFields) {
@@ -166,7 +204,8 @@ export default async function handler(req, res) {
                 regNumber: row.RegNumber.toString().trim(),
                 year: yearParam,
                 section: row.Section.toString().trim(),
-                parentPhoneNumber: normalizePhone(row.ParentPhone),
+                parentPhoneNumber: normalizePhone(parentPhoneRaw),
+                attendance: normalizeAttendance(attendanceRaw),
                 examinationName: row.ExaminationName ? row.ExaminationName.toString().trim() : derivedExamName,
                 examinationDate: row.ExaminationDate ? new Date(row.ExaminationDate) : derivedExamDate,
                 subjects
@@ -251,6 +290,7 @@ export default async function handler(req, res) {
                 section: studentData.section,
                 department: session.department,
                 parentPhoneNumber: studentData.parentPhoneNumber,
+                attendance: studentData.attendance,
                 examinationName: studentData.examinationName,
                 examinationDate: studentData.examinationDate
               })
@@ -261,6 +301,7 @@ export default async function handler(req, res) {
               student.year = studentData.year
               student.section = studentData.section
               student.parentPhoneNumber = studentData.parentPhoneNumber
+              student.attendance = studentData.attendance
               student.examinationName = studentData.examinationName
               student.examinationDate = studentData.examinationDate
               await student.save()
@@ -281,6 +322,7 @@ export default async function handler(req, res) {
                 // has a different department.
                 department: session.department || student.department,
                 parentPhoneNumber: student.parentPhoneNumber,
+                attendance: student.attendance,
                 examinationName: student.examinationName,
                 examinationDate: student.examinationDate
               },

@@ -87,6 +87,38 @@ function Marksheets() {
     dispatched: '📤'
   }
 
+  const formatAttendance = (attendance) => {
+    if (attendance === undefined || attendance === null) return '—'
+    const raw = attendance.toString().trim()
+    if (!raw) return '—'
+    const formatPercent = (num) => `${Number(num.toFixed(2))}%`
+    if (raw.endsWith('%')) {
+      const numeric = Number(raw.slice(0, -1).trim())
+      if (Number.isNaN(numeric)) return raw
+      const normalized = numeric >= 0 && numeric <= 1 ? numeric * 100 : numeric
+      return formatPercent(normalized)
+    }
+    const parsed = Number(raw)
+    if (Number.isNaN(parsed)) return raw
+    const normalized = parsed >= 0 && parsed <= 1 ? parsed * 100 : parsed
+    return formatPercent(normalized)
+  }
+
+  const getAttendanceValue = (marksheet) => {
+    const fromStudent = marksheet?.studentDetails?.attendance
+    if (fromStudent !== undefined && fromStudent !== null && `${fromStudent}`.trim() !== '') {
+      return fromStudent
+    }
+
+    const attendanceSubject = (marksheet?.subjects || []).find((subject) => {
+      const name = (subject?.subjectName || '').toString().trim().toUpperCase().replace(/\s+/g, '')
+      return name.startsWith('ATTENDANCE')
+    })
+
+    if (!attendanceSubject) return null
+    return attendanceSubject.marks ?? attendanceSubject.result ?? null
+  }
+
   useEffect(() => {
     if (userData && userData.role === 'staff') {
       fetchMarksheets(false, currentPage)
@@ -283,6 +315,7 @@ function Marksheets() {
       'Year',
       'Section',
       'ParentPhone',
+      'Attendance',
       'Engineerir',
       'Data Struc',
       'Database',
@@ -294,9 +327,9 @@ function Marksheets() {
     ]
 
     const sampleRows = [
-      ['Umaiyaswaran', '21CSE001', 'II', 'B', '8388520784', 85, 88, 82, 79, 91, 87, 84, 89],
-      ['Rohith S', '21CSE002', 'II', 'B', '8754401180', 78, 85, 81, 76, 88, 83, 79, 86],
-      ['Prince R', '21CSE003', 'II', 'B', '8778439728', 92, 94, 89, 87, 95, 91, 88, 93]
+      ['Umaiyaswaran', '21CSE001', 'II', 'B', '8388520784', '92%', 85, 88, 82, 79, 91, 87, 84, 89],
+      ['Rohith S', '21CSE002', 'II', 'B', '8754401180', '88%', 78, 85, 81, 76, 88, 83, 79, 86],
+      ['Prince R', '21CSE003', 'II', 'B', '8778439728', '95%', 92, 94, 89, 87, 95, 91, 88, 93]
     ]
 
     const workbook = XLSX.utils.book_new()
@@ -308,7 +341,7 @@ function Marksheets() {
       ['1. Delete the sample rows after reviewing the format.'],
       ['2. Add one row per student and keep the header row untouched.'],
       ['3. Use numeric marks between 0-100. Use AB/Absent for absentees.'],
-      ['4. Keep the first five columns (student info) filled for every row.'],
+      ['4. Keep the first six columns (student info) filled for every row, including Attendance.'],
       ['5. Rename, add, or remove subject columns as needed for your exam.'],
       ['6. Save as XLSX before uploading to avoid formatting issues.']
     ])
@@ -919,10 +952,10 @@ function Marksheets() {
                   <h4 className="font-semibold text-yellow-900 mb-2">📋 Required Excel Format:</h4>
                   <p className="text-sm text-yellow-800 mb-2">Your Excel file should contain the following columns in this exact order:</p>
                   <div className="bg-white rounded-lg p-3 font-mono text-xs border">
-                    Name | RegNumber | Year | Section | ParentPhone | Mathematics | Physics | Chemistry | Computer | English | ...
+                    Name | RegNumber | Year | Section | ParentPhone | Attendance | Mathematics | Physics | Chemistry | Computer | English | ...
                   </div>
                   <p className="text-xs text-yellow-700 mt-2">
-                    • First 5 columns are required student details<br />
+                    • First 6 columns are required student details (includes Attendance)<br />
                     • Remaining columns are subject names with their marks<br />
                     • Marks should be numeric values (0-100)
                   </p>
@@ -1088,7 +1121,7 @@ function Marksheets() {
                             </span>
                           </div>
 
-                          <div className="space-y-1 mb-2 sm:mb-3">
+                          <div className="space-y-1 mb-1 sm:mb-3">
                             <p className="text-gray-600 text-xs sm:text-sm leading-snug">
                               {marksheet.studentDetails?.regNumber || '—'} • Class {(() => {
                                 const year = (marksheet.studentDetails?.year || '').toString()
@@ -1100,11 +1133,14 @@ function Marksheets() {
                               })()}
                             </p>
                             <p className="text-xs sm:text-sm text-gray-500 leading-snug">
+                              Attendance: <span className="font-semibold text-gray-900">{formatAttendance(getAttendanceValue(marksheet))}</span>
+                            </p>
+                            <p className="text-xs sm:text-sm text-gray-500 leading-snug">
                               Overall Result: <span className="font-semibold text-gray-900">{deriveOverallResult(marksheet)}</span>
                             </p>
                           </div>
 
-                          <button onClick={() => onView(marksheet)} className="text-blue-600 hover:text-blue-800 hover:underline text-xs sm:text-sm font-medium mt-2">
+                          <button onClick={() => onView(marksheet)} className="text-blue-600 hover:text-blue-800 hover:underline text-xs sm:text-sm font-medium mt-0.5 sm:mt-2">
                             View Details
                           </button>
                         </div>

@@ -149,6 +149,7 @@ function ImportMarks() {
                 <li>• <strong>RegNumber</strong> - Student registration number</li>
                 <li>• <strong>Section</strong> - Class section (A, B, etc.)</li>
                 <li>• <strong>ParentPhone</strong> - Parent WhatsApp number</li>
+                <li>• <strong>Attendance</strong> - Attendance percentage (e.g., 92% or 92)</li>
                 <li>• <strong>Subject Columns</strong> - Each subject with marks (0-100)</li>
               </ul>
             </div>

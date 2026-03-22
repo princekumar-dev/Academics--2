@@ -575,10 +575,10 @@ function ApprovalRequests() {
                             <div className="flex items-start justify-between mb-3 gap-2">
                               <div className="flex-1 min-w-0">
                                 <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1 truncate">{marksheet.studentDetails?.name}</h3>
-                                <p className="text-xs sm:text-sm text-gray-600 flex items-center gap-2">
-                                  <span>{marksheet.studentDetails?.regNumber} • {formatClass(marksheet.studentDetails)}</span>
+                                <p className="text-xs sm:text-sm text-gray-600 flex flex-wrap items-center gap-2">
+                                  <span className="min-w-0">{marksheet.studentDetails?.regNumber} • {formatClass(marksheet.studentDetails)}</span>
                                   {marksheet.studentDetails?.department && (
-                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${departmentColors[marksheet.studentDetails.department] || 'bg-gray-100 text-gray-800'}`}>
+                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase whitespace-nowrap shrink-0 ${departmentColors[marksheet.studentDetails.department] || 'bg-gray-100 text-gray-800'}`}>
                                       {departmentDisplay[marksheet.studentDetails?.department] || (marksheet.studentDetails?.department || '').toUpperCase()}
                                     </span>
                                   )}

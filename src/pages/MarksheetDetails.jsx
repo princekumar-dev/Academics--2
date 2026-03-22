@@ -3,7 +3,7 @@ import apiClient from '../utils/apiClient'
 import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { useAlert } from '../components/AlertContext'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { deriveOverallResult, deriveSubjectResult } from '../utils/resultUtils'
+import { deriveOverallResult, deriveSubjectResult, isAttendanceSubject } from '../utils/resultUtils'
 
 function MarksheetDetails() {
   const { id } = useParams()
@@ -41,7 +41,9 @@ function MarksheetDetails() {
             setForm({
               studentDetails: { ...(data.marksheet.studentDetails || {}) },
               subjects: Array.isArray(data.marksheet.subjects)
-                ? data.marksheet.subjects.map((subject) => {
+                ? data.marksheet.subjects
+                  .filter((subject) => !isAttendanceSubject(subject))
+                  .map((subject) => {
                     const normalizedResult = deriveSubjectResult(subject)
                     return {
                       ...subject,
@@ -101,6 +103,37 @@ function MarksheetDetails() {
 
   const canStaffEdit = userData?.role === 'staff' && staffMatchesMarksheet
   const overallResult = useMemo(() => deriveOverallResult(marksheet), [marksheet])
+  const attendanceValue = useMemo(() => {
+    const studentAttendance = marksheet?.studentDetails?.attendance
+    if (studentAttendance !== undefined && studentAttendance !== null && `${studentAttendance}`.trim() !== '') {
+      return studentAttendance
+    }
+    const attendanceSubject = (marksheet?.subjects || []).find((subject) => isAttendanceSubject(subject))
+    if (!attendanceSubject) return null
+    return attendanceSubject.marks ?? attendanceSubject.result ?? null
+  }, [marksheet])
+
+  const formattedAttendance = useMemo(() => {
+    if (attendanceValue === undefined || attendanceValue === null) return '—'
+    const raw = `${attendanceValue}`.trim()
+    if (!raw) return '—'
+    const formatPercent = (num) => `${Number(num.toFixed(2))}%`
+    if (raw.endsWith('%')) {
+      const numeric = Number(raw.slice(0, -1).trim())
+      if (Number.isNaN(numeric)) return raw
+      const normalized = numeric >= 0 && numeric <= 1 ? numeric * 100 : numeric
+      return formatPercent(normalized)
+    }
+    const num = Number(raw)
+    if (Number.isNaN(num)) return raw
+    const normalized = num >= 0 && num <= 1 ? num * 100 : num
+    return formatPercent(normalized)
+  }, [attendanceValue])
+
+  const visibleSubjects = useMemo(
+    () => (marksheet?.subjects || []).filter((subject) => !isAttendanceSubject(subject)),
+    [marksheet]
+  )
 
   const handleBack = () => {
     const from = location.state?.from
@@ -194,6 +227,7 @@ function MarksheetDetails() {
                     <p className="text-sm sm:text-base text-gray-700"><strong>Reg No:</strong> {marksheet.studentDetails?.regNumber}</p>
                     <p className="text-sm sm:text-base text-gray-700"><strong>Year/Sem:</strong> {marksheet.studentDetails?.year}/{marksheet.semester || marksheet.studentDetails?.semester || 'N/A'}</p>
                     <p className="text-sm sm:text-base text-gray-700"><strong>Department:</strong> {marksheet.studentDetails?.department}</p>
+                    <p className="text-sm sm:text-base text-gray-700"><strong>Attendance:</strong> {formattedAttendance}</p>
                     <p className="text-sm sm:text-base text-gray-700"><strong>Parent:</strong> {marksheet.studentDetails?.parentPhoneNumber}</p>
                   </>
                 )}
@@ -254,7 +288,7 @@ function MarksheetDetails() {
                 </div>
               ) : (
                 <div className="divide-y divide-gray-100">
-                  {(marksheet.subjects || []).map((sub, idx) => (
+                  {visibleSubjects.map((sub, idx) => (
                     <div key={idx} className="py-2.5 sm:py-3 space-y-1 sm:space-y-0 sm:grid sm:grid-cols-2 sm:items-center">
                       <span className="text-sm sm:text-base text-gray-800 break-words min-w-0">{sub.subjectName}</span>
                       <div className="flex items-center justify-between sm:justify-end gap-2 text-sm sm:text-base text-gray-700">
