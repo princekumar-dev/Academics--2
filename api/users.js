@@ -107,7 +107,7 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       // create academic user
-      const { name, email, password, role, department, year, section, phoneNumber } = req.body
+      const { name, email, password, role, department, year, section, phoneNumber, creatorUserId } = req.body
       if (!name || !email || !password || !role || !department) {
         return res.status(400).json({ success: false, error: 'name, email, password, role and department are required' })
       }
@@ -139,17 +139,30 @@ export default async function handler(req, res) {
         return res.status(409).json({ success: false, error: 'User already exists' })
       }
 
+      let creatorUser = null
+      if (creatorUserId) {
+        try {
+          creatorUser = await User.findById(creatorUserId).select('_id role name').lean()
+        } catch (creatorLookupError) {
+          creatorUser = null
+        }
+      }
+
+      const isAdminCreatingStaff = role === 'staff' && creatorUser?.role === 'admin'
+
       // Check if there's already a pending approval request
-      const existingRequest = await StaffApprovalRequest.findOne({ 
-        email: email.toLowerCase(),
-        status: 'pending'
-      })
-      if (existingRequest) {
-        return res.status(409).json({ success: false, error: 'You have already submitted a staff account request. Please wait for HOD approval.' })
+      if (!isAdminCreatingStaff) {
+        const existingRequest = await StaffApprovalRequest.findOne({
+          email: email.toLowerCase(),
+          status: 'pending'
+        })
+        if (existingRequest) {
+          return res.status(409).json({ success: false, error: 'You have already submitted a staff account request. Please wait for HOD approval.' })
+        }
       }
 
       // For staff role, create an approval request instead of directly creating the user
-      if (role === 'staff') {
+      if (role === 'staff' && !isAdminCreatingStaff) {
         try {
           const hashed = await bcrypt.hash(password, 10)
           
@@ -276,7 +289,7 @@ export default async function handler(req, res) {
         }
       }
 
-      // For HOD role, create user directly (no approval needed)
+      // For HOD role, or staff created by admin, create user directly
       const hashed = await bcrypt.hash(password, 10)
       const userData = {
         name,
@@ -287,8 +300,27 @@ export default async function handler(req, res) {
         phoneNumber
       }
 
+      if (role === 'staff') {
+        userData.year = year
+        userData.section = section
+      }
+
       const user = new User(userData)
       await user.save()
+
+      // If admin created this staff account, close any pending approval requests for the same email.
+      if (isAdminCreatingStaff && creatorUser?._id) {
+        await StaffApprovalRequest.updateMany(
+          { email: email.toLowerCase(), status: 'pending' },
+          {
+            $set: {
+              status: 'approved',
+              approvedBy: creatorUser._id,
+              approvedAt: new Date()
+            }
+          }
+        )
+      }
 
       // return safe user object
       const safe = {
@@ -297,9 +329,15 @@ export default async function handler(req, res) {
         email: user.email,
         role: user.role,
         department: user.department,
+        year: user.year,
+        section: user.section,
         phoneNumber: user.phoneNumber
       }
-      return res.status(201).json({ success: true, user: safe })
+      return res.status(201).json({
+        success: true,
+        message: isAdminCreatingStaff ? 'Staff account created by admin (approval bypassed)' : 'User created successfully',
+        user: safe
+      })
     }
 
     if (req.method === 'DELETE') {

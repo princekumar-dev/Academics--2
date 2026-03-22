@@ -92,11 +92,14 @@ const ProtectedStaffOrHod = ({ children }) => {
 }
 
 // Redirect to dashboard if already authenticated (for Login/SignUp)
-const RedirectIfAuthenticated = ({ children }) => {
+const RedirectIfAuthenticated = ({ children, allowAdmin = false }) => {
   const parsed = getAuthOrNull()
   if (!parsed) return children
   if (parsed.role === 'student') return <Navigate to="/student" replace />
-  if (parsed.role === 'admin') return <Navigate to="/admin-dashboard" replace />
+  if (parsed.role === 'admin') {
+    if (allowAdmin) return children
+    return <Navigate to="/admin-dashboard" replace />
+  }
   return <Navigate to="/home" replace />
 }
 
@@ -173,7 +176,7 @@ function AppContent() {
                 <Route path="/reports" element={<Suspense fallback={<TableSkeleton />}><ProtectedStaffOrHod><Reports /></ProtectedStaffOrHod></Suspense>} />
                 {/* Auth Routes - redirect to dashboard if already logged in */}
                 <Route path="/login" element={<Suspense fallback={<LoginSkeleton />}><RedirectIfAuthenticated><Login /></RedirectIfAuthenticated></Suspense>} />
-                <Route path="/signup" element={<Suspense fallback={<SignUpSkeleton />}><RedirectIfAuthenticated><SignUp /></RedirectIfAuthenticated></Suspense>} />
+                <Route path="/signup" element={<Suspense fallback={<SignUpSkeleton />}><RedirectIfAuthenticated allowAdmin><SignUp /></RedirectIfAuthenticated></Suspense>} />
                 {/* General Routes */}
                 <Route path="/contact" element={<Suspense fallback={<ContactSkeleton />}><Contact /></Suspense>} />
                 <Route path="/privacy-policy" element={<Suspense fallback={<PrivacySkeleton />}><PrivacyPolicy /></Suspense>} />

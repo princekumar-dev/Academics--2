@@ -2,6 +2,7 @@ import { useState } from 'react'
 import apiClient from '../utils/apiClient'
 import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { useNavigate } from 'react-router-dom'
+import { getAuthOrNull } from '../utils/auth'
 
 const SINGLE_SECTION_DEPARTMENTS = ['MECH', 'CIVIL', 'EEE']
 
@@ -83,6 +84,10 @@ function SignUp() {
     }
 
     try {
+      const auth = getAuthOrNull()
+      const isAdminCreating = (auth?.role || '').toLowerCase() === 'admin'
+      const creatorUserId = auth?.id || auth?.userId || auth?._id
+
       // Create user via API
       const userData = {
         name: formData.name,
@@ -91,6 +96,10 @@ function SignUp() {
         role: formData.role,
         department: formData.department,
         phoneNumber: formData.phoneNumber
+      }
+
+      if (isAdminCreating && creatorUserId) {
+        userData.creatorUserId = creatorUserId
       }
       
       // Add year and section for staff role
@@ -115,12 +124,15 @@ function SignUp() {
       }
 
       // On success, show different message based on role
-      if (formData.role === 'staff') {
+      if (formData.role === 'staff' && !isAdminCreating) {
         setSuccess('📋 Account request submitted! Waiting for HOD approval...')
         setTimeout(() => navigate('/login'), 2000)
+      } else if (formData.role === 'staff' && isAdminCreating) {
+        setSuccess('✅ Staff account created successfully!')
+        setTimeout(() => navigate('/admin-dashboard'), 900)
       } else {
         setSuccess('✅ Account created successfully! Redirecting to sign in...')
-        setTimeout(() => navigate('/login'), 900)
+        setTimeout(() => navigate(isAdminCreating ? '/admin-dashboard' : '/login'), 900)
       }
     } catch (err) {
       setError(getUserFriendlyMessage(err, 'Unable to create account. Please verify all information and try again.'))

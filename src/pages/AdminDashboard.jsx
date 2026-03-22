@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import apiClient from '../utils/apiClient'
-import { getUserFriendlyMessage } from '../utils/apiErrorMessages';
 import { useNavigate } from 'react-router-dom';
-import { Users, QrCode, RefreshCw, Activity, Shield, PhoneCall } from 'lucide-react';
+import { Users, RefreshCw, Shield, PhoneCall } from 'lucide-react';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useAlert } from '../components/AlertContext';
 import WhatsAppStatus from '../components/WhatsAppStatus';
@@ -10,7 +9,7 @@ import SWControls from '../components/SWControls';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const { showSuccess, showError, showWarning, showInfo } = useAlert();
+  const { showSuccess, showError, showWarning } = useAlert();
   const [loading, setLoading] = useState(false);
   const [users, setUsers] = useState([]);
   const [stats, setStats] = useState({
@@ -295,69 +294,14 @@ export default function AdminDashboard() {
           {/* Quick Actions */}
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-4 sm:p-6 md:p-8 shadow-sm">
             <h3 className="text-base sm:text-lg font-bold text-blue-900 mb-4 sm:mb-6">Quick Actions</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:gap-4">
               <button
+                type="button"
                 onClick={() => navigate('/signup')}
                 className="flex items-center justify-center gap-2 sm:gap-3 px-3 py-2 sm:px-4 sm:py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-md sm:rounded-lg hover:shadow-lg transition-all transform hover:scale-105 text-xs sm:text-sm font-semibold"
               >
                 <Users className="w-4 h-4 sm:w-5 sm:h-5" />
                 <span>Create User</span>
-              </button>
-              <button
-                onClick={async () => {
-                  setLoading(true);
-                  try {
-                    const data = await apiClient.get('/api/whatsapp-dispatch?action=qrcode', { timeout: 20000 });
-                    if (!data) throw new Error('No response from server');
-
-                    if (data.success && (data.connected || data.state === 'open')) {
-                      showInfo('Already Connected', data.message || 'WhatsApp instance is already connected.');
-                      // trigger a status refresh in the WhatsAppStatus component by navigating to the admin dashboard area
-                      setTimeout(() => window.location.reload(), 400);
-                      return;
-                    }
-
-                    if (data.success && (data.base64 || data.qrcode)) {
-                      const win = window.open('', '_blank');
-                      if (!win) {
-                        showError('Popup Blocked', 'Please allow popups to view the QR code');
-                        return;
-                      }
-
-                      let content = '';
-                      if (data.base64) {
-                        const src = data.base64.startsWith('data:') ? data.base64 : `data:image/png;base64,${data.base64}`;
-                        content = `<img src="${src}" alt="WhatsApp QR" style="max-width:100%;height:auto;display:block;margin:0 auto;"/>`;
-                      } else if (data.qrcode) {
-                        const safe = String(data.qrcode).replace(/</g, '&lt;');
-                        content = `<pre style="white-space:pre-wrap;word-break:break-word">${safe}</pre>`;
-                      }
-
-                      win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>WhatsApp QR</title></head><body style="font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;padding:20px">${content}</body></html>`);
-                      win.document.close();
-                      showSuccess('QR Ready', 'QR code opened in a new tab');
-                      return;
-                    }
-
-                    showError('Failed to generate QR', data.error || 'Unknown error');
-                  } catch (err) {
-                    console.error('Generate QR error:', err);
-                    showError('Failed to generate QR', getUserFriendlyMessage(err, 'Could not generate QR code. Please try again.'));
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                className="flex items-center justify-center gap-2 sm:gap-3 px-3 py-2 sm:px-4 sm:py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-md sm:rounded-lg hover:shadow-lg transition-all transform hover:scale-105 text-xs sm:text-sm font-semibold"
-              >
-                <QrCode className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>Generate QR</span>
-              </button>
-              <button
-                onClick={() => navigate('/')}
-                className="flex items-center justify-center gap-2 sm:gap-3 px-3 py-2 sm:px-4 sm:py-3 bg-gradient-to-r from-gray-600 to-gray-700 text-white rounded-md sm:rounded-lg hover:shadow-lg transition-all transform hover:scale-105 text-xs sm:text-sm font-semibold"
-              >
-                <Activity className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span>Home</span>
               </button>
             </div>
             {/* Service Worker controls for admins */}
