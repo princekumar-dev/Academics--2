@@ -269,7 +269,7 @@ export default function AdminDashboard() {
                           {user.department || '—'}
                         </td>
                         <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 hidden lg:table-cell text-xs text-gray-700">
-                          {user.phoneNumber || '—'}
+                          {user.role === 'admin' ? '—' : (user.phoneNumber || '—')}
                         </td>
                         <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap text-xs font-medium">
                           {user.role !== 'admin' ? (
