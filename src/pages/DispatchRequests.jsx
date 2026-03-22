@@ -566,7 +566,7 @@ function DispatchRequests() {
                               </button>
                             ))}
                           </div>
-                          <div className="ml-auto">
+                          <div className="hidden sm:block ml-auto">
                             <RefreshButton isLoading={refreshing} onClick={handleRefresh} />
                           </div>
                         </>
@@ -762,6 +762,10 @@ function DispatchRequests() {
                             )}
                             <span className="relative z-10">{regenerating ? 'Regenerating...' : '🔁 Regenerate All'}</span>
                           </button>
+
+                          <div className="sm:hidden ml-auto">
+                            <RefreshButton isLoading={refreshing} onClick={handleRefresh} />
+                          </div>
                         </div>
                       )}
 
