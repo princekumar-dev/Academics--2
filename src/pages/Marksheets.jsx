@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback, memo } from 'react'
 import apiClient from '../utils/apiClient'
 import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import * as XLSX from 'xlsx'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { BaseTableSkeleton as TableSkeleton } from '../components/PageSkeletons'
@@ -17,6 +17,7 @@ import AnimatedCount from '../components/AnimatedCount'
 
 function Marksheets() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { showSuccess, showError, showInfo } = useAlert()
   const { showUndo, ToastContainer } = useUndoToast()
   const { celebrate, ConfettiContainer } = useConfetti()
@@ -92,6 +93,38 @@ function Marksheets() {
       fetchExaminations()
     }
   }, [userData])
+
+  useEffect(() => {
+    const examFromState = location.state?.selectedExamination
+    const restoreScrollY = Number.isFinite(location.state?.restoreScrollY)
+      ? location.state.restoreScrollY
+      : null
+
+    if (!examFromState && restoreScrollY === null) return
+
+    if (examFromState) setSelectedExamination(examFromState)
+
+    if (restoreScrollY !== null && typeof window !== 'undefined') {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          const delta = Math.abs((window.scrollY || 0) - restoreScrollY)
+          if (delta < 8) return
+          window.scrollTo({
+            top: restoreScrollY,
+            behavior: 'smooth'
+          })
+        })
+      })
+
+      setTimeout(() => {
+        const delta = Math.abs((window.scrollY || 0) - restoreScrollY)
+        if (delta < 8) return
+        window.scrollTo({ top: restoreScrollY, behavior: 'smooth' })
+      }, 120)
+    }
+
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.state, location.pathname, navigate])
 
   // Memoize grouping logic to prevent recalculation on every render
   const groupedMarksheets = useMemo(() => {
@@ -1029,7 +1062,17 @@ function Marksheets() {
                 </div>
                 {(() => {
                   const source = groupedMarksheets[selectedExamination] || []
-                  const onView = (marksheet) => navigate(`/marksheets/${marksheet._id || marksheet.marksheetId}`)
+                  const onView = (marksheet) => navigate(`/marksheets/${marksheet._id || marksheet.marksheetId}`, {
+                    state: {
+                      from: {
+                        pathname: '/marksheets',
+                        state: {
+                          selectedExamination,
+                          restoreScrollY: typeof window !== 'undefined' ? window.scrollY : 0
+                        }
+                      }
+                    }
+                  })
 
                   return (
                     <div className="space-y-2 sm:space-y-4">

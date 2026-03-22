@@ -1,10 +1,11 @@
 import { useEffect, useState, useMemo, useCallback, memo } from 'react'
 import apiClient from '../utils/apiClient'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { deriveOverallResult } from '../utils/resultUtils'
 
 function Records() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [userData] = useState(() => {
     const auth = localStorage.getItem('auth')
     return auth ? JSON.parse(auth) : null
@@ -30,6 +31,42 @@ function Records() {
       setLoading(false)
     }
   }, [userData])
+
+  useEffect(() => {
+    const state = location.state || {}
+    const hasRestoreState =
+      state.selectedExamination !== undefined ||
+      state.departmentFilter !== undefined ||
+      state.searchQuery !== undefined ||
+      state.expandedExams !== undefined ||
+      state.restoreScrollY !== undefined
+
+    if (!hasRestoreState) return
+
+    if (typeof state.selectedExamination === 'string') setSelectedExamination(state.selectedExamination)
+    if (typeof state.departmentFilter === 'string') setDepartmentFilter(state.departmentFilter)
+    if (typeof state.searchQuery === 'string') setSearchQuery(state.searchQuery)
+    if (Array.isArray(state.expandedExams)) setExpandedExams(new Set(state.expandedExams))
+
+    const restoreScrollY = Number.isFinite(state.restoreScrollY) ? state.restoreScrollY : null
+    if (restoreScrollY !== null && typeof window !== 'undefined') {
+      window.requestAnimationFrame(() => {
+        window.requestAnimationFrame(() => {
+          const delta = Math.abs((window.scrollY || 0) - restoreScrollY)
+          if (delta < 8) return
+          window.scrollTo({ top: restoreScrollY, behavior: 'smooth' })
+        })
+      })
+
+      setTimeout(() => {
+        const delta = Math.abs((window.scrollY || 0) - restoreScrollY)
+        if (delta < 8) return
+        window.scrollTo({ top: restoreScrollY, behavior: 'smooth' })
+      }, 120)
+    }
+
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.state, location.pathname, navigate])
 
   const fetchAllMarksheets = async (force = false) => {
     if (!userData) return
@@ -210,12 +247,25 @@ function Records() {
   const handleSetDepartment = useCallback((d) => setDepartmentFilter(d), [])
   const handleSetSelectedExamination = useCallback((exam) => setSelectedExamination(exam), [])
   const handleToggleExamExpansion = useCallback((examName) => toggleExamExpansion(examName), [toggleExamExpansion])
-  const handleViewMarksheets = useCallback((id) => navigate(`/marksheets/${id}`), [navigate])
+  const handleViewMarksheets = useCallback((id) => navigate(`/marksheets/${id}`, {
+    state: {
+      from: {
+        pathname: '/records',
+        state: {
+          selectedExamination,
+          departmentFilter,
+          searchQuery,
+          expandedExams: Array.from(expandedExams),
+          restoreScrollY: typeof window !== 'undefined' ? window.scrollY : 0
+        }
+      }
+    }
+  }), [navigate, selectedExamination, departmentFilter, searchQuery, expandedExams])
 
   const DepartmentButton = memo(({ d, count, active, onSelect }) => (
     <button
       onClick={() => onSelect(d)}
-      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${active ? 'bg-yellow-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'}`}>
+      className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${active ? 'bg-yellow-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'}`}>
       {d} ({count})
     </button>
   ))
@@ -223,21 +273,21 @@ function Records() {
   const ExamButton = memo(({ examName, count, active, onSelect }) => (
     <button
       onClick={() => onSelect(examName)}
-      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${active ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'}`}>
+      className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${active ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'}`}>
       {examName} ({count})
     </button>
   ))
 
   const MarksheetRow = memo(({ marksheet, onView }) => (
     <div key={marksheet._id} className="glass-card rounded-xl overflow-hidden">
-      <div className="p-6">
-        <div className="flex items-start justify-between mb-3">
+      <div className="p-3 sm:p-6">
+        <div className="flex items-start justify-between mb-2 sm:mb-3">
           <div>
-            <h3 className="text-xl font-bold text-gray-900 mb-1">{marksheet.studentDetails?.name}</h3>
-            <p className="text-sm text-gray-600">{marksheet.studentDetails?.regNumber} • {formatYear(marksheet.studentDetails)}</p>
+            <h3 className="text-base sm:text-xl font-bold text-gray-900 mb-0.5 sm:mb-1">{marksheet.studentDetails?.name}</h3>
+            <p className="text-xs sm:text-sm text-gray-600">{marksheet.studentDetails?.regNumber} • {formatYear(marksheet.studentDetails)}</p>
           </div>
         </div>
-        <div className="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-5 gap-4 md:gap-6">
+        <div className="flex flex-col md:grid md:grid-cols-2 lg:grid-cols-5 gap-2.5 sm:gap-4 md:gap-6">
           <div>
             <p className="text-gray-500 mb-1 text-xs md:text-sm">Examination:</p>
             <p className="font-medium text-gray-900 text-sm md:text-base">{marksheet.examinationName || marksheet.studentDetails?.examinationName || '—'}</p>
@@ -264,7 +314,7 @@ function Records() {
           <div className="flex items-end md:justify-end">
             <button
               onClick={() => onView(marksheet._id)}
-              className="w-full md:w-auto px-4 py-2 rounded-lg font-medium text-blue-600 border border-blue-200 bg-white hover:bg-blue-50 text-center text-sm transition-all duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
+              className="w-full md:w-auto px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg font-medium text-blue-600 border border-blue-200 bg-white hover:bg-blue-50 text-center text-xs sm:text-sm transition-all duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1"
             >
               View Details
             </button>
@@ -299,17 +349,17 @@ function Records() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 no-mobile-anim">
-      <div className="responsive-container py-6 md:py-8">
+      <div className="responsive-container py-4 sm:py-6 md:py-8">
         <div className="max-w-7xl mx-auto">
           {/* Header Section */}
-          <div className="mb-6 md:mb-8">
+          <div className="mb-4 sm:mb-6 md:mb-8">
             <div className="glass-card no-mobile-backdrop responsive-spacing rounded-3xl">
-              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 sm:gap-4">
                 <div>
-                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-[#111418] mb-2">
+                  <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-[#111418] mb-1 sm:mb-2">
                     Marksheet Records
                   </h1>
-                  <p className="text-base sm:text-lg text-gray-600">
+                  <p className="text-sm sm:text-lg text-gray-600">
                     View and manage all marksheet records for {userData.department} Department
                   </p>
                 </div>
@@ -335,7 +385,7 @@ function Records() {
             </div>
           </div>
 
-          <div className="glass-card p-4 sm:p-6 md:p-8 rounded-2xl md:rounded-3xl mb-8">
+          <div className="glass-card p-3 sm:p-6 md:p-8 rounded-2xl md:rounded-3xl mb-5 sm:mb-8">
             {loading ? (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
@@ -352,9 +402,9 @@ function Records() {
             ) : (
               <>
                 {/* Search Bar */}
-                <div className="mb-8">
+                <div className="mb-5 sm:mb-8">
                   <div className="relative max-w-2xl">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                    <div className="absolute inset-y-0 left-0 pl-3 sm:pl-4 flex items-center pointer-events-none">
                       <svg
                         className="w-5 h-5 text-gray-400"
                         fill="none"
@@ -374,12 +424,12 @@ function Records() {
                       placeholder="Search name or register no..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-12 pr-12 py-3.5 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base transition-shadow shadow-sm hover:shadow-md placeholder:text-sm md:placeholder:text-base"
+                      className="w-full pl-10 sm:pl-12 pr-10 sm:pr-12 py-2.5 sm:py-3.5 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm md:text-base transition-shadow shadow-sm hover:shadow-md placeholder:text-sm md:placeholder:text-base"
                     />
                     {searchQuery && (
                       <button
                         onClick={() => setSearchQuery('')}
-                        className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                        className="absolute inset-y-0 right-0 pr-3 sm:pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
                         aria-label="Clear search"
                       >
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -400,12 +450,12 @@ function Records() {
 
                 {/* Department Filter (HNS HOD only) */}
                 {userData?.role === 'hod' && userData?.department === 'HNS' && (
-                  <div className="mb-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">Filter by Department</h3>
+                  <div className="mb-5 sm:mb-6">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">Filter by Department</h3>
                     <div className="flex flex-wrap gap-2">
                       <button
                         onClick={() => setDepartmentFilter('ALL')}
-                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${departmentFilter === 'ALL' ? 'bg-yellow-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'}`}>
+                        className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${departmentFilter === 'ALL' ? 'bg-yellow-600 text-white' : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'}`}>
                         All Departments ({marksheets.length})
                       </button>
                       {availableDepartments.map(d => (
@@ -422,12 +472,12 @@ function Records() {
                 )}
 
                 {/* Examination Filter */}
-                <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Filter by Examination</h3>
+                <div className="mb-5 sm:mb-8">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Filter by Examination</h3>
                   <div className="flex flex-wrap gap-2">
                     <button
                       onClick={() => setSelectedExamination('all')}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-colors ${
                         selectedExamination === 'all'
                           ? 'bg-blue-600 text-white'
                           : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
@@ -449,31 +499,31 @@ function Records() {
 
                 {/* Examination Overview Cards */}
                 {selectedExamination === 'all' && (
-                  <div className="mb-8">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Examination Overview</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="mb-5 sm:mb-8">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Examination Overview</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
                       {Object.keys(groupedMarksheets).sort().map((examName) => {
                         const stats = examinationStats[examName]
                         const isExpanded = expandedExams.has(examName)
                         return (
                           <div key={examName} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                             <div 
-                              className="p-4 cursor-pointer hover:bg-gray-50 transition-colors"
+                              className="p-3 sm:p-4 cursor-pointer hover:bg-gray-50 transition-colors"
                               onClick={() => handleToggleExamExpansion(examName)}
                             >
                               <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-semibold text-gray-900 text-sm">{examName}</h4>
+                                <h4 className="font-semibold text-gray-900 text-xs sm:text-sm">{examName}</h4>
                                 <span className={`transform transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
                                   ⌄
                                 </span>
                               </div>
-                              <p className="text-2xl font-bold text-blue-600">{stats.total}</p>
-                              <p className="text-sm text-gray-600">Total Marksheets</p>
+                              <p className="text-xl sm:text-2xl font-bold text-blue-600">{stats.total}</p>
+                              <p className="text-xs sm:text-sm text-gray-600">Total Marksheets</p>
                             </div>
                           
                             {isExpanded && (
-                              <div className="border-t border-gray-100 p-4 space-y-2">
-                                <div className="grid grid-cols-2 gap-4 text-sm">
+                              <div className="border-t border-gray-100 p-3 sm:p-4 space-y-2">
+                                <div className="grid grid-cols-2 gap-2.5 sm:gap-4 text-xs sm:text-sm">
                                   <div className="flex items-center gap-2">
                                     <span className="w-2 h-2 bg-gray-400 rounded-full"></span>
                                     <span>Draft: {stats.draft}</span>
@@ -509,11 +559,11 @@ function Records() {
                 )}
 
                 {/* Marksheet List */}
-                <div className="space-y-4">
+                <div className="space-y-2.5 sm:space-y-4">
                   {selectedExamination !== 'all' && (
-                    <div className="mb-6">
-                      <h3 className="text-xl font-bold text-gray-900 mb-2">{selectedExamination}</h3>
-                      <p className="text-gray-600">{filteredMarksheets.length} marksheets found</p>
+                    <div className="mb-4 sm:mb-6">
+                      <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1 sm:mb-2">{selectedExamination}</h3>
+                      <p className="text-sm sm:text-base text-gray-600">{filteredMarksheets.length} marksheets found</p>
                     </div>
                   )}
                   

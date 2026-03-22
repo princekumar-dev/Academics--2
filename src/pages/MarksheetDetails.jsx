@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from 'react'
 import apiClient from '../utils/apiClient'
 import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { useAlert } from '../components/AlertContext'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { deriveOverallResult, deriveSubjectResult } from '../utils/resultUtils'
 
 function MarksheetDetails() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
   const [marksheet, setMarksheet] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -101,6 +102,19 @@ function MarksheetDetails() {
   const canStaffEdit = userData?.role === 'staff' && staffMatchesMarksheet
   const overallResult = useMemo(() => deriveOverallResult(marksheet), [marksheet])
 
+  const handleBack = () => {
+    const from = location.state?.from
+    if (from && typeof from === 'object' && from.pathname) {
+      navigate(from.pathname, { state: from.state })
+      return
+    }
+    if (typeof from === 'string') {
+      navigate(from)
+      return
+    }
+    navigate(-1)
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
@@ -118,7 +132,7 @@ function MarksheetDetails() {
         <div className="glass-card p-8 rounded-3xl text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Not Found</h1>
           <p className="text-gray-600">{error || 'Marksheet not found'}</p>
-          <button onClick={() => navigate(-1)} className="mt-6 px-5 py-2 bg-blue-600 text-white rounded-lg">Go Back</button>
+          <button onClick={handleBack} className="mt-6 px-5 py-2 bg-blue-600 text-white rounded-lg">Go Back</button>
         </div>
       </div>
     )
@@ -126,26 +140,26 @@ function MarksheetDetails() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="container mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
         <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-gray-900 mb-4">Marksheet Details</h1>
-            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+          <div className="text-center mb-5 sm:mb-12">
+            <h1 className="text-2xl sm:text-5xl lg:text-6xl font-black text-gray-900 mb-2 sm:mb-4">Marksheet Details</h1>
+            <p className="text-sm sm:text-lg text-gray-600 max-w-3xl mx-auto">
               View, verify, and manage individual student marksheet details.<br/>
               Track pass/fail/absent outcomes, dispatch status, and update student information as needed.
             </p>
           </div>
-          <div className="glass-card p-8 rounded-3xl transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-gray-300">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-3xl font-bold text-gray-900">{marksheet.studentDetails?.name}</h2>
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusMeta.className}`}>
+          <div className="glass-card p-3 sm:p-8 rounded-2xl sm:rounded-3xl transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-gray-300">
+            <div className="flex items-start sm:items-center justify-between gap-2 sm:gap-3 mb-4 sm:mb-6">
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-900 leading-tight break-words">{marksheet.studentDetails?.name}</h2>
+              <span className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-[11px] sm:text-xs font-semibold ${statusMeta.className}`}>
                 {statusMeta.label.toUpperCase()}
               </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="bg-white p-6 rounded-xl border border-gray-200 transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-gray-300">
-                <h2 className="text-lg font-semibold text-gray-900 mb-3">Student</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 sm:gap-6">
+              <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-gray-300">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 sm:mb-3">Student</h2>
                 {editMode ? (
                   <div className="space-y-3">
                     <div>
@@ -177,30 +191,30 @@ function MarksheetDetails() {
                   </div>
                 ) : (
                   <>
-                    <p className="text-gray-700"><strong>Reg No:</strong> {marksheet.studentDetails?.regNumber}</p>
-                    <p className="text-gray-700"><strong>Year/Sem:</strong> {marksheet.studentDetails?.year}/{marksheet.semester || marksheet.studentDetails?.semester || 'N/A'}</p>
-                    <p className="text-gray-700"><strong>Department:</strong> {marksheet.studentDetails?.department}</p>
-                    <p className="text-gray-700"><strong>Parent:</strong> {marksheet.studentDetails?.parentPhoneNumber}</p>
+                    <p className="text-sm sm:text-base text-gray-700"><strong>Reg No:</strong> {marksheet.studentDetails?.regNumber}</p>
+                    <p className="text-sm sm:text-base text-gray-700"><strong>Year/Sem:</strong> {marksheet.studentDetails?.year}/{marksheet.semester || marksheet.studentDetails?.semester || 'N/A'}</p>
+                    <p className="text-sm sm:text-base text-gray-700"><strong>Department:</strong> {marksheet.studentDetails?.department}</p>
+                    <p className="text-sm sm:text-base text-gray-700"><strong>Parent:</strong> {marksheet.studentDetails?.parentPhoneNumber}</p>
                   </>
                 )}
               </div>
-              <div className="bg-white p-6 rounded-xl border border-gray-200 transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-gray-300">
-                <h2 className="text-lg font-semibold text-gray-900 mb-3">Summary</h2>
-                <p className="text-gray-700"><strong>Examination Name:</strong> {marksheet.examinationName || 'N/A'}</p>
-                <p className="text-gray-700"><strong>Examination Date:</strong> {marksheet.examinationDate ? new Date(marksheet.examinationDate).toLocaleString('default', { month: 'long', year: 'numeric' }) : 'N/A'}</p>
-                <p className="text-gray-700"><strong>Overall Result:</strong> {overallResult}</p>
-                <p className="text-gray-700"><strong>Staff:</strong> {marksheet.staffName}</p>
-                {marksheet.hodName && (<p className="text-gray-700"><strong>HOD:</strong> {marksheet.hodName}</p>)}
+              <div className="bg-white p-4 sm:p-6 rounded-xl border border-gray-200 transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-gray-300">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 sm:mb-3">Summary</h2>
+                <p className="text-sm sm:text-base text-gray-700"><strong>Examination Name:</strong> {marksheet.examinationName || 'N/A'}</p>
+                <p className="text-sm sm:text-base text-gray-700"><strong>Examination Date:</strong> {marksheet.examinationDate ? new Date(marksheet.examinationDate).toLocaleString('default', { month: 'long', year: 'numeric' }) : 'N/A'}</p>
+                <p className="text-sm sm:text-base text-gray-700"><strong>Overall Result:</strong> {overallResult}</p>
+                <p className="text-sm sm:text-base text-gray-700"><strong>Staff:</strong> {marksheet.staffName}</p>
+                {marksheet.hodName && (<p className="text-sm sm:text-base text-gray-700"><strong>HOD:</strong> {marksheet.hodName}</p>)}
                 {marksheet.status === 'approved_by_hod' && marksheet.dispatchRequest?.respondedAt && (
-                  <p className="text-gray-700"><strong>Approved On:</strong> {new Date(marksheet.dispatchRequest.respondedAt).toLocaleString()}</p>
+                  <p className="text-sm sm:text-base text-gray-700"><strong>Approved On:</strong> {new Date(marksheet.dispatchRequest.respondedAt).toLocaleString()}</p>
                 )}
               </div>
             </div>
 
             {marksheet.dispatchRequest?.hodResponse && (
-              <div className="mt-6 bg-white p-6 rounded-xl border border-gray-200">
-                <h2 className="text-lg font-semibold text-gray-900 mb-3">Dispatch Notes</h2>
-                <dl className="space-y-2 text-gray-700">
+              <div className="mt-4 sm:mt-6 bg-white p-4 sm:p-6 rounded-xl border border-gray-200">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 sm:mb-3">Dispatch Notes</h2>
+                <dl className="space-y-2 text-sm sm:text-base text-gray-700">
                   {marksheet.dispatchRequest?.hodResponse && (
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
                       <dt className="font-medium">HOD Decision</dt>
@@ -217,8 +231,8 @@ function MarksheetDetails() {
               </div>
             )}
 
-            <div className="mt-8 bg-white p-6 rounded-xl border border-gray-200 transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-gray-300">
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">Subjects</h2>
+            <div className="mt-4 sm:mt-8 bg-white p-4 sm:p-6 rounded-xl border border-gray-200 transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:border-gray-300">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 sm:mb-3">Subjects</h2>
               {editMode ? (
                 <div className="space-y-3">
                   {form.subjects.map((sub, idx) => (
@@ -241,9 +255,9 @@ function MarksheetDetails() {
               ) : (
                 <div className="divide-y divide-gray-100">
                   {(marksheet.subjects || []).map((sub, idx) => (
-                    <div key={idx} className="py-3 space-y-1 sm:space-y-0 sm:grid sm:grid-cols-2 sm:items-center">
-                      <span className="text-gray-800 break-words min-w-0">{sub.subjectName}</span>
-                      <div className="flex items-center justify-between sm:justify-end gap-2 text-gray-700">
+                    <div key={idx} className="py-2.5 sm:py-3 space-y-1 sm:space-y-0 sm:grid sm:grid-cols-2 sm:items-center">
+                      <span className="text-sm sm:text-base text-gray-800 break-words min-w-0">{sub.subjectName}</span>
+                      <div className="flex items-center justify-between sm:justify-end gap-2 text-sm sm:text-base text-gray-700">
                         <span className="font-semibold">{sub.marks ?? '—'}</span>
                         <span className="whitespace-nowrap">Result: {deriveSubjectResult(sub)}</span>
                       </div>
@@ -253,12 +267,12 @@ function MarksheetDetails() {
               )}
             </div>
 
-            <div className="mt-8 flex flex-col sm:flex-row gap-3">
-              <button onClick={() => navigate(-1)} className="px-5 py-2 bg-gray-100 text-gray-800 rounded-lg transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md w-full sm:w-auto">Back</button>
+            <div className="mt-5 sm:mt-8 flex flex-col sm:flex-row gap-2 sm:gap-3">
+              <button onClick={handleBack} className="px-3 sm:px-5 py-1.5 sm:py-2 text-sm sm:text-base bg-gray-100 text-gray-800 rounded-lg transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md w-full sm:w-auto">Back</button>
               {!editMode && canStaffEdit && (
                 <>
                   <VerifyButton marksheet={marksheet} onVerified={setMarksheet} />
-                  <button onClick={() => setEditMode(true)} className="px-5 py-2 bg-blue-600 text-white rounded-lg transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md w-full sm:w-auto">Edit & Regenerate</button>
+                  <button onClick={() => setEditMode(true)} className="px-3 sm:px-5 py-1.5 sm:py-2 text-sm sm:text-base bg-blue-600 text-white rounded-lg transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md w-full sm:w-auto">Edit & Regenerate</button>
                 </>
               )}
               {/* Refresh signatures button (staff or HOD owners) */}
@@ -273,7 +287,7 @@ function MarksheetDetails() {
                             const url = origin ? `${origin}/api/generate-pdf?marksheetId=${marksheet._id}&t=${ts}` : `/api/generate-pdf?marksheetId=${marksheet._id}&t=${ts}`
                             window.open(url, '_blank')
                           }}
-                          className="px-5 py-2 rounded-lg transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md w-full sm:w-auto bg-yellow-600 text-white"
+                          className="px-3 sm:px-5 py-1.5 sm:py-2 text-sm sm:text-base rounded-lg transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md w-full sm:w-auto bg-yellow-600 text-white"
                         >
                           Download PDF
                         </button>
@@ -281,7 +295,7 @@ function MarksheetDetails() {
               )}
               {editMode && canStaffEdit && (
                 <>
-                  <button onClick={() => setEditMode(false)} className="px-5 py-2 bg-gray-200 text-gray-800 rounded-lg transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md w-full sm:w-auto">Cancel</button>
+                  <button onClick={() => setEditMode(false)} className="px-3 sm:px-5 py-1.5 sm:py-2 text-sm sm:text-base bg-gray-200 text-gray-800 rounded-lg transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md w-full sm:w-auto">Cancel</button>
                   <SaveEditsButton id={marksheet._id} form={form} onSaved={(m) => { setMarksheet(m); setEditMode(false) }} />
                 </>
               )}
@@ -375,7 +389,7 @@ function VerifyButton({ marksheet, onVerified }) {
       <button
         disabled={loading || verified || lockedStatuses.includes(marksheet?.status)}
         onClick={handleVerify}
-        className={`px-5 py-2 rounded-lg transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md w-full sm:w-auto ${
+        className={`px-3 sm:px-5 py-1.5 sm:py-2 text-sm sm:text-base rounded-lg transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md w-full sm:w-auto ${
           verified || lockedStatuses.includes(marksheet?.status)
             ? 'bg-green-200 text-green-900 cursor-not-allowed'
             : loading
@@ -415,7 +429,7 @@ function SaveEditsButton({ id, form, onSaved }) {
   }
   return (
     <>
-      <button disabled={saving} onClick={handleSave} className={`px-5 py-2 rounded-lg transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md w-full sm:w-auto ${saving ? 'bg-blue-200 text-blue-900' : 'bg-blue-600 text-white'}`}>{saving ? 'Saving...' : 'Save Changes'}</button>
+      <button disabled={saving} onClick={handleSave} className={`px-3 sm:px-5 py-1.5 sm:py-2 text-sm sm:text-base rounded-lg transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md w-full sm:w-auto ${saving ? 'bg-blue-200 text-blue-900' : 'bg-blue-600 text-white'}`}>{saving ? 'Saving...' : 'Save Changes'}</button>
       {error && (<span className="text-red-600 text-sm ml-2">{error}</span>)}
     </>
   )
@@ -450,7 +464,7 @@ function RefreshSignaturesButton({ id, onRefreshed }) {
     <button
       onClick={handleRefresh}
       disabled={loading}
-      className={`px-5 py-2 rounded-lg transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md w-full sm:w-auto ${loading ? 'bg-gray-200 text-gray-800' : 'bg-indigo-600 text-white'}`}>
+      className={`px-3 sm:px-5 py-1.5 sm:py-2 text-sm sm:text-base rounded-lg transform transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md w-full sm:w-auto ${loading ? 'bg-gray-200 text-gray-800' : 'bg-indigo-600 text-white'}`}>
       {loading ? 'Refreshing...' : 'Refresh Signatures'}
     </button>
   )
