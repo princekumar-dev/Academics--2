@@ -47,7 +47,13 @@ async function request(method, url, opts = {}) {
     let attempt = 0;
     while (true) {
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeout);
+      const timer = setTimeout(() => {
+        try {
+          controller.abort(new DOMException(`Request timeout of ${timeout}ms exceeded`, 'TimeoutError'));
+        } catch (e) {
+          controller.abort();
+        }
+      }, timeout);
       try {
         let fetchBody;
         const contentTypeHeader = {};
@@ -129,13 +135,24 @@ async function request(method, url, opts = {}) {
         clearTimeout(timer);
         
         // Check if this is an abort/timeout error
-        const isAbort = err && (err.name === 'AbortError' || err.message && err.message.includes('aborted'));
+        const isAbort = err && (
+          err.name === 'AbortError' ||
+          err.name === 'TimeoutError' ||
+          (err.message && err.message.includes('aborted'))
+        );
         
         attempt += 1;
+
+        if (isAbort) {
+          const timeoutErr = new Error(`Request timeout of ${timeout}ms exceeded`);
+          timeoutErr.name = 'TimeoutError';
+          timeoutErr.code = 'ETIMEDOUT';
+          throw timeoutErr;
+        }
         
         // Never retry on AbortError - the timeout already fired so retrying won't help
         // Only retry on actual network/server errors with exponential backoff
-        if (isAbort || attempt > retry) {
+        if (attempt > retry) {
           throw err;
         }
         

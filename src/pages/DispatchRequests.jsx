@@ -314,7 +314,7 @@ function DispatchRequests() {
       let data
       try {
         // Sending marksheet may take longer due to media processing — increase timeout
-        data = await apiClient.post(`${origin}/api/whatsapp-dispatch?action=send-marksheet`, payload, { timeout: 60000 })
+        data = await apiClient.post('/api/whatsapp-dispatch?action=send-marksheet', payload, { timeout: 120000 })
       } catch (apiErr) {
         // apiClient attaches parsed response JSON to `apiErr.data` when available
         const server = apiErr && (apiErr.data || apiErr.data?.error) ? apiErr.data : null
@@ -389,7 +389,7 @@ function DispatchRequests() {
         const marksheetPdfUrl = origin ? `${origin}/api/generate-pdf?marksheetId=${marksheet._id}&t=${Date.now()}` : ''
         const marksheetImageUrl = origin ? `${origin}/api/generate-pdf?marksheetId=${marksheet._id}&format=jpeg&t=${Date.now()}` : ''
         try {
-          const responseData = await apiClient.post(`${origin}/api/whatsapp-dispatch?action=send-marksheet`, { marksheetId: marksheet._id, marksheetPdfUrl, marksheetImageUrl }, { timeout: 60000 })
+          const responseData = await apiClient.post('/api/whatsapp-dispatch?action=send-marksheet', { marksheetId: marksheet._id, marksheetPdfUrl, marksheetImageUrl }, { timeout: 120000 })
           if (responseData && responseData.success) {
             moveToDispatchHistory([marksheet._id], (current) => ({
               ...current,
