@@ -16,6 +16,28 @@ function Login() {
   const navigate = useNavigate()
   const { showSuccess, showError } = useAlert()
 
+  const switchLoginType = (nextType) => {
+    setFormData(prev => {
+      if (nextType === 'student') {
+        return {
+          ...prev,
+          loginType: 'student',
+          email: '',
+          password: '',
+          regNumber: ''
+        }
+      }
+
+      return {
+        ...prev,
+        loginType: 'staff',
+        regNumber: '',
+        password: ''
+      }
+    })
+    if (error) setError('')
+  }
+
   const handleInputChange = (e) => {
     const { name, value } = e.target
     setFormData(prev => ({
@@ -84,17 +106,19 @@ function Login() {
         localStorage.setItem('userRole', data.user.role)
         localStorage.setItem('userId', data.user.id)
 
-        // Try to fetch canonical profile so the welcome message matches dashboard
+        // Try to fetch canonical profile for staff/hod/admin so the welcome message matches dashboard
         let displayName = data.user.name
-        try {
-          const profile = await apiClient.get(`/api/users?action=profile&userId=${data.user.id}`)
-          if (profile?.success && profile.user) {
-            const merged = { ...authData, ...profile.user }
-            localStorage.setItem('auth', JSON.stringify(merged))
-            displayName = profile.user.name || displayName
+        if (data.user.role !== 'student') {
+          try {
+            const profile = await apiClient.get(`/api/users?action=profile&userId=${data.user.id}`)
+            if (profile?.success && profile.user) {
+              const merged = { ...authData, ...profile.user }
+              localStorage.setItem('auth', JSON.stringify(merged))
+              displayName = profile.user.name || displayName
+            }
+          } catch (err) {
+            // Non-fatal - proceed with server-returned name
           }
-        } catch (err) {
-          // Non-fatal - proceed with server-returned name
         }
 
         // Show success alert with the canonical name when available
@@ -173,14 +197,14 @@ function Login() {
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, loginType: 'staff' }))}
+                  onClick={() => switchLoginType('staff')}
                   className={`w-full py-3 rounded-2xl border text-sm font-bold transition-all ${formData.loginType === 'staff' ? 'bg-white text-blue-700 border-white' : 'bg-white/10 text-white border-white/30'}`}
                 >
                   Staff / HOD
                 </button>
                 <button
                   type="button"
-                  onClick={() => setFormData(prev => ({ ...prev, loginType: 'student' }))}
+                  onClick={() => switchLoginType('student')}
                   className={`w-full py-3 rounded-2xl border text-sm font-bold transition-all ${formData.loginType === 'student' ? 'bg-white text-blue-700 border-white' : 'bg-white/10 text-white border-white/30'}`}
                 >
                   Student
@@ -197,6 +221,7 @@ function Login() {
                     name="email"
                     value={formData.email}
                     onChange={handleInputChange}
+                    autoComplete="username"
                     pattern=".*@msec\.edu\.in$"
                     title="Please use your MSEC email address (@msec.edu.in)"
                     className="w-full px-4 py-4 border-0 rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200"
@@ -216,6 +241,8 @@ function Login() {
                     name="regNumber"
                     value={formData.regNumber}
                     onChange={handleInputChange}
+                    autoComplete="username"
+                    autoCapitalize="characters"
                     className="w-full px-4 py-4 border-0 rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200"
                     placeholder="Enter your registration number"
                     required={formData.loginType === 'student'}
@@ -229,9 +256,13 @@ function Login() {
                 </label>
                 <input
                   type="password"
-                  name="password"
+                  name={formData.loginType === 'student' ? 'passwordStudent' : 'passwordStaff'}
                   value={formData.password}
-                  onChange={handleInputChange}
+                  onChange={(e) => {
+                    setFormData(prev => ({ ...prev, password: e.target.value }))
+                    if (error) setError('')
+                  }}
+                  autoComplete={formData.loginType === 'student' ? 'current-password' : 'current-password'}
                   className="w-full px-4 py-4 border-0 rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200"
                   placeholder="Enter your password"
                   required
