@@ -13,7 +13,7 @@ const getResultFromMarks = (marks) => (Number(marks) >= PASS_MARK_THRESHOLD ? 'P
 
 const normalizeSubjectsWithResult = (subjects = []) => {
   return subjects.map((subject) => {
-    const normalizedResult = ['Pass', 'Fail'].includes(subject?.result)
+    const normalizedResult = ['Pass', 'Fail', 'Absent'].includes(subject?.result)
       ? subject.result
       : getResultFromMarks(subject?.marks)
     return {
