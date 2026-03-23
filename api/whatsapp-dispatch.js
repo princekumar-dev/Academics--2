@@ -403,25 +403,37 @@ export default async function handler(req, res) {
         }
 
         try {
-          // Format phone number for WhatsApp (must include country code)
-          let parentNumber = normalizedMarksheet.studentDetails.parentPhoneNumber
+          const studentDetails = normalizedMarksheet?.studentDetails || {}
+          const studentName = studentDetails?.name || 'Student'
+          const registerNumber = studentDetails?.regNumber || 'N/A'
 
-          if (!parentNumber) {
+          // Format phone number for WhatsApp (must include country code)
+          const phoneCandidates = [
+            studentDetails?.parentPhoneNumber,
+            studentDetails?.studentPhoneNumber
+          ].map((value) => (value === undefined || value === null ? '' : String(value).trim())).filter(Boolean)
+
+          if (!phoneCandidates.length) {
             return res.status(400).json({ success: false, error: 'No valid parent WhatsApp number found' })
           }
 
-          const normalizedPhone = evolutionApi.normalizePhoneNumber(parentNumber)
+          const normalizedPhone = phoneCandidates
+            .map((value) => evolutionApi.normalizePhoneNumber(value))
+            .find(Boolean)
+
           if (!normalizedPhone) {
             return res.status(400).json({
               success: false,
               error: 'Invalid parent phone number. Use +91XXXXXXXXXX or 10-digit mobile number'
             })
           }
-          parentNumber = normalizedPhone
+          const parentNumber = normalizedPhone
 
           // Extract examination month and year
-          const examMonth = new Date(normalizedMarksheet.examinationDate).toLocaleDateString('en-US', { month: 'long' })
-          const examYear = new Date(normalizedMarksheet.examinationDate).getFullYear()
+          const parsedExamDate = new Date(normalizedMarksheet?.examinationDate)
+          const validExamDate = Number.isNaN(parsedExamDate.getTime()) ? new Date() : parsedExamDate
+          const examMonth = validExamDate.toLocaleDateString('en-US', { month: 'long' })
+          const examYear = validExamDate.getFullYear()
 
           const pdfUrl = absoluteUrl(marksheetPdfUrl)
           const imageUrl = absoluteUrl(marksheetImageUrl)
@@ -444,8 +456,8 @@ export default async function handler(req, res) {
 
           // Send via Evolution API
           const sendResult = await evolutionApi.sendMarksheetNotification({
-            studentName: normalizedMarksheet.studentDetails.name,
-            registerNumber: normalizedMarksheet.studentDetails.regNumber,
+            studentName,
+            registerNumber,
             parentPhoneNumber: parentNumber,
             examName: normalizedMarksheet.examinationName || 'Semester Examination',
             examMonth: examMonth,
@@ -509,12 +521,31 @@ export default async function handler(req, res) {
 
           // Check for common Evolution API errors
           let errorMessage = evolutionErr.message || 'Evolution API error'
+          let statusCode = 500
+
+          const providerStatus = Number(evolutionErr.response?.status || evolutionErr.status || evolutionErr.code)
+
+          if (providerStatus === 400) {
+            statusCode = 400
+          } else if (providerStatus === 401) {
+            statusCode = 401
+          } else if (providerStatus === 403) {
+            statusCode = 403
+          } else if (providerStatus === 404) {
+            statusCode = 502
+          }
+
           if (evolutionErr.code === 401 || evolutionErr.message?.toLowerCase().includes('authenticate')) {
             errorMessage = 'Evolution API authentication failed. Please verify your EVOLUTION_API_KEY and related config in .env file.'
+            statusCode = 401
           } else if (evolutionErr.code === 400 && evolutionErr.message?.toLowerCase().includes('phone')) {
             errorMessage = 'Invalid phone number format. Phone number must include country code (e.g., +91XXXXXXXXXX)'
+            statusCode = 400
           } else if (evolutionErr.code === 403 && evolutionErr.message?.toLowerCase().includes('sandbox')) {
             errorMessage = 'Evolution API WhatsApp Sandbox not configured or not allowed. Please check your Evolution API account.'
+            statusCode = 403
+          } else if (/invalid phone|phone number format|not a valid whatsapp|recipient/i.test(errorMessage)) {
+            statusCode = 400
           }
 
           // Update marksheet with error status
@@ -557,7 +588,7 @@ export default async function handler(req, res) {
             console.error('Failed to set lastEvolutionError:', storeErr?.message || storeErr)
           }
 
-          return res.status(500).json({ 
+          return res.status(statusCode).json({ 
             success: false, 
             error: errorMessage,
             details: evolutionErr.message,
