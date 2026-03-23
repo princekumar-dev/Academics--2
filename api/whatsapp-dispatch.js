@@ -405,10 +405,19 @@ export default async function handler(req, res) {
         try {
           // Format phone number for WhatsApp (must include country code)
           let parentNumber = normalizedMarksheet.studentDetails.parentPhoneNumber
-          
+
           if (!parentNumber) {
             return res.status(400).json({ success: false, error: 'No valid parent WhatsApp number found' })
           }
+
+          const normalizedPhone = evolutionApi.normalizePhoneNumber(parentNumber)
+          if (!normalizedPhone) {
+            return res.status(400).json({
+              success: false,
+              error: 'Invalid parent phone number. Use +91XXXXXXXXXX or 10-digit mobile number'
+            })
+          }
+          parentNumber = normalizedPhone
 
           // Extract examination month and year
           const examMonth = new Date(normalizedMarksheet.examinationDate).toLocaleDateString('en-US', { month: 'long' })
@@ -614,19 +623,11 @@ export default async function handler(req, res) {
 
             // Format phone number using normalized function
             let parentNumber = normalizedMarksheet.studentDetails.parentPhoneNumber
-            const normalizeToWhatsApp = (num) => {
-              if (!num) return null
-              let n = num.replace(/[^0-9+]/g, '')
-              if (!n.startsWith('+')) {
-                n = n.startsWith('91') ? `+${n}` : `+91${n}`
-              }
-              return n
-            }
-            const phoneNumber = normalizeToWhatsApp(parentNumber)
+            const phoneNumber = evolutionApi.normalizePhoneNumber(parentNumber)
             
             if (!phoneNumber) {
               results.failed++
-              results.errors.push(`No valid parent phone number for marksheet ${marksheetId}`)
+              results.errors.push(`Invalid parent phone number for marksheet ${marksheetId}. Use +91XXXXXXXXXX or 10-digit mobile number`)
               continue
             }
 
