@@ -140,13 +140,13 @@ function StudentDashboard() {
         </div>
 
         {/* Marksheets Section */}
-        <div className="glass-card p-8 rounded-3xl backdrop-blur-lg border border-white/20 shadow-lg">
-          <div className="flex items-center justify-between mb-8">
+        <div className="glass-card p-4 sm:p-8 rounded-3xl backdrop-blur-lg border border-white/20 shadow-lg">
+          <div className="flex items-center justify-between mb-4 sm:mb-8">
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Your Marksheets</h2>
-              <p className="text-sm text-gray-500 mt-1">Swipe left to download or view</p>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Your Marksheets</h2>
+              <p className="text-xs sm:text-sm text-gray-500 mt-1">Swipe left to download or view</p>
             </div>
-            <Link to="/contact" className="text-blue-600 text-sm font-semibold hover:text-blue-700 transition-colors">Need help?</Link>
+            <Link to="/contact" className="text-blue-600 text-xs sm:text-sm font-semibold hover:text-blue-700 transition-colors">Need help?</Link>
           </div>
 
           {isLoading ? (
@@ -167,7 +167,7 @@ function StudentDashboard() {
               <p className="text-gray-500 text-sm mt-1">Your marksheets will appear here once they are dispatched</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {marksheets.map(ms => {
                 const swipeActions = [
                   {
@@ -182,15 +182,14 @@ function StudentDashboard() {
 
                 return (
                   <SwipeableCard key={ms._id} actions={swipeActions}>
-                    <div className="bg-white">
-                      <div className="p-6">
+                    <div className="relative bg-white p-3 sm:p-6 rounded-xl shadow-sm border border-gray-200">
                         {/* Header with name and status */}
-                        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                        <div className="flex items-start justify-between gap-3 mb-2 sm:mb-4">
                           <div className="flex-1 min-w-0">
-                            <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1 break-words">{ms.studentDetails?.examinationName || 'Examination'}</h3>
-                            <p className="text-xs sm:text-sm text-gray-600">{ms.studentDetails?.regNumber} • {ms.studentDetails?.year}-{ms.studentDetails?.section}</p>
+                            <h3 className="text-sm sm:text-xl font-semibold text-gray-900 mb-1 break-words">{ms.studentDetails?.examinationName || 'Examination'}</h3>
+                            <p className="text-xs sm:text-sm text-gray-600 leading-snug">{ms.studentDetails?.regNumber} • {ms.studentDetails?.year}-{ms.studentDetails?.section}</p>
                           </div>
-                          <span className={`px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-semibold uppercase tracking-wide flex items-center gap-0.5 sm:gap-1 flex-shrink-0 whitespace-nowrap ${
+                          <span className={`w-fit inline-flex items-center gap-0.5 sm:gap-1 px-2 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-semibold uppercase tracking-tight sm:tracking-wide flex-shrink-0 whitespace-nowrap ${
                             ms.status === 'dispatched' ? 'bg-purple-100 text-purple-700' :
                             ms.status === 'approved_by_hod' ? 'bg-blue-100 text-blue-700' :
                             ms.status === 'dispatch_requested' ? 'bg-yellow-100 text-yellow-700' :
@@ -201,13 +200,13 @@ function StudentDashboard() {
                         </div>
 
                         {/* Details Grid */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-6 text-xs sm:text-sm">
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-6 text-xs sm:text-sm items-start">
                           <div>
-                            <p className="text-gray-500 mb-1 font-medium">Department</p>
+                            <p className="text-gray-500 mb-0.5 font-medium">Department</p>
                             <p className="font-medium text-gray-900">{ms.studentDetails?.department || '—'}</p>
                           </div>
                           <div>
-                            <p className="text-gray-500 mb-1 font-medium">Result</p>
+                            <p className="text-gray-500 mb-0.5 font-medium">Result</p>
                             <p className={`font-bold ${
                               ms.overallResult === 'Pass' ? 'text-green-600' :
                               ms.overallResult === 'Fail' ? 'text-red-600' :
@@ -217,17 +216,17 @@ function StudentDashboard() {
                             </p>
                           </div>
                           <div>
-                            <p className="text-gray-500 mb-1 font-medium">Updated</p>
+                            <p className="text-gray-500 mb-0.5 font-medium">Updated</p>
                             <p className="font-medium text-gray-900">{ms.updatedAt ? new Date(ms.updatedAt).toLocaleDateString('en-IN') : '—'}</p>
                           </div>
                           <div>
-                            <p className="text-gray-500 mb-1 font-medium">Parent Phone</p>
+                            <p className="text-gray-500 mb-0.5 font-medium">Parent Phone</p>
                             <p className="font-medium text-gray-900 truncate">{ms.studentDetails?.parentPhoneNumber || '—'}</p>
                           </div>
                         </div>
 
                         {/* Desktop Action Buttons */}
-                        <div className="hidden sm:flex gap-3 mt-4 justify-end">
+                        <div className="hidden sm:flex gap-3 mt-3 sm:mt-4 justify-end">
                           <a
                             href={`/api/generate-pdf?marksheetId=${ms._id}`}
                             target="_blank"
@@ -240,10 +239,9 @@ function StudentDashboard() {
                             Download PDF
                           </a>
                         </div>
-                      </div>
 
                       {/* Mobile: Swipe instruction hint */}
-                      <div className="sm:hidden p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-blue-100">
+                      <div className="sm:hidden -mx-3 -mb-3 mt-2 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-blue-100">
                         <p className="text-xs text-center text-gray-600 flex items-center justify-center gap-2">
                           <span>👈</span>
                           <span className="font-medium">Swipe left to download</span>
