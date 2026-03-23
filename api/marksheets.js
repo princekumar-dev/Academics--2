@@ -717,6 +717,15 @@ export default async function handler(req, res) {
         return res.status(400).json({ success: false, error: 'marksheetId is required' })
       }
 
+      let existingMarksheet = null
+      try {
+        existingMarksheet = await Marksheet.findById(marksheetId).lean()
+      } catch {}
+
+      if (!existingMarksheet) {
+        return res.status(404).json({ success: false, error: 'Marksheet not found' })
+      }
+
       const update = { updatedAt: new Date() }
 
       if (studentDetails && typeof studentDetails === 'object') {
@@ -724,6 +733,10 @@ export default async function handler(req, res) {
           if (studentDetails[key] !== undefined) {
             update[`studentDetails.${key}`] = studentDetails[key]
           }
+        }
+
+        if (studentDetails.studentPhoneNumber !== undefined) {
+          update['studentDetails.studentPhoneNumber'] = studentDetails.studentPhoneNumber
         }
       }
 
@@ -738,7 +751,7 @@ export default async function handler(req, res) {
       // If requested, refresh staff/hod signatures from current user profiles
       if (regenerateSignatures) {
         try {
-          const existing = await Marksheet.findById(marksheetId).lean()
+          const existing = existingMarksheet
           if (existing) {
             if (existing.staffId) {
               try {
@@ -761,7 +774,7 @@ export default async function handler(req, res) {
       // If requested, recompute subject results/overallResult from stored subjects
       if (recomputeResults) {
         try {
-          const existing = await Marksheet.findById(marksheetId).lean()
+          const existing = existingMarksheet
           if (existing && Array.isArray(existing.subjects)) {
             const normalized = normalizeSubjectsWithResult(existing.subjects || [])
             update.subjects = normalized
@@ -780,6 +793,47 @@ export default async function handler(req, res) {
 
       if (!marksheet) {
         return res.status(404).json({ success: false, error: 'Marksheet not found' })
+      }
+
+      // Keep Student master profile in sync when marksheet student details are edited.
+      // Student login/dashboard read phone from Student collection, so without this sync
+      // regenerated marksheet changes can show stale numbers.
+      if (studentDetails && typeof studentDetails === 'object') {
+        const studentSync = {}
+        for (const key of ['name', 'regNumber', 'section', 'department', 'parentPhoneNumber', 'studentPhoneNumber']) {
+          if (studentDetails[key] !== undefined) {
+            studentSync[key] = studentDetails[key]
+          }
+        }
+
+        if (studentDetails.year !== undefined) {
+          studentSync.year = studentDetails.year
+        } else if (studentDetails.class !== undefined) {
+          studentSync.year = studentDetails.class
+        }
+
+        if (Object.keys(studentSync).length > 0) {
+          const studentFilter = existingMarksheet.studentId
+            ? { _id: existingMarksheet.studentId }
+            : { regNumber: existingMarksheet.studentDetails?.regNumber }
+
+          // Avoid duplicate key crash when reg number edited to an existing one
+          if (studentSync.regNumber && studentSync.regNumber !== existingMarksheet.studentDetails?.regNumber) {
+            const duplicate = await Student.findOne({ regNumber: studentSync.regNumber }).select('_id').lean()
+            if (duplicate && String(duplicate._id) !== String(existingMarksheet.studentId)) {
+              return res.status(409).json({
+                success: false,
+                error: `Registration number ${studentSync.regNumber} already exists for another student`
+              })
+            }
+          }
+
+          try {
+            await Student.findOneAndUpdate(studentFilter, { $set: studentSync }, { new: false })
+          } catch (syncErr) {
+            console.error('[Marksheets API] Failed to sync student profile on regenerate:', syncErr?.message || syncErr)
+          }
+        }
       }
 
       // If regenerate requested or signature fields changed, invalidate cached PDF

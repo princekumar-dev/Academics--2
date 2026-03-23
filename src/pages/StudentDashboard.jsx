@@ -60,8 +60,26 @@ function StudentDashboard() {
       const data = await apiClient.get(`/api/users?studentPhoneNumber=${phoneParam}&regNumber=${regNumberParam}`, opts)
       if (data.success && data.user) {
         // Merge fetched data with auth (preserving auth fields)
-        const updatedStudent = { ...auth, ...data.user, role: 'student' }
+        const updatedStudent = {
+          ...auth,
+          ...data.user,
+          phoneNumber: data.user.parentPhoneNumber || auth.phoneNumber,
+          parentPhoneNumber: data.user.parentPhoneNumber || auth.parentPhoneNumber,
+          role: 'student'
+        }
         setStudent(updatedStudent)
+
+        // Persist refreshed student profile so subsequent dashboard fetches don't use stale phone values
+        try {
+          const authRaw = localStorage.getItem('auth')
+          const currentAuth = authRaw ? JSON.parse(authRaw) : null
+          if (currentAuth?.role === 'student') {
+            localStorage.setItem('auth', JSON.stringify({ ...currentAuth, ...updatedStudent }))
+          }
+        } catch {}
+
+        // Keep marksheets query aligned with latest number from DB after regenerate/update
+        fetchMarksheets(updatedStudent, true)
       } else {
         // Fallback to localStorage data if fetch fails
         setStudent(auth)
@@ -79,7 +97,8 @@ function StudentDashboard() {
       const queryParams = new URLSearchParams()
       if (auth.id) queryParams.set('studentId', auth.id)
       if (auth.regNumber) queryParams.set('regNumber', auth.regNumber)
-      if (auth.phoneNumber) queryParams.set('phoneNumber', auth.phoneNumber)
+      const resolvedPhone = auth.parentPhoneNumber || auth.phoneNumber || auth.studentPhoneNumber
+      if (resolvedPhone) queryParams.set('phoneNumber', resolvedPhone)
       const opts = force ? { cache: false, dedupe: false } : {}
       const data = await apiClient.get(`/api/marksheets?${queryParams.toString()}`, opts)
       if (data.success) {
