@@ -23,6 +23,14 @@ export function AlertProvider({ children }) {
     setAlerts(prev => prev.filter(alert => alert.id !== id))
   }, [])
 
+  const updateAlert = useCallback((id, updates = {}) => {
+    if (!id) return null
+    setAlerts(prev => prev.map(alert => (
+      alert.id === id ? { ...alert, ...updates } : alert
+    )))
+    return id
+  }, [])
+
   const showSuccess = useCallback((title, message, options = {}) => {
     return showAlert({ type: 'success', title, message, ...options })
   }, [showAlert])
@@ -83,7 +91,7 @@ export function AlertProvider({ children }) {
   }, [showError])
 
   return (
-    <AlertContext.Provider value={{ showAlert, hideAlert, showSuccess, showError, showWarning, showInfo }}>
+    <AlertContext.Provider value={{ showAlert, hideAlert, updateAlert, showSuccess, showError, showWarning, showInfo }}>
       {children}
       {/* Render all active alerts */}
       {alerts.map(alert => (

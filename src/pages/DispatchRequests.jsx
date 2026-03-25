@@ -8,6 +8,7 @@ import AnimatedCount from '../components/AnimatedCount'
 import usePullToRefresh, { PullToRefreshIndicator } from '../hooks/usePullToRefresh.jsx'
 import { usePushNotifications, usePageFocus } from '../hooks/usePushNotifications'
 import JSZip from 'jszip'
+import { useAlert } from '../components/AlertContext'
 
 const PUBLIC_BASE_URL =
   import.meta.env.VITE_PUBLIC_BASE_URL ||
@@ -22,6 +23,7 @@ const getPublicOrigin = () => {
 
 function DispatchRequests() {
   const navigate = useNavigate()
+  const { showInfo, showSuccess, showWarning, hideAlert, updateAlert } = useAlert()
   const [userData] = useState(() => {
     const auth = localStorage.getItem('auth')
     return auth ? JSON.parse(auth) : null
@@ -43,6 +45,17 @@ function DispatchRequests() {
   const [currentExaminationId, setCurrentExaminationId] = useState(null) // Track current exam for filtering dispatch history
   const activeMarksheetsRef = useRef([])
   const dispatchedMarksheetsRef = useRef([])
+  const bulkProgressAlertIdRef = useRef(null)
+
+  const clearBulkProgressAlert = useCallback(() => {
+    if (!bulkProgressAlertIdRef.current) return
+    hideAlert(bulkProgressAlertIdRef.current)
+    bulkProgressAlertIdRef.current = null
+  }, [hideAlert])
+
+  useEffect(() => {
+    return () => clearBulkProgressAlert()
+  }, [clearBulkProgressAlert])
 
   // Pull-to-refresh functionality
   const handlePullRefresh = async () => {
@@ -363,26 +376,85 @@ function DispatchRequests() {
 
     try {
       const origin = getPublicOrigin()
+      const randomBetween = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
+      const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-      // Concurrency helper: runs worker over items with a limited number of parallel workers
-      const runWithConcurrency = async (items, worker, concurrency = 6) => {
-        const results = new Array(items.length)
-        let idx = 0
-        const runners = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
-          while (true) {
-            const current = idx
-            if (current >= items.length) break
-            idx += 1
-            const item = items[current]
-            try {
-              results[current] = await worker(item)
-            } catch (e) {
-              results[current] = { success: false, id: item._id, error: e && e.message ? e.message : String(e) }
-            }
-          }
+      // Anti-spam controls for WhatsApp bulk sends
+      const MESSAGE_DELAY_MIN_MS = 2000   // 2s
+      const MESSAGE_DELAY_MAX_MS = 8000   // 8s
+      const BATCH_SIZE_MIN = 10
+      const BATCH_SIZE_MAX = 15
+      const BATCH_PAUSE_MIN_MS = 60000    // 60s
+      const BATCH_PAUSE_MAX_MS = 120000   // 120s
+
+      const formatEta = (seconds) => {
+        const safe = Math.max(0, Math.round(seconds))
+        const mins = Math.floor(safe / 60)
+        const secs = safe % 60
+        return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`
+      }
+
+      const estimateRemainingSeconds = ({ total, processed, cooldownSeconds = 0 }) => {
+        const remaining = Math.max(0, total - processed)
+        const avgMessageSeconds = ((MESSAGE_DELAY_MIN_MS + MESSAGE_DELAY_MAX_MS) / 2) / 1000
+        const avgBatchSize = (BATCH_SIZE_MIN + BATCH_SIZE_MAX) / 2
+        const avgBatchPauseSeconds = ((BATCH_PAUSE_MIN_MS + BATCH_PAUSE_MAX_MS) / 2) / 1000
+        const estimatedFuturePauses = remaining > 0 ? Math.max(0, Math.ceil(remaining / avgBatchSize) - 1) : 0
+        return Math.round((remaining * avgMessageSeconds) + (estimatedFuturePauses * avgBatchPauseSeconds) + cooldownSeconds)
+      }
+
+      const getProgressMessage = ({ total, processed, successCount, failCount, phase, cooldownSeconds = 0 }) => {
+        const percent = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0
+        const etaSeconds = estimateRemainingSeconds({ total, processed, cooldownSeconds })
+        return (
+          <span className="block">
+            <span className="block text-xs sm:text-sm font-semibold text-slate-700 mb-2">{phase}</span>
+            <span className="block h-2 w-full rounded-full bg-white/70 border border-blue-100 overflow-hidden mb-2">
+              <span
+                className="block h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-700 ease-out"
+                style={{ width: `${percent}%` }}
+              />
+            </span>
+            <span className="block text-[11px] sm:text-xs text-slate-700 mb-0.5">
+              Progress: {processed}/{total} ({percent}%)
+            </span>
+            <span className="block text-[11px] sm:text-xs text-slate-700 mb-0.5">
+              Sent: {successCount} • Failed: {failCount}
+            </span>
+            <span className="block text-[11px] sm:text-xs text-slate-600">
+              Estimated time left: {formatEta(etaSeconds)}{cooldownSeconds > 0 ? ` • Cooldown ${cooldownSeconds}s` : ''}
+            </span>
+          </span>
+        )
+      }
+
+      const showBulkProgressAlert = ({ total, processed, successCount, failCount, phase, cooldownSeconds = 0 }) => {
+        const message = getProgressMessage({ total, processed, successCount, failCount, phase, cooldownSeconds })
+        if (!bulkProgressAlertIdRef.current) {
+          bulkProgressAlertIdRef.current = showInfo('📤 Bulk Dispatch Running', message, {
+            autoClose: false,
+            duration: 0,
+            position: 'top-right'
+          })
+          return
+        }
+        if (typeof updateAlert === 'function') {
+          updateAlert(bulkProgressAlertIdRef.current, {
+            type: 'info',
+            title: '📤 Bulk Dispatch Running',
+            message,
+            autoClose: false,
+            duration: 0,
+            position: 'top-right'
+          })
+          return
+        }
+        clearBulkProgressAlert()
+        bulkProgressAlertIdRef.current = showInfo('📤 Bulk Dispatch Running', message, {
+          autoClose: false,
+          duration: 0,
+          position: 'top-right'
         })
-        await Promise.all(runners)
-        return results
       }
 
       const worker = async (marksheet) => {
@@ -410,21 +482,78 @@ function DispatchRequests() {
         }
       }
 
-      const results = await runWithConcurrency(approvedMarksheets, worker, 6)
+      const results = []
+      let index = 0
+      showBulkProgressAlert({
+        total: approvedMarksheets.length,
+        processed: 0,
+        successCount: 0,
+        failCount: 0,
+        phase: 'Preparing to send marksheets...'
+      })
+
+      while (index < approvedMarksheets.length) {
+        const batchSize = randomBetween(BATCH_SIZE_MIN, BATCH_SIZE_MAX)
+        const batch = approvedMarksheets.slice(index, index + batchSize)
+
+        for (const marksheet of batch) {
+          const jitterMs = randomBetween(MESSAGE_DELAY_MIN_MS, MESSAGE_DELAY_MAX_MS)
+          await wait(jitterMs)
+          const result = await worker(marksheet)
+          results.push(result)
+          const successCount = results.filter((entry) => entry && entry.success).length
+          const failCount = results.length - successCount
+          setFeedback(`Sending marksheets... ${results.length}/${approvedMarksheets.length}`)
+          showBulkProgressAlert({
+            total: approvedMarksheets.length,
+            processed: results.length,
+            successCount,
+            failCount,
+            phase: 'Sending marksheets in controlled batches...'
+          })
+        }
+
+        index += batch.length
+
+        if (index < approvedMarksheets.length) {
+          const cooldownMs = randomBetween(BATCH_PAUSE_MIN_MS, BATCH_PAUSE_MAX_MS)
+          const cooldownSeconds = Math.ceil(cooldownMs / 1000)
+          setFeedback(`Batch sent (${results.length}/${approvedMarksheets.length}). Cooling down ${cooldownSeconds}s before next batch...`)
+          for (let remaining = cooldownSeconds; remaining > 0; remaining -= 1) {
+            const successCount = results.filter((entry) => entry && entry.success).length
+            const failCount = results.length - successCount
+            showBulkProgressAlert({
+              total: approvedMarksheets.length,
+              processed: results.length,
+              successCount,
+              failCount,
+              phase: 'Cooling down between batches to reduce spam risk...',
+              cooldownSeconds: remaining
+            })
+            await wait(1000)
+          }
+        }
+      }
 
       const successCount = results.filter(r => r && r.success).length
       const failCount = results.length - successCount
 
+      clearBulkProgressAlert()
+
       if (successCount > 0) {
         setFeedback(`Successfully sent ${successCount} marksheet${successCount > 1 ? 's' : ''} via WhatsApp.`)
+        showSuccess('✅ Bulk Dispatch Complete', `Sent ${successCount}/${approvedMarksheets.length} marksheets successfully.`)
       }
       if (failCount > 0) {
         setError(`Failed to send ${failCount} marksheet${failCount > 1 ? 's' : ''}. Please try sending them individually.`)
+        showWarning('⚠️ Some Dispatches Failed', `${failCount} of ${approvedMarksheets.length} marksheets failed.`)
       }
     } catch (err) {
       console.error(err)
+      clearBulkProgressAlert()
       setError(getUserFriendlyMessage(err, 'Could not send marksheets. Please try again.'))
     } finally {
+      clearBulkProgressAlert()
       setSendingAll(false)
       await fetchVerifiedMarksheets(true)
     }

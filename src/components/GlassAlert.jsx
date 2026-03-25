@@ -136,10 +136,10 @@ export default function GlassAlert({
               </h3>
             )}
             {message && (
-              <p className="text-gray-700 text-xs sm:text-sm leading-relaxed 
+              <div className="text-gray-700 text-xs sm:text-sm leading-relaxed 
                           break-words">
                 {message}
-              </p>
+              </div>
             )}
           </div>
         </div>
