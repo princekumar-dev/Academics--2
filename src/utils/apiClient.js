@@ -103,6 +103,11 @@ async function request(method, url, opts = {}) {
           cache.set(key, { ts: Date.now(), data, ttl });
         }
 
+        // Invalidate cached GET responses after successful mutations to avoid stale UI
+        if (method !== 'GET') {
+          try { cache.clear(); } catch (e) { /* ignore */ }
+        }
+
         // After successful mutations (non-GET), optionally dispatch client-side events
         try {
           if (method !== 'GET' && dispatch) {

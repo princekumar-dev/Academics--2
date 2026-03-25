@@ -271,8 +271,8 @@ function MarksheetDetails() {
                 <div className="space-y-3">
                   {form.subjects.map((sub, idx) => (
                     <div key={idx} className="grid grid-cols-3 gap-3 items-center">
-                      <input value={sub.subjectName} onChange={e => setForm(prev => { const arr = [...prev.subjects]; arr[idx] = { ...arr[idx], subjectName: e.target.value }; return { ...prev, subjects: arr } })} className="border rounded-lg px-3 py-2" />
-                      <input type="number" value={sub.marks} onChange={e => setForm(prev => { const arr = [...prev.subjects]; arr[idx] = { ...arr[idx], marks: Number(e.target.value) }; return { ...prev, subjects: arr } })} className="border rounded-lg px-3 py-2" />
+                      <input value={sub.subjectName ?? ''} onChange={e => setForm(prev => { const arr = [...prev.subjects]; arr[idx] = { ...arr[idx], subjectName: e.target.value }; return { ...prev, subjects: arr } })} className="border rounded-lg px-3 py-2" />
+                      <input type="number" value={sub.marks ?? ''} onChange={e => setForm(prev => { const arr = [...prev.subjects]; arr[idx] = { ...arr[idx], marks: e.target.value === '' ? '' : Number(e.target.value) }; return { ...prev, subjects: arr } })} className="border rounded-lg px-3 py-2" />
                       <select 
                         value={sub.result || ''}
                         onChange={e => setForm(prev => { const arr = [...prev.subjects]; arr[idx] = { ...arr[idx], result: e.target.value }; return { ...prev, subjects: arr } })}
