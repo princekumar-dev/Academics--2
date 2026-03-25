@@ -61,7 +61,10 @@ function ApprovalRequests() {
 
   // Pull-to-refresh functionality
   const handlePullRefresh = async () => {
-    await fetchPendingRequests()
+    await Promise.all([
+      fetchPendingRequests(true),
+      fetchLeaveRequests(true)
+    ])
     showSuccess('🔄 Refreshed', 'Approval requests updated')
   }
 
@@ -188,7 +191,10 @@ function ApprovalRequests() {
   const handleRefresh = async () => {
     setRefreshing(true)
     try {
-      await fetchPendingRequests()
+      await Promise.all([
+        fetchPendingRequests(true),
+        fetchLeaveRequests(true)
+      ])
     } finally {
       setRefreshing(false)
     }
