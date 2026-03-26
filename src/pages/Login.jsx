@@ -5,12 +5,26 @@ import { useNavigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
 import { getAccessBlockMeta, getAccessWindowLabel } from '../utils/accessPolicy'
 
+const LOGIN_TAB_STORAGE_KEY = 'msec:login_tab'
+
+const getInitialLoginType = () => {
+  try {
+    const savedLoginType = localStorage.getItem(LOGIN_TAB_STORAGE_KEY)
+    if (savedLoginType === 'student' || savedLoginType === 'staff') {
+      return savedLoginType
+    }
+  } catch (e) {
+    // Ignore storage errors and use default mode.
+  }
+  return 'staff'
+}
+
 function Login() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     regNumber: '',
-    loginType: 'student'
+    loginType: getInitialLoginType()
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -19,8 +33,16 @@ function Login() {
   const accessBlocked = useMemo(() => getAccessBlockMeta(formData.loginType === 'student' ? 'student' : 'staff'), [formData.loginType])
 
   const switchLoginType = (nextType) => {
+    const normalizedType = nextType === 'student' ? 'student' : 'staff'
+
+    try {
+      localStorage.setItem(LOGIN_TAB_STORAGE_KEY, normalizedType)
+    } catch (e) {
+      // Ignore storage errors and continue UI switch.
+    }
+
     setFormData(prev => {
-      if (nextType === 'student') {
+      if (normalizedType === 'student') {
         return {
           ...prev,
           loginType: 'student',
