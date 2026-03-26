@@ -422,13 +422,12 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
       reader.onload = async (event) => {
         try {
           // Process the signature image to remove white background
-          const processedSignature = await processSignatureImage(event.target.result, 230)
+          const processedSignature = await processSignatureImage(event.target.result)
           setUploadedSignature(processedSignature)
           showSuccess('Signature processed', 'White background removed successfully')
         } catch (error) {
           showError('Processing failed', error.message || 'Could not process signature image')
-          // Fallback: use original image
-          setUploadedSignature(event.target.result)
+          setUploadedSignature(null)
         }
       }
       reader.readAsDataURL(file)

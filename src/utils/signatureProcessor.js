@@ -117,16 +117,13 @@ export const processSignatureImage = (dataUrl) => {
         maxX = Math.min(canvas.width, maxX + padding)
         maxY = Math.min(canvas.height, maxY + padding)
 
-        // Create cropped canvas with white background
+        // Create cropped canvas with transparent background
         const croppedCanvas = document.createElement('canvas')
         croppedCanvas.width = maxX - minX
         croppedCanvas.height = maxY - minY
 
         const croppedCtx = croppedCanvas.getContext('2d')
-        // Fill with white background
-        croppedCtx.fillStyle = '#FFFFFF'
-        croppedCtx.fillRect(0, 0, croppedCanvas.width, croppedCanvas.height)
-        // Draw signature
+        // Keep transparent background; draw only signature pixels
         croppedCtx.drawImage(
           canvas,
           minX, minY, maxX - minX, maxY - minY,
@@ -177,8 +174,7 @@ export const optimizeSignatureForPDF = (dataUrl, maxWidth = 400, maxHeight = 100
         canvas.height = height
 
         const ctx = canvas.getContext('2d', { alpha: true })
-        ctx.fillStyle = '#FFFFFF'
-        ctx.fillRect(0, 0, width, height)
+        ctx.clearRect(0, 0, width, height)
         ctx.drawImage(img, 0, 0, width, height)
 
         resolve(canvas.toDataURL('image/png', 0.95))

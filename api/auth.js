@@ -29,6 +29,14 @@ export default async function handler(req, res) {
       const { email, password, regNumber, loginType } = req.body
       console.log('🔐 [AUTH] Request body:', { email, password: password ? '***' : 'none', regNumber, loginType })
 
+      // Site policy: only students can access
+      if (!(loginType === 'student' || (!!regNumber && !email))) {
+        return res.status(403).json({
+          success: false,
+          error: 'Access restricted: only students can access this website.'
+        })
+      }
+
       // Student login branch (registration number + default password)
       if (loginType === 'student' || (!!regNumber && !email)) {
         if (!regNumber || !password) {
@@ -89,76 +97,9 @@ export default async function handler(req, res) {
         })
       }
 
-      // Staff/HOD login branch (email + password)
-      if (!email || !password) {
-        return res.status(400).json({
-          success: false,
-          error: 'Email and password are required'
-        })
-      }
-
-      // Basic validation
-      const emailDomain = email.toLowerCase().split('@')[1]
-      if (emailDomain !== 'msec.edu.in') {
-        return res.status(400).json({
-          success: false,
-          error: 'Only @msec.edu.in email addresses are allowed'
-        })
-      }
-
-      // Find user in msec_academics database
-      console.log('🔐 [AUTH] Looking up user:', email.toLowerCase())
-      const user = await User.findOne({ email: email.toLowerCase() })
-      console.log('🔐 [AUTH] User lookup result:', user ? 'found' : 'not found')
-      
-      // Check if user exists OR if there's a pending staff approval request
-      if (!user) {
-        // Check if there's a pending approval request
-        const pendingRequest = await StaffApprovalRequest.findOne({
-          email: email.toLowerCase(),
-          status: 'pending'
-        })
-        
-        if (pendingRequest) {
-          return res.status(401).json({
-            success: false,
-            error: 'Your account is pending approval. Please wait for HOD approval before logging in.'
-          })
-        }
-        
-        return res.status(401).json({
-          success: false,
-          error: 'Invalid email or password'
-        })
-      }
-
-      console.log('✅ [AUTH] User found:', { email: user.email, role: user.role })
-      // Compare submitted password with hashed password from DB
-      console.log('🔐 [AUTH] Checking password...')
-      const passwordMatches = await bcrypt.compare(password, user.password)
-      console.log('🔐 [AUTH] Password match result:', passwordMatches)
-      if (!passwordMatches) {
-        console.log('❌ [AUTH] Password mismatch')
-        return res.status(401).json({
-          success: false,
-          error: 'Invalid email or password'
-        })
-      }
-
-      // Authentication successful
-      console.log('✅ [AUTH] Authentication successful for:', user.email)
-      return res.status(200).json({
-        success: true,
-        user: {
-          id: user._id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          department: user.department,
-          year: user.year,
-          section: user.section,
-          eSignature: user.eSignature
-        }
+      return res.status(403).json({
+        success: false,
+        error: 'Access restricted: only students can access this website.'
       })
 
     } catch (error) {

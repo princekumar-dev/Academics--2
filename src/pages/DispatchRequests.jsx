@@ -387,6 +387,22 @@ function DispatchRequests() {
       const BATCH_PAUSE_MIN_MS = 60000    // 60s
       const BATCH_PAUSE_MAX_MS = 120000   // 120s
 
+      const controlState = {
+        paused: false,
+        cancelled: false
+      }
+
+      const progressState = {
+        total: approvedMarksheets.length,
+        processed: 0,
+        successCount: 0,
+        failCount: 0,
+        phase: 'Preparing to send marksheets...',
+        cooldownSeconds: 0,
+        currentBatch: 0,
+        totalBatches: 0
+      }
+
       const formatEta = (seconds) => {
         const safe = Math.max(0, Math.round(seconds))
         const mins = Math.floor(safe / 60)
@@ -403,12 +419,29 @@ function DispatchRequests() {
         return Math.round((remaining * avgMessageSeconds) + (estimatedFuturePauses * avgBatchPauseSeconds) + cooldownSeconds)
       }
 
-      const getProgressMessage = ({ total, processed, successCount, failCount, phase, cooldownSeconds = 0 }) => {
+      const getProgressMessage = ({
+        total,
+        processed,
+        successCount,
+        failCount,
+        phase,
+        cooldownSeconds = 0,
+        currentBatch = 0,
+        totalBatches = 0,
+        paused = false,
+        onPauseToggle,
+        onCancel
+      }) => {
         const percent = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0
         const etaSeconds = estimateRemainingSeconds({ total, processed, cooldownSeconds })
         return (
           <span className="block">
             <span className="block text-xs sm:text-sm font-semibold text-slate-700 mb-2">{phase}</span>
+            {totalBatches > 0 && (
+              <span className="block text-[11px] sm:text-xs text-slate-600 mb-2">
+                Batch {Math.min(currentBatch, totalBatches)}/{totalBatches}
+              </span>
+            )}
             <span className="block h-2 w-full rounded-full bg-white/70 border border-blue-100 overflow-hidden mb-2">
               <span
                 className="block h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-500 transition-all duration-700 ease-out"
@@ -424,12 +457,42 @@ function DispatchRequests() {
             <span className="block text-[11px] sm:text-xs text-slate-600">
               Estimated time left: {formatEta(etaSeconds)}{cooldownSeconds > 0 ? ` • Cooldown ${cooldownSeconds}s` : ''}
             </span>
+            <span className="mt-3 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={onPauseToggle}
+                className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-[11px] sm:text-xs font-semibold bg-white/80 border border-blue-200 text-blue-700 hover:bg-white"
+              >
+                {paused ? '▶ Resume' : '⏸ Pause'}
+              </button>
+              <button
+                type="button"
+                onClick={onCancel}
+                className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-[11px] sm:text-xs font-semibold bg-white/80 border border-red-200 text-red-700 hover:bg-white"
+              >
+                ✖ Cancel
+              </button>
+            </span>
           </span>
         )
       }
 
-      const showBulkProgressAlert = ({ total, processed, successCount, failCount, phase, cooldownSeconds = 0 }) => {
-        const message = getProgressMessage({ total, processed, successCount, failCount, phase, cooldownSeconds })
+      const showBulkProgressAlert = () => {
+        const message = getProgressMessage({
+          ...progressState,
+          paused: controlState.paused,
+          onPauseToggle: () => {
+            controlState.paused = !controlState.paused
+            progressState.phase = controlState.paused ? 'Paused by user. Dispatch will resume when you tap Resume.' : 'Resuming bulk dispatch...'
+            showBulkProgressAlert()
+          },
+          onCancel: () => {
+            controlState.cancelled = true
+            progressState.phase = 'Cancelling bulk dispatch...'
+            showBulkProgressAlert()
+          }
+        })
+
         if (!bulkProgressAlertIdRef.current) {
           bulkProgressAlertIdRef.current = showInfo('📤 Bulk Dispatch Running', message, {
             autoClose: false,
@@ -457,6 +520,37 @@ function DispatchRequests() {
         })
       }
 
+      const updateBulkProgress = (patch = {}) => {
+        Object.assign(progressState, patch)
+        showBulkProgressAlert()
+      }
+
+      const waitWithControls = async (durationMs, onTick = null) => {
+        let remaining = Math.max(0, durationMs)
+        let lastReportedSeconds = null
+        while (remaining > 0) {
+          if (controlState.cancelled) return false
+
+          while (controlState.paused) {
+            if (controlState.cancelled) return false
+            await wait(250)
+          }
+
+          const step = Math.min(250, remaining)
+          await wait(step)
+          remaining -= step
+
+          if (typeof onTick === 'function') {
+            const seconds = Math.ceil(remaining / 1000)
+            if (seconds !== lastReportedSeconds) {
+              lastReportedSeconds = seconds
+              onTick(seconds)
+            }
+          }
+        }
+        return !controlState.cancelled
+      }
+
       const worker = async (marksheet) => {
         const marksheetPdfUrl = origin ? `${origin}/api/generate-pdf?marksheetId=${marksheet._id}&t=${Date.now()}` : ''
         const marksheetImageUrl = origin ? `${origin}/api/generate-pdf?marksheetId=${marksheet._id}&format=jpeg&t=${Date.now()}` : ''
@@ -482,69 +576,106 @@ function DispatchRequests() {
         }
       }
 
-      const results = []
-      let index = 0
-      showBulkProgressAlert({
-        total: approvedMarksheets.length,
-        processed: 0,
-        successCount: 0,
-        failCount: 0,
-        phase: 'Preparing to send marksheets...'
-      })
-
-      while (index < approvedMarksheets.length) {
+      const batches = []
+      let sourceIndex = 0
+      while (sourceIndex < approvedMarksheets.length) {
         const batchSize = randomBetween(BATCH_SIZE_MIN, BATCH_SIZE_MAX)
-        const batch = approvedMarksheets.slice(index, index + batchSize)
+        const batch = approvedMarksheets.slice(sourceIndex, sourceIndex + batchSize)
+        batches.push(batch)
+        sourceIndex += batch.length
+      }
 
-        for (const marksheet of batch) {
+      progressState.totalBatches = batches.length
+      showBulkProgressAlert()
+
+      const results = []
+
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+        if (controlState.cancelled) break
+
+        const batch = batches[batchIndex]
+        updateBulkProgress({
+          currentBatch: batchIndex + 1,
+          phase: `Sending batch ${batchIndex + 1}/${batches.length} (${batch.length} marksheets)...`,
+          cooldownSeconds: 0
+        })
+
+        for (let itemIndex = 0; itemIndex < batch.length; itemIndex += 1) {
+          if (controlState.cancelled) break
+
           const jitterMs = randomBetween(MESSAGE_DELAY_MIN_MS, MESSAGE_DELAY_MAX_MS)
-          await wait(jitterMs)
-          const result = await worker(marksheet)
-          results.push(result)
-          const successCount = results.filter((entry) => entry && entry.success).length
-          const failCount = results.length - successCount
-          setFeedback(`Sending marksheets... ${results.length}/${approvedMarksheets.length}`)
-          showBulkProgressAlert({
-            total: approvedMarksheets.length,
-            processed: results.length,
-            successCount,
-            failCount,
-            phase: 'Sending marksheets in controlled batches...'
+          updateBulkProgress({
+            phase: `Waiting ${Math.ceil(jitterMs / 1000)}s before next send to reduce spam risk...`,
+            cooldownSeconds: Math.ceil(jitterMs / 1000)
           })
+
+          const canContinue = await waitWithControls(jitterMs, (remainingSeconds) => {
+            updateBulkProgress({
+              phase: 'Applying randomized delay between messages...',
+              cooldownSeconds: remainingSeconds
+            })
+          })
+
+          if (!canContinue) break
+
+          updateBulkProgress({
+            phase: `Dispatching marksheet ${progressState.processed + 1}/${progressState.total}...`,
+            cooldownSeconds: 0
+          })
+
+          const result = await worker(batch[itemIndex])
+          results.push(result)
+
+          if (result && result.success) {
+            progressState.successCount += 1
+          } else {
+            progressState.failCount += 1
+          }
+
+          progressState.processed = results.length
+          setFeedback(`Sending marksheets... ${progressState.processed}/${progressState.total}`)
+          showBulkProgressAlert()
         }
 
-        index += batch.length
+        if (controlState.cancelled) break
 
-        if (index < approvedMarksheets.length) {
+        if (batchIndex < batches.length - 1) {
           const cooldownMs = randomBetween(BATCH_PAUSE_MIN_MS, BATCH_PAUSE_MAX_MS)
           const cooldownSeconds = Math.ceil(cooldownMs / 1000)
-          setFeedback(`Batch sent (${results.length}/${approvedMarksheets.length}). Cooling down ${cooldownSeconds}s before next batch...`)
-          for (let remaining = cooldownSeconds; remaining > 0; remaining -= 1) {
-            const successCount = results.filter((entry) => entry && entry.success).length
-            const failCount = results.length - successCount
-            showBulkProgressAlert({
-              total: approvedMarksheets.length,
-              processed: results.length,
-              successCount,
-              failCount,
-              phase: 'Cooling down between batches to reduce spam risk...',
-              cooldownSeconds: remaining
+
+          setFeedback(`Batch ${batchIndex + 1}/${batches.length} completed. Cooling down ${cooldownSeconds}s before next batch...`)
+          updateBulkProgress({
+            phase: 'Cooling down between batches to avoid rate limits...',
+            cooldownSeconds
+          })
+
+          const canContinue = await waitWithControls(cooldownMs, (remainingSeconds) => {
+            updateBulkProgress({
+              phase: 'Cooling down between batches to avoid rate limits...',
+              cooldownSeconds: remainingSeconds
             })
-            await wait(1000)
-          }
+          })
+
+          if (!canContinue) break
         }
       }
 
-      const successCount = results.filter(r => r && r.success).length
-      const failCount = results.length - successCount
+      const successCount = progressState.successCount
+      const failCount = progressState.failCount
+      const wasCancelled = controlState.cancelled
 
       clearBulkProgressAlert()
 
-      if (successCount > 0) {
+      if (wasCancelled) {
+        setFeedback(`Bulk dispatch cancelled. Processed ${progressState.processed}/${progressState.total} marksheets.`)
+        showWarning('⛔ Bulk Dispatch Cancelled', `Processed ${progressState.processed}/${progressState.total}. Sent: ${successCount}, Failed: ${failCount}.`)
+      }
+
+      if (!wasCancelled && successCount > 0) {
         setFeedback(`Successfully sent ${successCount} marksheet${successCount > 1 ? 's' : ''} via WhatsApp.`)
         showSuccess('✅ Bulk Dispatch Complete', `Sent ${successCount}/${approvedMarksheets.length} marksheets successfully.`)
       }
-      if (failCount > 0) {
+      if (!wasCancelled && failCount > 0) {
         setError(`Failed to send ${failCount} marksheet${failCount > 1 ? 's' : ''}. Please try sending them individually.`)
         showWarning('⚠️ Some Dispatches Failed', `${failCount} of ${approvedMarksheets.length} marksheets failed.`)
       }

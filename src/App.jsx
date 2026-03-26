@@ -24,6 +24,7 @@ import { AlertProvider } from './components/AlertContext'
 import apiClient from './utils/apiClient'
 import { ensureBodyScrollable } from './utils/scrollFix'
 import { getAuthOrNull } from './utils/auth'
+import { getAccessBlockMeta } from './utils/accessPolicy'
 // Removed old notification imports for academic system
 
 // Lazy load components for better performance
@@ -53,54 +54,64 @@ const AdminDashboard = lazy(() => import('./pages/AdminDashboard'))
 const RootRedirect = () => {
   const parsed = getAuthOrNull()
   if (!parsed) return <Navigate to="/login" replace />
-  if (parsed.role === 'student') return <Navigate to="/student" replace />
-  if (parsed.role === 'admin') return <Navigate to="/admin-dashboard" replace />
-  return <Navigate to="/home" replace />
+  const blocked = getAccessBlockMeta(parsed.role)
+  if (blocked) {
+    try {
+      localStorage.removeItem('auth')
+      localStorage.removeItem('isLoggedIn')
+      localStorage.removeItem('userEmail')
+      localStorage.removeItem('userRole')
+      localStorage.removeItem('userId')
+    } catch (e) { }
+    return <Navigate to="/login" replace />
+  }
+  return <Navigate to="/student" replace />
 }
 
 // Protected route wrapper for home/dashboard
 const ProtectedHome = () => {
   const parsed = getAuthOrNull()
   if (!parsed) return <Navigate to="/login" replace />
-  if (parsed.role === 'student') return <Navigate to="/student" replace />
-  if (parsed.role === 'admin') return <Navigate to="/admin-dashboard" replace />
-  return <Home />
+  const blocked = getAccessBlockMeta(parsed.role)
+  if (blocked) return <Navigate to="/login" replace />
+  return <Navigate to="/student" replace />
 }
 
 const ProtectedStudent = () => {
   const parsed = getAuthOrNull()
   if (!parsed) return <Navigate to="/login" replace />
-  if (parsed.role !== 'student') return <Navigate to="/home" replace />
+  const blocked = getAccessBlockMeta(parsed.role)
+  if (blocked) {
+    try {
+      localStorage.removeItem('auth')
+      localStorage.removeItem('isLoggedIn')
+      localStorage.removeItem('userEmail')
+      localStorage.removeItem('userRole')
+      localStorage.removeItem('userId')
+      window.dispatchEvent(new Event('authStateChanged'))
+    } catch (e) { }
+    return <Navigate to="/login" replace />
+  }
   return <StudentDashboard />
 }
 
 const ProtectedAdmin = () => {
-  const parsed = getAuthOrNull()
-  if (!parsed) return <Navigate to="/login" replace />
-  if (parsed.role !== 'admin') return <Navigate to="/home" replace />
-  return <AdminDashboard />
+  return <Navigate to="/login" replace />
 }
 
 // Staff or HOD only - redirects students and unauthenticated users
 const ProtectedStaffOrHod = ({ children }) => {
-  const parsed = getAuthOrNull()
-  if (!parsed) return <Navigate to="/login" replace />
-  if (parsed.role === 'student') return <Navigate to="/student" replace />
-  if (parsed.role === 'admin') return <Navigate to="/admin-dashboard" replace />
-  if (parsed.role !== 'staff' && parsed.role !== 'hod') return <Navigate to="/home" replace />
-  return children
+  return <Navigate to="/login" replace />
 }
 
 // Redirect to dashboard if already authenticated (for Login/SignUp)
 const RedirectIfAuthenticated = ({ children, allowAdmin = false }) => {
+  void allowAdmin
   const parsed = getAuthOrNull()
   if (!parsed) return children
-  if (parsed.role === 'student') return <Navigate to="/student" replace />
-  if (parsed.role === 'admin') {
-    if (allowAdmin) return children
-    return <Navigate to="/admin-dashboard" replace />
-  }
-  return <Navigate to="/home" replace />
+  const blocked = getAccessBlockMeta(parsed.role)
+  if (blocked) return children
+  return <Navigate to="/student" replace />
 }
 
 function AppContent() {

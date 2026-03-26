@@ -1,20 +1,22 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import apiClient from '../utils/apiClient'
 import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { useNavigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
+import { getAccessBlockMeta, getAccessWindowLabel } from '../utils/accessPolicy'
 
 function Login() {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
     regNumber: '',
-    loginType: 'staff'
+    loginType: 'student'
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
   const { showSuccess, showError } = useAlert()
+  const accessBlocked = useMemo(() => getAccessBlockMeta(formData.loginType === 'student' ? 'student' : 'staff'), [formData.loginType])
 
   const switchLoginType = (nextType) => {
     setFormData(prev => {
@@ -54,6 +56,13 @@ function Login() {
     setError('')
 
     const isStudent = formData.loginType === 'student'
+
+    if (accessBlocked) {
+      setError(accessBlocked.message)
+      showError(accessBlocked.title, accessBlocked.message)
+      setIsLoading(false)
+      return
+    }
 
     // Basic validation per mode
     if (isStudent) {
@@ -145,7 +154,7 @@ function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 py-8">
+    <div className="min-h-screen flex items-center justify-center px-3 sm:px-4 py-6 sm:py-8">
       <style>
         {`
           @keyframes waveButtonAnimation {
@@ -170,18 +179,36 @@ function Login() {
         `}
       </style>
 
-      <div className="relative z-10">
+      <div className="relative z-10 w-full max-w-md mx-auto">
+        {accessBlocked && (
+          <div className="mb-4 sm:mb-6 w-full">
+            <div className="rounded-2xl sm:rounded-3xl border border-white/30 bg-white/20 backdrop-blur-xl shadow-2xl p-4 sm:p-6">
+              <div className="flex items-start gap-2.5 sm:gap-3">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl sm:rounded-2xl bg-amber-400/20 border border-amber-300/40 flex items-center justify-center shrink-0">
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5 text-amber-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4c-.77-1.33-2.69-1.33-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <h3 className="text-white text-base sm:text-lg font-extrabold">{accessBlocked.title}</h3>
+                  <p className="text-white/90 text-xs sm:text-sm mt-1 leading-relaxed">{accessBlocked.message}</p>
+                  <p className="text-white/80 text-[11px] sm:text-xs mt-2.5 sm:mt-3">Allowed time: {getAccessWindowLabel()} (IST)</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
-        <div className="w-full max-w-md relative z-10">
-          <div className="backdrop-blur-md bg-white/20 border border-white/30 p-8 rounded-3xl shadow-2xl">
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-6">
-                <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="w-full relative z-10">
+          <div className="backdrop-blur-md bg-white/20 border border-white/30 p-5 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl">
+            <div className="text-center mb-6 sm:mb-8">
+              <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-blue-100 rounded-full mb-4 sm:mb-6">
+                <svg className="w-7 h-7 sm:w-8 sm:h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
-              <h1 className="text-3xl sm:text-4xl font-black text-white mb-2">Welcome Back</h1>
-              <p className="text-gray-100 text-lg">Sign in to your MSEC Academics account</p>
+              <h1 className="text-2xl sm:text-4xl font-black text-white mb-1.5 sm:mb-2">Welcome Back</h1>
+              <p className="text-gray-100 text-sm sm:text-lg">Sign in to your MSEC Academics account</p>
             </div>
 
             {/* Error Message */}
@@ -193,19 +220,19 @@ function Login() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="grid grid-cols-2 gap-3">
+            <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
+              <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
                 <button
                   type="button"
                   onClick={() => switchLoginType('staff')}
-                  className={`w-full py-3 rounded-2xl border text-sm font-bold transition-all ${formData.loginType === 'staff' ? 'bg-white text-blue-700 border-white' : 'bg-white/10 text-white border-white/30'}`}
+                  className={`w-full py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border text-xs sm:text-sm font-bold transition-all ${formData.loginType === 'staff' ? 'bg-white text-blue-700 border-white' : 'bg-white/10 text-white border-white/30'}`}
                 >
                   Staff / HOD
                 </button>
                 <button
                   type="button"
                   onClick={() => switchLoginType('student')}
-                  className={`w-full py-3 rounded-2xl border text-sm font-bold transition-all ${formData.loginType === 'student' ? 'bg-white text-blue-700 border-white' : 'bg-white/10 text-white border-white/30'}`}
+                  className={`w-full py-2.5 sm:py-3 rounded-xl sm:rounded-2xl border text-xs sm:text-sm font-bold transition-all ${formData.loginType === 'student' ? 'bg-white text-blue-700 border-white' : 'bg-white/10 text-white border-white/30'}`}
                 >
                   Student
                 </button>
@@ -224,7 +251,7 @@ function Login() {
                     autoComplete="username"
                     pattern=".*@msec\.edu\.in$"
                     title="Please use your MSEC email address (@msec.edu.in)"
-                    className="w-full px-4 py-4 border-0 rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200"
+                    className="w-full px-4 py-3 sm:py-4 border-0 rounded-xl sm:rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200"
                     placeholder="Enter your MSEC email address"
                     required={formData.loginType === 'staff'}
                   />
@@ -243,7 +270,7 @@ function Login() {
                     onChange={handleInputChange}
                     autoComplete="username"
                     autoCapitalize="characters"
-                    className="w-full px-4 py-4 border-0 rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200"
+                    className="w-full px-4 py-3 sm:py-4 border-0 rounded-xl sm:rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200"
                     placeholder="Enter your registration number"
                     required={formData.loginType === 'student'}
                   />
@@ -263,7 +290,7 @@ function Login() {
                     if (error) setError('')
                   }}
                   autoComplete={formData.loginType === 'student' ? 'current-password' : 'current-password'}
-                  className="w-full px-4 py-4 border-0 rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200"
+                  className="w-full px-4 py-3 sm:py-4 border-0 rounded-xl sm:rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200"
                   placeholder="Enter your password"
                   required
                 />
@@ -272,11 +299,11 @@ function Login() {
               <div className="pt-4">
                 <button
                   type="submit"
-                  disabled={isLoading}
-                  className="glass-button w-full py-4 px-6 text-blue-600 text-lg font-bold rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={isLoading || !!accessBlocked}
+                  className="glass-button w-full py-3.5 sm:py-4 px-6 text-blue-600 text-base sm:text-lg font-bold rounded-xl sm:rounded-2xl transition-all duration-300 md:hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="truncate">
-                    {isLoading ? 'Signing in...' : 'Sign In'}
+                    {isLoading ? 'Signing in...' : accessBlocked ? 'Access Restricted' : 'Sign In'}
                   </span>
                 </button>
               </div>

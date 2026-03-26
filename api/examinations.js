@@ -137,14 +137,17 @@ export default async function handler(req, res) {
       if (!examinationId) {
         return res.status(400).json({ success: false, error: 'examinationId is required' })
       }
+      if (!staffId) {
+        return res.status(400).json({ success: false, error: 'staffId is required' })
+      }
 
       const exam = await Examination.findById(examinationId).lean()
       if (!exam) {
         return res.status(404).json({ success: false, error: 'Examination not found' })
       }
 
-      // If staffId provided, ensure only the owner can delete
-      if (staffId && exam.staffId && exam.staffId.toString() !== staffId) {
+      // Ensure only the owner can delete
+      if (exam.staffId && exam.staffId.toString() !== staffId) {
         return res.status(403).json({ success: false, error: 'Not authorized to delete this examination' })
       }
 
@@ -160,20 +163,62 @@ export default async function handler(req, res) {
         }
       } catch (e) {}
 
-      // Delete marksheets matching examinationName + date range + department
-      const marksheetFilter = { examinationName: exam.examinationName, 'studentDetails.department': exam.department }
+      // Delete only the current staff's marksheets for this examination
+      const marksheetFilter = {
+        examinationName: exam.examinationName,
+        'studentDetails.department': exam.department,
+        staffId: exam.staffId
+      }
       if (startDate && endDate) {
         marksheetFilter.examinationDate = { $gte: startDate, $lt: endDate }
       }
 
-      const marksheetDeleteResult = await Marksheet.deleteMany(marksheetFilter)
+      const marksheetsToDelete = await Marksheet.find(marksheetFilter)
+        .select('_id studentId')
+        .lean()
 
-      // Delete students that were created specifically for this examination (match examinationName/date/department)
-      const studentFilter = { examinationName: exam.examinationName, department: exam.department }
-      if (startDate && endDate) {
-        studentFilter.examinationDate = { $gte: startDate, $lt: endDate }
+      const marksheetIdsToDelete = marksheetsToDelete.map((item) => item._id)
+      const studentIdsFromDeletedMarksheets = Array.from(
+        new Set(
+          marksheetsToDelete
+            .map((item) => item.studentId?.toString())
+            .filter(Boolean)
+        )
+      ).map((id) => new mongoose.Types.ObjectId(id))
+
+      let marksheetDeleteResult = { deletedCount: 0 }
+      if (marksheetIdsToDelete.length > 0) {
+        marksheetDeleteResult = await Marksheet.deleteMany({ _id: { $in: marksheetIdsToDelete } })
       }
-      const studentDeleteResult = await Student.deleteMany(studentFilter)
+
+      // Delete only students that no longer have any marksheets after this deletion
+      let studentDeleteResult = { deletedCount: 0 }
+      if (studentIdsFromDeletedMarksheets.length > 0) {
+        const remainingByStudent = await Marksheet.aggregate([
+          { $match: { studentId: { $in: studentIdsFromDeletedMarksheets } } },
+          { $group: { _id: '$studentId', count: { $sum: 1 } } }
+        ])
+
+        const studentsWithRemainingMarksheets = new Set(
+          remainingByStudent.map((entry) => entry._id?.toString()).filter(Boolean)
+        )
+
+        const deletableStudentIds = studentIdsFromDeletedMarksheets.filter(
+          (studentId) => !studentsWithRemainingMarksheets.has(studentId.toString())
+        )
+
+        if (deletableStudentIds.length > 0) {
+          const studentFilter = {
+            _id: { $in: deletableStudentIds },
+            examinationName: exam.examinationName,
+            department: exam.department
+          }
+          if (startDate && endDate) {
+            studentFilter.examinationDate = { $gte: startDate, $lt: endDate }
+          }
+          studentDeleteResult = await Student.deleteMany(studentFilter)
+        }
+      }
 
       // Finally remove the examination document
       await Examination.findByIdAndDelete(examinationId)
