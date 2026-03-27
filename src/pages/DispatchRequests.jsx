@@ -21,6 +21,14 @@ const getPublicOrigin = () => {
   return ''
 }
 
+const sortMarksheetsByRegNumber = (items = []) => (
+  [...items].sort((a, b) => {
+    const regA = (a.studentDetails?.regNumber || '').toString().toLowerCase()
+    const regB = (b.studentDetails?.regNumber || '').toString().toLowerCase()
+    return regA.localeCompare(regB, undefined, { numeric: true, sensitivity: 'base' })
+  })
+)
+
 function DispatchRequests() {
   const navigate = useNavigate()
   const { showInfo, showSuccess, showWarning, hideAlert, updateAlert } = useAlert()
@@ -46,6 +54,10 @@ function DispatchRequests() {
   const activeMarksheetsRef = useRef([])
   const dispatchedMarksheetsRef = useRef([])
   const bulkProgressAlertIdRef = useRef(null)
+  const batchSplitAlertIdRef = useRef(null)
+  const batchSplitResolverRef = useRef(null)
+  const [batchSplitPrompt, setBatchSplitPrompt] = useState(null)
+  const [batchSplitDraft, setBatchSplitDraft] = useState('2')
 
   const clearBulkProgressAlert = useCallback(() => {
     if (!bulkProgressAlertIdRef.current) return
@@ -53,9 +65,143 @@ function DispatchRequests() {
     bulkProgressAlertIdRef.current = null
   }, [hideAlert])
 
+  const closeBatchSplitPrompt = useCallback((result = null) => {
+    if (batchSplitAlertIdRef.current) {
+      hideAlert(batchSplitAlertIdRef.current)
+      batchSplitAlertIdRef.current = null
+    }
+    setBatchSplitPrompt(null)
+    setBatchSplitDraft('2')
+
+    if (batchSplitResolverRef.current) {
+      const resolver = batchSplitResolverRef.current
+      batchSplitResolverRef.current = null
+      resolver(result)
+    }
+  }, [hideAlert])
+
+  const submitBatchSplitPrompt = useCallback(() => {
+    if (!batchSplitPrompt) return
+
+    const parsed = Number.parseInt(batchSplitDraft, 10)
+    if (!Number.isInteger(parsed) || parsed < 1) {
+      setBatchSplitPrompt((prev) => (
+        prev ? { ...prev, error: 'Please enter a valid batch count like 1, 2, 3, or 4.' } : prev
+      ))
+      return
+    }
+
+    closeBatchSplitPrompt(parsed)
+  }, [batchSplitDraft, batchSplitPrompt, closeBatchSplitPrompt])
+
+  const requestBatchSplit = useCallback((total) => new Promise((resolve) => {
+    if (batchSplitResolverRef.current) {
+      batchSplitResolverRef.current(null)
+    }
+    batchSplitResolverRef.current = resolve
+    setBatchSplitDraft(total > 1 ? '2' : '1')
+    setBatchSplitPrompt({ total, error: '' })
+  }), [])
+
   useEffect(() => {
     return () => clearBulkProgressAlert()
   }, [clearBulkProgressAlert])
+
+  useEffect(() => {
+    return () => {
+      if (batchSplitResolverRef.current) {
+        batchSplitResolverRef.current(null)
+        batchSplitResolverRef.current = null
+      }
+      if (batchSplitAlertIdRef.current) {
+        hideAlert(batchSplitAlertIdRef.current)
+        batchSplitAlertIdRef.current = null
+      }
+    }
+  }, [hideAlert])
+
+  useEffect(() => {
+    if (!batchSplitPrompt) return
+
+    const message = (
+      <div className="space-y-3">
+        <div className="text-xs sm:text-sm text-slate-700">
+          There are <strong>{batchSplitPrompt.total}</strong> approved marksheets ready to send.
+          Choose how many batches to split them into. Only batch 1 will be sent now.
+        </div>
+        <div>
+          <label className="block text-[11px] sm:text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1">
+            Number of Batches
+          </label>
+          <input
+            type="number"
+            min="1"
+            step="1"
+            value={batchSplitDraft}
+            onChange={(e) => {
+              setBatchSplitDraft(e.target.value)
+              if (batchSplitPrompt.error) {
+                setBatchSplitPrompt((prev) => (prev ? { ...prev, error: '' } : prev))
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                submitBatchSplitPrompt()
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                closeBatchSplitPrompt(null)
+              }
+            }}
+            className="w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+            placeholder="Enter batch count"
+            autoFocus
+          />
+        </div>
+        {batchSplitPrompt.error && (
+          <div className="text-[11px] sm:text-xs text-red-600">{batchSplitPrompt.error}</div>
+        )}
+        <div className="text-[11px] sm:text-xs text-slate-600">
+          Example: {batchSplitPrompt.total} students split into 2 batches sends only the first {Math.ceil(batchSplitPrompt.total / 2)} now.
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => closeBatchSplitPrompt(null)}
+            className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-[11px] sm:text-xs font-semibold bg-white/80 border border-slate-200 text-slate-700 hover:bg-white"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submitBatchSplitPrompt}
+            className="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-[11px] sm:text-xs font-semibold bg-blue-600 text-white hover:bg-blue-700"
+          >
+            Start Batch 1
+          </button>
+        </div>
+      </div>
+    )
+
+    if (!batchSplitAlertIdRef.current) {
+      batchSplitAlertIdRef.current = showInfo('📤 Split Send All', message, {
+        autoClose: false,
+        duration: 0,
+        position: 'top-right'
+      })
+      return
+    }
+
+    updateAlert(batchSplitAlertIdRef.current, {
+      type: 'info',
+      title: '📤 Split Send All',
+      message,
+      autoClose: false,
+      duration: 0,
+      position: 'top-right'
+    })
+  }, [batchSplitDraft, batchSplitPrompt, closeBatchSplitPrompt, showInfo, submitBatchSplitPrompt, updateAlert])
 
   // Pull-to-refresh functionality
   const handlePullRefresh = async () => {
@@ -367,8 +513,19 @@ function DispatchRequests() {
   }, [fetchVerifiedMarksheets, moveToDispatchHistory])
 
   const sendAllApproved = async () => {
-    const approvedMarksheets = marksheets.filter((m) => m.status === 'approved_by_hod')
+    let approvedMarksheets = sortMarksheetsByRegNumber(
+      marksheets.filter((m) => m.status === 'approved_by_hod')
+    )
     if (approvedMarksheets.length === 0) return
+
+    const requestedSplits = await requestBatchSplit(approvedMarksheets.length)
+    if (requestedSplits === null) return
+
+    const totalApproved = approvedMarksheets.length
+    const selectedBatchSize = Math.ceil(totalApproved / requestedSplits)
+    const selectedMarksheets = approvedMarksheets.slice(0, selectedBatchSize)
+    const remainingMarksheets = totalApproved - selectedMarksheets.length
+    approvedMarksheets = selectedMarksheets
 
     setFeedback('')
     setError('')
@@ -393,14 +550,14 @@ function DispatchRequests() {
       }
 
       const progressState = {
-        total: approvedMarksheets.length,
+        total: selectedMarksheets.length,
         processed: 0,
         successCount: 0,
         failCount: 0,
-        phase: 'Preparing to send marksheets...',
+        phase: `Preparing batch 1/${requestedSplits}...`,
         cooldownSeconds: 0,
-        currentBatch: 0,
-        totalBatches: 0
+        currentBatch: 1,
+        totalBatches: requestedSplits
       }
 
       const formatEta = (seconds) => {
@@ -578,14 +735,13 @@ function DispatchRequests() {
 
       const batches = []
       let sourceIndex = 0
-      while (sourceIndex < approvedMarksheets.length) {
+      while (sourceIndex < selectedMarksheets.length) {
         const batchSize = randomBetween(BATCH_SIZE_MIN, BATCH_SIZE_MAX)
-        const batch = approvedMarksheets.slice(sourceIndex, sourceIndex + batchSize)
+        const batch = selectedMarksheets.slice(sourceIndex, sourceIndex + batchSize)
         batches.push(batch)
         sourceIndex += batch.length
       }
 
-      progressState.totalBatches = batches.length
       showBulkProgressAlert()
 
       const results = []
@@ -595,8 +751,8 @@ function DispatchRequests() {
 
         const batch = batches[batchIndex]
         updateBulkProgress({
-          currentBatch: batchIndex + 1,
-          phase: `Sending batch ${batchIndex + 1}/${batches.length} (${batch.length} marksheets)...`,
+          currentBatch: 1,
+          phase: `Sending selected batch part ${batchIndex + 1}/${batches.length} (${batch.length} marksheets)...`,
           cooldownSeconds: 0
         })
 
@@ -643,15 +799,15 @@ function DispatchRequests() {
           const cooldownMs = randomBetween(BATCH_PAUSE_MIN_MS, BATCH_PAUSE_MAX_MS)
           const cooldownSeconds = Math.ceil(cooldownMs / 1000)
 
-          setFeedback(`Batch ${batchIndex + 1}/${batches.length} completed. Cooling down ${cooldownSeconds}s before next batch...`)
+          setFeedback(`Selected batch part ${batchIndex + 1}/${batches.length} completed. Cooling down ${cooldownSeconds}s before the next part...`)
           updateBulkProgress({
-            phase: 'Cooling down between batches to avoid rate limits...',
+            phase: 'Cooling down inside the selected batch to avoid rate limits...',
             cooldownSeconds
           })
 
           const canContinue = await waitWithControls(cooldownMs, (remainingSeconds) => {
             updateBulkProgress({
-              phase: 'Cooling down between batches to avoid rate limits...',
+              phase: 'Cooling down inside the selected batch to avoid rate limits...',
               cooldownSeconds: remainingSeconds
             })
           })
@@ -713,11 +869,7 @@ function DispatchRequests() {
     }
 
     const filtered = statusFilter === 'all' ? source : source.filter((m) => m.status === statusFilter)
-    return filtered.sort((a, b) => {
-      const regA = (a.studentDetails?.regNumber || '').toString().toLowerCase()
-      const regB = (b.studentDetails?.regNumber || '').toString().toLowerCase()
-      return regA.localeCompare(regB, undefined, { numeric: true, sensitivity: 'base' })
-    })
+    return sortMarksheetsByRegNumber(filtered)
   }, [marksheets, dispatchedMarksheets, statusFilter, viewTab, currentExaminationId])
 
   // Count of marksheets that are approved by HOD
