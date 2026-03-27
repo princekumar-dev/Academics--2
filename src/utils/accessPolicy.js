@@ -23,14 +23,23 @@ export const isWithinStudentAccessWindow = (date = new Date()) => {
 }
 
 export const getAccessBlockMeta = (role, date = new Date()) => {
-  void date
-  if (role !== 'student') {
+  const isWithinWindow = isWithinStudentAccessWindow(date)
+  const normalizedRole = String(role || '').toLowerCase()
+
+  // Students can access at any time.
+  if (normalizedRole === 'student') {
+    return null
+  }
+
+  // Staff, HOD, and admin are restricted to the working-hours window.
+  if (!isWithinWindow) {
     return {
-      reason: 'students-only',
-      title: 'Access Restricted',
-      message: 'Only students can access this website right now.'
+      reason: 'outside-window',
+      title: 'Login Available During Working Hours',
+      message: `Staff, HOD, and admin login is allowed only between ${getAccessWindowLabel()} IST.`
     }
   }
 
+  // Within working hours: non-student roles can access too.
   return null
 }
