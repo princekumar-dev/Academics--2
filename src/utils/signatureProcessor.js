@@ -3,9 +3,14 @@
  * Removes white/light backgrounds and optimizes signatures for PDF display
  */
 
+const TRANSPARENT_ALPHA_THRESHOLD = 10
+const EXISTING_TRANSPARENCY_RATIO = 0.05
+const BACKGROUND_DISTANCE_THRESHOLD = 40
+
 /**
  * Process uploaded signature image to remove paper background
- * Intelligently extracts colored pen signature and converts to black
+ * If the upload already has transparency, keep it as-is.
+ * Otherwise remove the paper background and normalize the signature to black.
  * @param {string} dataUrl - Base64 image data URL
  * @returns {Promise<string>} - Processed image data URL
  */
@@ -27,6 +32,14 @@ export const processSignatureImage = (dataUrl) => {
         // Get image data
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
         const data = imageData.data
+
+        let transparentPixels = 0
+        const totalPixels = data.length / 4
+        for (let i = 3; i < data.length; i += 4) {
+          if (data[i] <= TRANSPARENT_ALPHA_THRESHOLD) transparentPixels++
+        }
+
+        const hasTransparentBackground = (transparentPixels / totalPixels) >= EXISTING_TRANSPARENCY_RATIO
 
         // Step 1: Detect background color (most common color = paper)
         const colorFreq = {}
@@ -54,7 +67,8 @@ export const processSignatureImage = (dataUrl) => {
           }
         }
 
-        // Step 2: Remove background color and convert signature to black
+        // Step 2: Use existing transparency when present, otherwise remove paper
+        // background and convert the remaining ink to black.
         let hasSignature = false
         for (let i = 0; i < data.length; i += 4) {
           const r = data[i]
@@ -62,23 +76,32 @@ export const processSignatureImage = (dataUrl) => {
           const b = data[i + 2]
           const a = data[i + 3]
 
+          if (hasTransparentBackground) {
+            if (a > TRANSPARENT_ALPHA_THRESHOLD) {
+              hasSignature = true
+            } else {
+              data[i + 3] = 0
+            }
+            continue
+          }
+
           // Calculate color distance from background color
           const rDist = Math.abs(r - bgColor.r)
           const gDist = Math.abs(g - bgColor.g)
           const bDist = Math.abs(b - bgColor.b)
           const colorDistance = Math.sqrt(rDist * rDist + gDist * gDist + bDist * bDist)
 
-          // If pixel is similar to background color (distance < 40), make transparent
-          // 40 is a threshold that removes the paper but keeps signature ink
-          if (colorDistance < 40 || a < 128) {
+          // If pixel is very similar to the paper, make it transparent.
+          // Pixels closer to the threshold are softly faded to keep anti-aliased edges.
+          if (colorDistance < BACKGROUND_DISTANCE_THRESHOLD || a < 128) {
             // Make transparent (background)
             data[i + 3] = 0
           } else {
-            // This is signature ink - convert to pure black
+            const alphaBoost = Math.min(1, (colorDistance - BACKGROUND_DISTANCE_THRESHOLD) / 50)
             data[i] = 0
             data[i + 1] = 0
             data[i + 2] = 0
-            data[i + 3] = 255
+            data[i + 3] = Math.max(1, Math.round(a * alphaBoost))
             hasSignature = true
           }
         }
