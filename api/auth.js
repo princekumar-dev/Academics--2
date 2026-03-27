@@ -6,7 +6,7 @@ const DEFAULT_STUDENT_PASSWORD = process.env.DEFAULT_STUDENT_PASSWORD || 'msec@1
 
 export default async function handler(req, res) {
   // CORS is already handled by the cors middleware in server.js
-  
+
   if (req.method === 'OPTIONS') {
     return res.status(200).end()
   }
@@ -29,16 +29,38 @@ export default async function handler(req, res) {
       const { email, password, regNumber, loginType } = req.body
       console.log('🔐 [AUTH] Request body:', { email, password: password ? '***' : 'none', regNumber, loginType })
 
-      // Site policy: only students can access
-      if (!(loginType === 'student' || (!!regNumber && !email))) {
+      // Site policy: enforce IST time window (8:30 AM – 5:00 PM)
+      // Outside working hours, only students can access
+      const isStudent = loginType === 'student' || (!!regNumber && !email)
+      const nowIST = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Asia/Kolkata',
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23'
+      }).formatToParts(new Date())
+      const hour = Number(nowIST.find(p => p.type === 'hour')?.value || '0')
+      const minute = Number(nowIST.find(p => p.type === 'minute')?.value || '0')
+      const nowMinutes = hour * 60 + minute
+      const windowStart = 8 * 60 + 30  // 8:30 AM
+      const windowEnd = 17 * 60         // 5:00 PM
+      const withinWindow = nowMinutes >= windowStart && nowMinutes <= windowEnd
+
+      if (!withinWindow && !isStudent) {
         return res.status(403).json({
           success: false,
-          error: 'Access restricted: only students can access this website.'
+          error: 'Access restricted: only students can access this website outside working hours (8:30 AM – 5:00 PM IST).'
+        })
+      }
+
+      if (!withinWindow && isStudent) {
+        return res.status(403).json({
+          success: false,
+          error: 'Login is allowed only between 8:30 AM and 5:00 PM IST.'
         })
       }
 
       // Student login branch (registration number + default password)
-      if (loginType === 'student' || (!!regNumber && !email)) {
+      if (isStudent) {
         if (!regNumber || !password) {
           return res.status(400).json({
             success: false,
@@ -97,9 +119,43 @@ export default async function handler(req, res) {
         })
       }
 
-      return res.status(403).json({
-        success: false,
-        error: 'Access restricted: only students can access this website.'
+      // Staff / HOD login branch (email + bcrypt password)
+      if (!email || !password) {
+        return res.status(400).json({
+          success: false,
+          error: 'Email and password are required'
+        })
+      }
+
+      const user = await User.findOne({ email: email.toLowerCase().trim() })
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid email or password'
+        })
+      }
+
+      const passwordMatches = await bcrypt.compare(password, user.password)
+      if (!passwordMatches) {
+        return res.status(401).json({
+          success: false,
+          error: 'Invalid email or password'
+        })
+      }
+
+      return res.status(200).json({
+        success: true,
+        user: {
+          id: user._id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          department: user.department,
+          year: user.year,
+          section: user.section,
+          eSignature: user.eSignature || null,
+          phoneNumber: user.phoneNumber
+        }
       })
 
     } catch (error) {

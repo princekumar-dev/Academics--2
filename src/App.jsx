@@ -27,6 +27,27 @@ import { getAuthOrNull } from './utils/auth'
 import { getAccessBlockMeta } from './utils/accessPolicy'
 // Removed old notification imports for academic system
 
+const clearStoredAuth = () => {
+  try {
+    localStorage.removeItem('auth')
+    localStorage.removeItem('isLoggedIn')
+    localStorage.removeItem('userEmail')
+    localStorage.removeItem('userRole')
+    localStorage.removeItem('userId')
+    window.dispatchEvent(new Event('authStateChanged'))
+  } catch (e) { }
+}
+
+const getDashboardPathForRole = (role) => {
+  const normalizedRole = String(role || '').toLowerCase()
+
+  if (normalizedRole === 'student') return '/student'
+  if (normalizedRole === 'admin') return '/admin-dashboard'
+  if (normalizedRole === 'staff' || normalizedRole === 'hod') return '/home'
+
+  return '/login'
+}
+
 // Lazy load components for better performance
 const Home = lazy(() => import('./pages/Home'))
 const ImportMarks = lazy(() => import('./pages/ImportMarks'))
@@ -56,16 +77,10 @@ const RootRedirect = () => {
   if (!parsed) return <Navigate to="/login" replace />
   const blocked = getAccessBlockMeta(parsed.role)
   if (blocked) {
-    try {
-      localStorage.removeItem('auth')
-      localStorage.removeItem('isLoggedIn')
-      localStorage.removeItem('userEmail')
-      localStorage.removeItem('userRole')
-      localStorage.removeItem('userId')
-    } catch (e) { }
+    clearStoredAuth()
     return <Navigate to="/login" replace />
   }
-  return <Navigate to="/student" replace />
+  return <Navigate to={getDashboardPathForRole(parsed.role)} replace />
 }
 
 // Protected route wrapper for home/dashboard
@@ -74,7 +89,8 @@ const ProtectedHome = () => {
   if (!parsed) return <Navigate to="/login" replace />
   const blocked = getAccessBlockMeta(parsed.role)
   if (blocked) return <Navigate to="/login" replace />
-  return <Navigate to="/student" replace />
+  if (parsed.role === 'staff' || parsed.role === 'hod') return <Home />
+  return <Navigate to={getDashboardPathForRole(parsed.role)} replace />
 }
 
 const ProtectedStudent = () => {
@@ -82,26 +98,41 @@ const ProtectedStudent = () => {
   if (!parsed) return <Navigate to="/login" replace />
   const blocked = getAccessBlockMeta(parsed.role)
   if (blocked) {
-    try {
-      localStorage.removeItem('auth')
-      localStorage.removeItem('isLoggedIn')
-      localStorage.removeItem('userEmail')
-      localStorage.removeItem('userRole')
-      localStorage.removeItem('userId')
-      window.dispatchEvent(new Event('authStateChanged'))
-    } catch (e) { }
+    clearStoredAuth()
     return <Navigate to="/login" replace />
+  }
+  if (String(parsed.role || '').toLowerCase() !== 'student') {
+    return <Navigate to={getDashboardPathForRole(parsed.role)} replace />
   }
   return <StudentDashboard />
 }
 
 const ProtectedAdmin = () => {
-  return <Navigate to="/login" replace />
+  const parsed = getAuthOrNull()
+  if (!parsed) return <Navigate to="/login" replace />
+  const blocked = getAccessBlockMeta(parsed.role)
+  if (blocked) {
+    clearStoredAuth()
+    return <Navigate to="/login" replace />
+  }
+  if (String(parsed.role || '').toLowerCase() !== 'admin') {
+    return <Navigate to={getDashboardPathForRole(parsed.role)} replace />
+  }
+  return <AdminDashboard />
 }
 
 // Staff or HOD only - redirects students and unauthenticated users
 const ProtectedStaffOrHod = ({ children }) => {
-  return <Navigate to="/login" replace />
+  const parsed = getAuthOrNull()
+  if (!parsed) return <Navigate to="/login" replace />
+  const blocked = getAccessBlockMeta(parsed.role)
+  if (blocked) {
+    clearStoredAuth()
+    return <Navigate to="/login" replace />
+  }
+  const normalizedRole = String(parsed.role || '').toLowerCase()
+  if (normalizedRole === 'staff' || normalizedRole === 'hod') return children
+  return <Navigate to={getDashboardPathForRole(parsed.role)} replace />
 }
 
 // Redirect to dashboard if already authenticated (for Login/SignUp)
@@ -111,7 +142,7 @@ const RedirectIfAuthenticated = ({ children, allowAdmin = false }) => {
   if (!parsed) return children
   const blocked = getAccessBlockMeta(parsed.role)
   if (blocked) return children
-  return <Navigate to="/student" replace />
+  return <Navigate to={getDashboardPathForRole(parsed.role)} replace />
 }
 
 function AppContent() {
