@@ -16,6 +16,8 @@ window.addEventListener('unhandledrejection', (event) => {
   // Suppress expected authentication failures to avoid noisy uncaught promise logs
   if (typeof msg === 'string' && (
     msg.includes('Invalid registration number') ||
+    msg.includes('Invalid email address') ||
+    msg.includes('Invalid password') ||
     msg.includes('Invalid email or password') ||
     msg.includes('Invalid email or password') ||
     msg.includes('Registration number and password are required')

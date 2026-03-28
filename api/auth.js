@@ -155,11 +155,16 @@ export default async function handler(req, res) {
               })
             }
           }
+
+          return res.status(401).json({
+            success: false,
+            error: 'Invalid password'
+          })
         }
 
         return res.status(401).json({
           success: false,
-          error: 'Invalid email or password'
+          error: 'Invalid email address. No account found for this email.'
         })
       }
 
@@ -167,7 +172,7 @@ export default async function handler(req, res) {
       if (!passwordMatches) {
         return res.status(401).json({
           success: false,
-          error: 'Invalid email or password'
+          error: 'Invalid password'
         })
       }
 

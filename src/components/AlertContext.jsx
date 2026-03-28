@@ -79,6 +79,10 @@ export function AlertProvider({ children }) {
   useEffect(() => {
     const authFailHandler = (e) => {
       try {
+        if (window.location.pathname === '/login') {
+          return
+        }
+
         const msg = e?.detail?.message || 'Authentication failed. Check credentials.'
         showError('Login failed', msg)
       } catch (err) {

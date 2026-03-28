@@ -39,7 +39,14 @@ const showLoginStatusAlert = ({ message, showError, showWarning }) => {
     return
   }
 
-  showError('Login Failed', `${message} Need help? Contact support@msec.edu.in`)
+  const normalizedMessage = String(message || '').toLowerCase()
+
+  if (normalizedMessage.includes('invalid email')) {
+    showError('Invalid Email', 'Invalid email address. Need help? Contact support@msec.edu.in')
+    return
+  }
+
+  showError('Login Failed', message)
 }
 
 function Login() {
