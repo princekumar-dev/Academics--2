@@ -19,6 +19,29 @@ const getInitialLoginType = () => {
   return 'staff'
 }
 
+const getMessageTone = (message) => {
+  const normalizedMessage = String(message || '').toLowerCase()
+
+  if (
+    normalizedMessage.includes('waiting for hod approval') ||
+    normalizedMessage.includes('wait for hod approval') ||
+    normalizedMessage.includes('rejected by the hod')
+  ) {
+    return 'info'
+  }
+
+  return 'error'
+}
+
+const showLoginStatusAlert = ({ message, showError, showWarning }) => {
+  if (getMessageTone(message) === 'info') {
+    showWarning('Approval Pending', message)
+    return
+  }
+
+  showError('Login Failed', `${message} Need help? Contact support@msec.edu.in`)
+}
+
 function Login() {
   const [formData, setFormData] = useState({
     email: '',
@@ -29,8 +52,9 @@ function Login() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const navigate = useNavigate()
-  const { showSuccess, showError } = useAlert()
+  const { showSuccess, showError, showWarning } = useAlert()
   const accessBlocked = useMemo(() => getAccessBlockMeta(formData.loginType === 'student' ? 'student' : 'staff'), [formData.loginType])
+  const messageTone = useMemo(() => getMessageTone(error), [error])
 
   const switchLoginType = (nextType) => {
     const normalizedType = nextType === 'student' ? 'student' : 'staff'
@@ -164,12 +188,12 @@ function Login() {
       } else {
         const errorMsg = data.error || '🔐 Invalid credentials. Please check your email and password, then try again.'
         setError(errorMsg)
-        showError('Login Failed', errorMsg + ' Need help? Contact support@msec.edu.in')
+        showLoginStatusAlert({ message: errorMsg, showError, showWarning })
       }
     } catch (error) {
       const errorMsg = getUserFriendlyMessage(error, 'Login failed. Please try again or contact support.')
       setError(errorMsg)
-      showError('Login Failed', errorMsg)
+      showLoginStatusAlert({ message: errorMsg, showError, showWarning })
     } finally {
       setIsLoading(false)
     }
@@ -233,11 +257,17 @@ function Login() {
               <p className="text-gray-100 text-sm sm:text-lg">Sign in to your MSEC Academics account</p>
             </div>
 
-            {/* Error Message */}
+            {/* Status Message */}
             {error && (
               <div className="mb-6">
-                <div className="backdrop-blur-sm bg-red-500/20 border border-red-400/50 p-4 border-l-4 rounded-lg">
-                  <p className="text-red-100 text-sm font-medium">{error}</p>
+                <div className={`backdrop-blur-sm p-4 border-l-4 rounded-lg ${
+                  messageTone === 'info'
+                    ? 'bg-yellow-50/95 border border-yellow-200 border-l-yellow-400'
+                    : 'bg-red-500/20 border border-red-400/50 border-l-red-400'
+                }`}>
+                  <p className={`text-sm font-medium ${
+                    messageTone === 'info' ? 'text-yellow-800' : 'text-red-100'
+                  }`}>{error}</p>
                 </div>
               </div>
             )}

@@ -127,8 +127,36 @@ export default async function handler(req, res) {
         })
       }
 
-      const user = await User.findOne({ email: email.toLowerCase().trim() })
+      const normalizedEmail = email.toLowerCase().trim()
+      const user = await User.findOne({ email: normalizedEmail })
       if (!user) {
+        const latestApprovalRequest = await StaffApprovalRequest
+          .findOne({ email: normalizedEmail })
+          .sort({ createdAt: -1, updatedAt: -1 })
+
+        if (latestApprovalRequest) {
+          const passwordMatchesPendingRequest = await bcrypt.compare(password, latestApprovalRequest.password)
+
+          if (passwordMatchesPendingRequest) {
+            if (latestApprovalRequest.status === 'pending') {
+              return res.status(403).json({
+                success: false,
+                error: 'Your staff account is waiting for HOD approval. Please try again after approval.'
+              })
+            }
+
+            if (latestApprovalRequest.status === 'rejected') {
+              const rejectionReason = String(latestApprovalRequest.rejectionReason || '').trim()
+              return res.status(403).json({
+                success: false,
+                error: rejectionReason
+                  ? `Your staff account request was rejected by the HOD. Reason: ${rejectionReason}`
+                  : 'Your staff account request was rejected by the HOD. Please contact your department HOD.'
+              })
+            }
+          }
+        }
+
         return res.status(401).json({
           success: false,
           error: 'Invalid email or password'
