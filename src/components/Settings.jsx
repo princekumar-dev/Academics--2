@@ -13,6 +13,7 @@ import {
   checkCurrentSubscription
 } from '../utils/notifications'
 import { processSignatureImage, validateSignatureFile, optimizeSignatureForPDF } from '../utils/signatureProcessor'
+import StaffWhatsAppSettingsCard from './StaffWhatsAppSettingsCard'
 
 function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
   const navigate = useNavigate()
@@ -685,6 +686,8 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
           </div>
         </div>
       )}
+
+      {userRole === 'staff' && <StaffWhatsAppSettingsCard />}
 
       {/* Notifications Section */}
       <div className="border-t border-[#e7edf4] pt-3">
