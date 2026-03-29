@@ -9,7 +9,7 @@ export default function ConfirmDialog({ open, title, description, confirmLabel =
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-xl w-full max-w-lg mx-4 z-50 overflow-hidden">
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{title}</h3>
-          <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">{description}</p>
+          <p className="mt-3 text-sm text-gray-600 dark:text-gray-300 break-words whitespace-pre-line">{description}</p>
           <div className="mt-6 flex justify-end gap-3">
             <button
               onClick={onCancel}
