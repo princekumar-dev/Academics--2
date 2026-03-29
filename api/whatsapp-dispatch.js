@@ -9,6 +9,7 @@ import QRCode from 'qrcode'
 
 // Temporary in-memory store for the last Evolution error (for debugging)
 let lastEvolutionError = null
+let lastInstanceDeleteAt = 0
 
 // Configure web-push if VAPID keys are available
 if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
@@ -80,13 +81,13 @@ export default async function handler(req, res) {
       try {
         const status = await evolutionApi.getInstanceStatus()
         if (status.success && (status.connected || status.state === 'open')) {
-          console.log('✅ Instance already connected, no QR needed');
-          return res.status(200).json({
-            success: true,
-            message: 'Instance already connected. No QR required.',
-            state: status.state,
-            connected: true
-          })
+        console.log('✅ Instance already connected, no QR needed');
+        return res.status(200).json({
+          success: true,
+          message: 'Instance already connected. No QR required.',
+          state: status.state,
+          connected: true
+        })
         }
       } catch {}
 
@@ -243,6 +244,23 @@ export default async function handler(req, res) {
     try {
       const status = await evolutionApi.getInstanceStatus()
       console.log('📊 Instance status from Evolution API:', status);
+      const withinDeleteGuardWindow = lastInstanceDeleteAt > 0 && Date.now() - lastInstanceDeleteAt < 15000
+      const isStaleConnectedState = status?.state === 'open' || status?.connected === true
+      
+      if (withinDeleteGuardWindow && isStaleConnectedState) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+
+        return res.status(200).json({
+          connected: false,
+          state: 'close',
+          timestamp: new Date().toISOString(),
+          provider: 'evolution',
+          configured: evolutionApi.isConfigured(),
+          ownerJid: status?.ownerJid
+        })
+      }
       
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.setHeader('Pragma', 'no-cache');
@@ -307,6 +325,9 @@ export default async function handler(req, res) {
   if (req.method === 'DELETE' && req.query.action === 'delete-instance') {
     try {
       const result = await evolutionApi.deleteInstance()
+      if (result?.success) {
+        lastInstanceDeleteAt = Date.now()
+      }
       return res.status(200).json(result)
     } catch (error) {
       return res.status(500).json({ 
@@ -781,3 +802,5 @@ MSEC Academics Department`
     return res.status(500).json({ success: false, error: 'Internal server error' })
   }
 }
+
+

@@ -16,6 +16,7 @@ export default function StaffWhatsAppSettingsCard() {
   const [qrImageSrc, setQrImageSrc] = useState(null)
   const [showQR, setShowQR] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleteGuardUntil, setDeleteGuardUntil] = useState(0)
 
   const fetchConnectionStatus = async (showLoader = false, forceFresh = false) => {
     if (showLoader) setLoading(true)
@@ -27,6 +28,14 @@ export default function StaffWhatsAppSettingsCard() {
         retry: 1,
         retryDelay: 800
       })
+
+      const isTransientConnectedState = data?.connected === true || data?.state === 'open'
+      if (Date.now() < deleteGuardUntil && isTransientConnectedState) {
+        console.log('[Staff QR] Ignoring stale connected status during delete guard window', data)
+        return
+      }
+
+
       setConnectionStatus(data || null)
     } catch (error) {
       setConnectionStatus({ connected: false, state: 'error', error: error?.message || 'Network error' })
@@ -38,6 +47,35 @@ export default function StaffWhatsAppSettingsCard() {
   useEffect(() => {
     fetchConnectionStatus(true)
   }, [])
+
+  const refreshAfterDelete = async () => {
+    const retryDelays = [600, 1200, 2000]
+
+    for (const delayMs of retryDelays) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs))
+
+      try {
+        const data = await apiClient.get('/api/whatsapp-dispatch?action=connection-status', {
+          cache: false,
+          ttl: 0,
+          timeout: 60000,
+          retry: 0
+        })
+
+        const stillConnected = data?.connected === true || data?.state === 'open'
+        if (!stillConnected) {
+          setConnectionStatus(data || { connected: false, state: 'disconnected' })
+          setDeleteGuardUntil(0)
+          return
+        }
+      } catch (error) {
+        console.log('[Staff QR] Post-delete refresh failed, retrying:', error?.message || error)
+      }
+    }
+
+    setConnectionStatus({ connected: false, state: 'disconnected' })
+    setDeleteGuardUntil(0)
+  }
 
   const closeQrModal = async () => {
     setShowQR(false)
@@ -223,20 +261,27 @@ export default function StaffWhatsAppSettingsCard() {
     setQRCode(null)
     setQrImageSrc(null)
     setConfirmDelete(false)
-    setConnectionStatus({ connected: false, state: 'deleted' })
+    setDeleteGuardUntil(Date.now() + 7000)
+    setConnectionStatus({ connected: false, state: 'close' })
     try {
+      // First, logout the instance to ensure device is logged out
+      try {
+        await apiClient.post('/api/whatsapp-dispatch?action=logout', null, { timeout: 10000 })
+        console.log('[Staff QR] Instance logout called before delete')
+      } catch (logoutErr) {
+        console.warn('[Staff QR] Instance logout failed before delete:', logoutErr?.message || logoutErr)
+      }
+
+      // Then, delete the instance
       const data = await apiClient.del('/api/whatsapp-dispatch?action=delete-instance', { timeout: 15000 })
-      showSuccess('Instance Deleted', data?.message || 'WhatsApp instance deleted successfully.')
-      setTimeout(() => {
-        fetchConnectionStatus(false, true)
-      }, 1200)
+      setConnectionStatus({ connected: false, state: 'close' })
+      void refreshAfterDelete()
     } catch (error) {
       if (error?.status === 404) {
-        showSuccess('Instance Deleted', error?.data?.message || 'WhatsApp instance deleted successfully.')
-        setTimeout(() => {
-          fetchConnectionStatus(false, true)
-        }, 1200)
+        setConnectionStatus({ connected: false, state: 'close' })
+        void refreshAfterDelete()
       } else {
+        setDeleteGuardUntil(0)
         await fetchConnectionStatus(false, true)
         showError('Delete Failed', getUserFriendlyMessage(error, 'Could not delete the WhatsApp instance.'))
       }
@@ -367,7 +412,7 @@ export default function StaffWhatsAppSettingsCard() {
               title="Delete instance"
             >
               <Trash2 className="w-4 h-4" />
-              <span>Delete</span>
+              <span>{loading ? 'Deleting...' : 'Delete'}</span>
             </button>
           </div>
         </div>
