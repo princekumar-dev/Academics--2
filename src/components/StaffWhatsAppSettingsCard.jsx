@@ -46,6 +46,15 @@ export default function StaffWhatsAppSettingsCard() {
     await fetchConnectionStatus(false, true)
   }
 
+  const handleRefreshStatus = async (event) => {
+    if (event) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+
+    await fetchConnectionStatus(true, true)
+  }
+
   const openQrModal = (payload) => {
     console.log('[Staff QR] openQrModal called', {
       hasBase64: !!payload?.base64,
@@ -312,9 +321,10 @@ export default function StaffWhatsAppSettingsCard() {
 
             <button
               type="button"
-              onClick={() => fetchConnectionStatus(true)}
+              onClick={handleRefreshStatus}
               disabled={loading}
-              className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg border border-[#dbe5ef] bg-white text-[#60758a] hover:text-[#111418] hover:border-[#c6d4e2] disabled:opacity-50"
+              className="relative z-10 shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-lg border border-[#dbe5ef] bg-white text-[#60758a] hover:text-[#111418] hover:border-[#c6d4e2] disabled:opacity-50"
+              style={{ pointerEvents: 'auto', touchAction: 'manipulation' }}
               title="Refresh connection status"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
