@@ -822,231 +822,49 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
   // ============ MAIN RENDER ============
 
   const mainModalContent = (
-    <div
-      ref={settingsRef}
-      onClick={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
-      className={(
-        isFullWidthMobile
-          ? 'inner-panel pointer-events-auto'
-          : 'settings-glass-card no-mobile-backdrop pointer-events-auto'
-      ) + ' rounded-xl shadow-lg overflow-hidden w-full max-w-sm mx-auto flex flex-col group ' + (
-          isFullWidthMobile
-            ? 'rounded-b-2xl sm:rounded-xl max-w-md'
-            : 'absolute top-full right-0 mt-2 w-80'
-        )}
-      style={{
-        boxShadow: '0 8px 28px rgba(2,6,23,0.06)',
-        background: isFullWidthMobile ? '#ffffff' : undefined,
-        maxHeight: isFullWidthMobile ? 'calc(100vh - 80px)' : '90vh',
-        overflowY: 'auto',
-        ...(isFullWidthMobile && {
-          marginTop: '100px',
-          marginLeft: 'auto',
-          marginRight: 'auto'
-        })
-      }}
-      onMouseEnter={() => {
-        if (!mobileMode && typeof document !== 'undefined') {
-          document.body.classList.add('settings-hover-active')
-        }
-      }}
-      onMouseLeave={() => {
-        if (!mobileMode && typeof document !== 'undefined') {
-          document.body.classList.remove('settings-hover-active')
-        }
-      }}
-    >
-      <SettingsContent />
-      <SettingsBody />
-
-      {/* Sub-modals rendered as centered overlays on top of Settings */}
-      {showPasswordModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={(e) => {
-            if (e.currentTarget === e.target) {
-              closePasswordModal()
-            }
+    isFullWidthMobile ? (
+      <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 bg-black/10" style={{ overscrollBehavior: 'contain', touchAction: 'pan-y', WebkitTapHighlightColor: 'transparent' }}>
+        <div
+          ref={settingsRef}
+          onClick={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="inner-panel pointer-events-auto rounded-2xl sm:rounded-xl max-w-md w-full shadow-lg overflow-hidden flex flex-col group bg-white"
+          style={{
+            boxShadow: '0 8px 28px rgba(2,6,23,0.06)',
+            maxHeight: 'calc(100vh - 80px)',
+            overflowY: 'auto',
           }}
         >
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm mx-4 shadow-2xl max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Reset Password</h2>
-
-            {passwordError && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
-                <p className="text-sm text-red-700">{passwordError}</p>
-              </div>
-            )}
-
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Current Password</label>
-                <input
-                  type="password"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  placeholder="Enter current password"
-                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-500 focus:outline-none text-base"
-                  autoComplete="current-password"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">New Password</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Enter new password (min. 6 characters)"
-                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-500 focus:outline-none text-base"
-                  autoComplete="new-password"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Confirm New Password</label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm new password"
-                  className="w-full px-4 py-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 focus:border-yellow-500 focus:outline-none text-base"
-                  autoComplete="new-password"
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3">
-              <button
-                onClick={closePasswordModal}
-                className="flex-1 px-4 py-2.5 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-semibold text-sm transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handlePasswordReset}
-                disabled={passwordLoading}
-                className="flex-1 px-4 py-2.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 disabled:opacity-60 font-semibold text-sm transition-colors"
-              >
-                {passwordLoading ? 'Resetting...' : 'Reset Password'}
-              </button>
-            </div>
-          </div>
+          <SettingsContent />
+          <SettingsBody />
         </div>
-      )}
-
-      {showSignatureModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          onClick={(e) => {
-            if (e.currentTarget === e.target) {
-              closeSignatureModal()
-            }
-          }}
-        >
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-2xl max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Add Your Signature</h2>
-            <p className="text-sm text-gray-600 mb-5">This signature will be used in generated PDFs</p>
-
-            <div className="flex gap-2 mb-5 bg-gray-100 p-1 rounded-lg">
-              <button
-                onClick={() => setSignatureMode('draw')}
-                className={`flex-1 py-2.5 px-4 rounded-md font-semibold text-sm transition-all ${signatureMode === 'draw'
-                    ? 'bg-white text-gray-900 shadow-md'
-                    : 'text-gray-600 hover:text-gray-900'
-                  }`}
-              >
-                ✍️ Draw
-              </button>
-              <button
-                onClick={() => setSignatureMode('upload')}
-                className={`flex-1 py-2.5 px-4 rounded-md font-semibold text-sm transition-all ${signatureMode === 'upload'
-                    ? 'bg-white text-gray-900 shadow-md'
-                    : 'text-gray-600 hover:text-gray-900'
-                  }`}
-              >
-                📤 Upload
-              </button>
-            </div>
-
-            {signatureMode === 'draw' && (
-              <div className="mb-5 border-2 border-gray-300 rounded-xl overflow-hidden bg-white" style={{ height: '160px' }}>
-                <canvas
-                  ref={canvasRef}
-                  width={400}
-                  height={160}
-                  onMouseDown={handleCanvasMouseDown}
-                  onMouseMove={handleCanvasMouseMove}
-                  onMouseUp={handleCanvasMouseUp}
-                  onMouseLeave={handleCanvasMouseUp}
-                  onTouchStart={handleCanvasMouseDown}
-                  onTouchMove={handleCanvasMouseMove}
-                  onTouchEnd={handleCanvasMouseUp}
-                  className="w-full h-full cursor-crosshair"
-                  style={{ touchAction: 'none', display: 'block' }}
-                />
-              </div>
-            )}
-
-            {signatureMode === 'upload' && (
-              <div className="mb-5">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/jpg,image/png"
-                  onChange={handleSignatureUpload}
-                  className="hidden"
-                  id="signature-upload"
-                />
-                {uploadedSignature ? (
-                  <div className="border-3 border-blue-400 rounded-xl overflow-hidden bg-gradient-to-br from-blue-50 to-white flex items-center justify-center" style={{ height: '200px', padding: '12px' }}>
-                    <div className="flex items-center justify-center w-full h-full bg-white rounded-lg">
-                      <img src={uploadedSignature} alt="Uploaded" className="max-w-full max-h-full object-contain" style={{ maxWidth: '90%', maxHeight: '90%' }} />
-                    </div>
-                  </div>
-                ) : (
-                  <label
-                    htmlFor="signature-upload"
-                    className="flex flex-col items-center justify-center border-3 border-dashed border-gray-300 rounded-xl p-8 cursor-pointer hover:border-yellow-500 hover:bg-yellow-50 transition-all"
-                    style={{ height: '200px' }}
-                  >
-                    <svg className="w-12 h-12 text-gray-400 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    <p className="text-sm font-semibold text-gray-700 mb-1">Click to upload signature</p>
-                    <p className="text-xs text-gray-500">JPEG or PNG (max 2MB)</p>
-                  </label>
-                )}
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <button
-                onClick={clearSignature}
-                className="flex-1 px-4 py-2.5 border-2 border-gray-400 text-gray-700 rounded-lg hover:bg-gray-100 font-semibold text-sm transition-colors"
-              >
-                Clear
-              </button>
-              <button
-                onClick={closeSignatureModal}
-                className="flex-1 px-4 py-2.5 border-2 border-gray-400 text-gray-700 rounded-lg hover:bg-gray-100 font-semibold text-sm transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={saveSignature}
-                className="flex-1 px-4 py-2.5 bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 font-semibold text-sm transition-colors shadow-md"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      </div>
+    ) : (
+      <div
+        ref={settingsRef}
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        className="settings-glass-card no-mobile-backdrop pointer-events-auto rounded-xl shadow-lg overflow-hidden w-full max-w-sm mx-auto flex flex-col group absolute top-full right-0 mt-2 w-80"
+        style={{
+          boxShadow: '0 8px 28px rgba(2,6,23,0.06)',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+        }}
+        onMouseEnter={() => {
+          if (typeof document !== 'undefined') {
+            document.body.classList.add('settings-hover-active')
+          }
+        }}
+        onMouseLeave={() => {
+          if (typeof document !== 'undefined') {
+            document.body.classList.remove('settings-hover-active')
+          }
+        }}
+      >
+        <SettingsContent />
+        <SettingsBody />
+      </div>
+    )
   )
 
   // Desktop: Render as dropdown
