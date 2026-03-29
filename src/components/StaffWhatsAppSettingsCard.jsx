@@ -139,7 +139,7 @@ export default function StaffWhatsAppSettingsCard() {
                 {isConnected ? <Wifi className="w-4 h-4 text-green-600" /> : <WifiOff className="w-4 h-4 text-gray-500" />}
                 <p className="text-sm font-semibold text-[#111418]">Dispatch WhatsApp</p>
               </div>
-              <p className="text-xs text-[#60758a] mt-1">Use the same connection flow as admin for QR setup and instance reset.</p>
+              <p className="text-xs text-[#60758a] mt-1">QR setup and instance reset.</p>
             </div>
 
             <button
