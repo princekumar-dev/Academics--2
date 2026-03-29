@@ -595,7 +595,7 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
   }
 
   const SettingsBody = () => (
-    <div className="px-3 sm:px-4 py-3 sm:py-4 space-y-4 sm:space-y-5 flex-1 overflow-y-auto overflow-x-hidden smooth-scroll settings-content" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y', WebkitTapHighlightColor: 'transparent', scrollBehavior: 'smooth', width: '100%', boxSizing: 'border-box' }}>
+    <div className="px-3 sm:px-4 py-3 sm:py-4 space-y-2 sm:space-y-3 flex-1 overflow-y-auto overflow-x-hidden smooth-scroll settings-content" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y', WebkitTapHighlightColor: 'transparent', scrollBehavior: 'smooth', width: '100%', boxSizing: 'border-box' }}>
       {/* Account Section - Hide signature for students */}
       {userRole !== 'student' && (
         <div>
@@ -605,7 +605,7 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
             </svg>
             Account
           </h4>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <button
               type="button"
               onClick={(e) => {
@@ -716,7 +716,7 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
           </div>
         )}
 
-        <div className="space-y-3">
+        <div className="space-y-1">
           <div className="flex items-center justify-between p-3 rounded-lg bg-white/6 min-h-[52px]">
             <div className="flex-1">
               <p className="text-sm font-medium text-[#111418]">Push Notifications</p>
@@ -781,7 +781,7 @@ function Settings({ isOpen, onClose, userEmail, userRole, isMobile = false }) {
           </svg>
           Help & Support
         </h4>
-        <div className="space-y-2">
+        <div className="space-y-1">
           <button
             type="button"
             onClick={handleEmailSupport}
