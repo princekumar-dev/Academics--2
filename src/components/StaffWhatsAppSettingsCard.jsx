@@ -1,24 +1,28 @@
 import { useEffect, useMemo, useState } from 'react'
-import { QrCode, RefreshCw, Trash2, Wifi, WifiOff } from 'lucide-react'
+import ReactDOM from 'react-dom'
+import { QrCode, RefreshCw, Trash2, Wifi, WifiOff, X } from 'lucide-react'
+import QRCode from 'qrcode'
 import ConfirmDialog from './ConfirmDialog'
 import { useAlert } from './AlertContext'
 import apiClient from '../utils/apiClient'
 import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 
 export default function StaffWhatsAppSettingsCard() {
-  const { showSuccess, showError } = useAlert()
+  const { showSuccess, showError, showInfo } = useAlert()
   const [connectionStatus, setConnectionStatus] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [qrLoading, setQrLoading] = useState(false)
   const [qrCode, setQRCode] = useState(null)
+  const [qrImageSrc, setQrImageSrc] = useState(null)
   const [showQR, setShowQR] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const fetchConnectionStatus = async (showLoader = false) => {
+  const fetchConnectionStatus = async (showLoader = false, forceFresh = false) => {
     if (showLoader) setLoading(true)
     try {
       const data = await apiClient.get('/api/whatsapp-dispatch?action=connection-status', {
-        cache: true,
-        ttl: 15 * 1000,
+        cache: !forceFresh,
+        ttl: forceFresh ? 0 : 15 * 1000,
         timeout: 60000,
         retry: 1,
         retryDelay: 800
@@ -35,49 +39,196 @@ export default function StaffWhatsAppSettingsCard() {
     fetchConnectionStatus(true)
   }, [])
 
-  const handleGetQR = async () => {
-    setLoading(true)
+  const closeQrModal = async () => {
+    setShowQR(false)
+    setQrImageSrc(null)
+    setQRCode(null)
+    await fetchConnectionStatus(false, true)
+  }
+
+  const openQrModal = (payload) => {
+    console.log('[Staff QR] openQrModal called', {
+      hasBase64: !!payload?.base64,
+      hasQrcode: !!payload?.qrcode,
+      qrcodeType: typeof payload?.qrcode,
+      qrcodeLength: typeof payload?.qrcode === 'string' ? payload.qrcode.length : null
+    })
+    setQRCode(payload)
+    console.log('[Staff QR] opening QR modal immediately')
+    setShowQR(true)
+  }
+
+  const getQrTextValue = (payload) => {
+    if (!payload) return ''
+    if (typeof payload.qrcode === 'string') return payload.qrcode
+    if (payload.qrcode && typeof payload.qrcode === 'object') {
+      if (typeof payload.qrcode.qrcode === 'string') return payload.qrcode.qrcode
+      if (typeof payload.qrcode.code === 'string') return payload.qrcode.code
+      if (typeof payload.qrcode.pairingCode === 'string') return payload.qrcode.pairingCode
+    }
+    if (typeof payload.code === 'string') return payload.code
+    if (typeof payload.pairingCode === 'string') return payload.pairingCode
+    return ''
+  }
+
+  const normalizeQrPayload = (data) => {
+    if (!data) return null
+
+    if (data.qrcode && typeof data.qrcode === 'object') {
+      return {
+        ...data,
+        ...data.qrcode,
+        qrcode: typeof data.qrcode.qrcode === 'string' ? data.qrcode.qrcode : data.qrcode
+      }
+    }
+
+    return data
+  }
+
+  useEffect(() => {
+    let cancelled = false
+
+    const prepareQrImage = async () => {
+      if (!qrCode) {
+        console.log('[Staff QR] prepareQrImage: no qrCode payload')
+        setQrImageSrc(null)
+        return
+      }
+
+      if (qrCode.base64) {
+        const normalized = qrCode.base64.startsWith('data:image')
+          ? qrCode.base64
+          : `data:image/png;base64,${qrCode.base64}`
+        console.log('[Staff QR] prepareQrImage: using base64 from payload', {
+          prefix: typeof normalized === 'string' ? normalized.slice(0, 40) : null,
+          length: typeof normalized === 'string' ? normalized.length : null
+        })
+        setQrImageSrc(normalized)
+        return
+      }
+
+      const qrTextValue = getQrTextValue(qrCode)
+
+      if (!qrTextValue) {
+        console.log('[Staff QR] prepareQrImage: no usable qrcode string', qrCode)
+        setQrImageSrc(null)
+        return
+      }
+
+      try {
+        console.log('[Staff QR] prepareQrImage: generating image from qrcode text', {
+          qrcodeLength: qrTextValue.length,
+          qrcodePreview: qrTextValue.slice(0, 80)
+        })
+        const dataUrl = await QRCode.toDataURL(qrTextValue, {
+          width: 512,
+          margin: 2,
+          errorCorrectionLevel: 'H',
+          color: { dark: '#000000', light: '#FFFFFF' }
+        })
+        if (!cancelled) {
+          console.log('[Staff QR] prepareQrImage: generated dataUrl successfully', {
+            prefix: dataUrl.slice(0, 40),
+            length: dataUrl.length
+          })
+          setQrImageSrc(dataUrl)
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('[Staff QR] prepareQrImage: failed to generate dataUrl', error)
+          setQrImageSrc(null)
+        }
+      }
+    }
+
+    prepareQrImage()
+
+    return () => {
+      cancelled = true
+    }
+  }, [qrCode])
+
+  const handleGetQR = async (event) => {
+    if (event) {
+      event.preventDefault()
+      event.stopPropagation()
+    }
+
+    console.log('[Staff QR] Get QR clicked', {
+      connectionStatus,
+      currentShowQR: showQR,
+      currentHasQrCode: !!qrCode,
+      currentHasQrImageSrc: !!qrImageSrc
+    })
+    setQrLoading(true)
+    setQRCode(null)
+    setQrImageSrc(null)
     try {
       const data = await apiClient.get('/api/whatsapp-dispatch?action=qrcode', { cache: false, timeout: 20000 })
+      const normalizedPayload = normalizeQrPayload(data)
+      console.log('[Staff QR] QR API response received', {
+        success: data?.success,
+        connected: data?.connected,
+        state: data?.state,
+        hasBase64: !!data?.base64,
+        hasQrcode: !!data?.qrcode,
+        qrcodeType: typeof data?.qrcode,
+        qrcodeLength: typeof data?.qrcode === 'string' ? data.qrcode.length : null,
+        payload: data
+      })
+      console.log('[Staff QR] Normalized QR payload', {
+        hasBase64: !!normalizedPayload?.base64,
+        hasQrcode: !!normalizedPayload?.qrcode,
+        qrcodeType: typeof normalizedPayload?.qrcode,
+        qrcodeLength: typeof normalizedPayload?.qrcode === 'string' ? normalizedPayload.qrcode.length : null,
+        payload: normalizedPayload
+      })
 
       if (data?.success && (data.connected || data.state === 'open')) {
-        showSuccess('Already Connected', data.message || 'WhatsApp is already connected.')
-        await fetchConnectionStatus()
+        console.log('[Staff QR] API says already connected')
+        showInfo('Already Connected', data.message || 'WhatsApp is already connected.')
+        await fetchConnectionStatus(false, true)
         return
       }
 
-      if (data?.success && data.qrcode) {
-        setQRCode(data.qrcode)
-        setShowQR(true)
-        showSuccess('QR Ready', 'Scan the QR code in WhatsApp to connect.')
+      if (data?.success && (normalizedPayload?.base64 || normalizedPayload?.qrcode)) {
+        console.log('[Staff QR] API returned usable QR payload')
+        openQrModal(normalizedPayload)
         return
       }
 
+      console.warn('[Staff QR] API returned no usable QR payload', data)
       showError('QR Failed', data?.error || 'Could not generate QR code. Please try again.')
     } catch (error) {
+      console.error('[Staff QR] QR request failed', error)
       showError('QR Failed', getUserFriendlyMessage(error, 'Could not generate QR code. Please try again.'))
     } finally {
-      setLoading(false)
+      console.log('[Staff QR] handleGetQR finished')
+      setQrLoading(false)
     }
   }
 
   const handleDeleteInstance = async () => {
     setLoading(true)
+    setShowQR(false)
+    setQRCode(null)
+    setQrImageSrc(null)
+    setConfirmDelete(false)
+    setConnectionStatus({ connected: false, state: 'deleted' })
     try {
       const data = await apiClient.del('/api/whatsapp-dispatch?action=delete-instance', { timeout: 15000 })
       showSuccess('Instance Deleted', data?.message || 'WhatsApp instance deleted successfully.')
-      setShowQR(false)
-      setQRCode(null)
-      setConfirmDelete(false)
-      await fetchConnectionStatus()
+      setTimeout(() => {
+        fetchConnectionStatus(false, true)
+      }, 1200)
     } catch (error) {
       if (error?.status === 404) {
         showSuccess('Instance Deleted', error?.data?.message || 'WhatsApp instance deleted successfully.')
-        setShowQR(false)
-        setQRCode(null)
-        setConfirmDelete(false)
-        await fetchConnectionStatus()
+        setTimeout(() => {
+          fetchConnectionStatus(false, true)
+        }, 1200)
       } else {
+        await fetchConnectionStatus(false, true)
         showError('Delete Failed', getUserFriendlyMessage(error, 'Could not delete the WhatsApp instance.'))
       }
     } finally {
@@ -112,6 +263,14 @@ export default function StaffWhatsAppSettingsCard() {
       }
     }
 
+    if (connectionStatus?.state === 'deleted') {
+      return {
+        dot: 'bg-gray-400',
+        badge: 'bg-gray-50 text-gray-700 border-gray-200',
+        label: 'Deleted'
+      }
+    }
+
     return {
       dot: 'bg-gray-400',
       badge: 'bg-gray-50 text-gray-700 border-gray-200',
@@ -121,6 +280,15 @@ export default function StaffWhatsAppSettingsCard() {
 
   const connectionStateLabel = connectionStatus?.state ? String(connectionStatus.state).replace(/_/g, ' ') : 'unknown'
   const isConnected = connectionStatus?.connected === true || connectionStatus?.state === 'open'
+  const qrTextValue = getQrTextValue(qrCode)
+
+  useEffect(() => {
+    console.log('[Staff QR] modal/image state changed', {
+      showQR,
+      hasQrCode: !!qrCode,
+      hasQrImageSrc: !!qrImageSrc
+    })
+  }, [showQR, qrCode, qrImageSrc])
 
   return (
     <>
@@ -169,12 +337,16 @@ export default function StaffWhatsAppSettingsCard() {
             <button
               type="button"
               onClick={handleGetQR}
-              disabled={loading}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+              }}
+              disabled={loading || qrLoading}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-3 py-3 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
               title="Get QR code"
             >
-              <QrCode className="w-4 h-4" />
-              <span>Get QR</span>
+              {qrLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
+              <span>{qrLoading ? 'Loading QR...' : 'Get QR'}</span>
             </button>
 
             <button
@@ -191,34 +363,76 @@ export default function StaffWhatsAppSettingsCard() {
         </div>
       </div>
 
-      {showQR && qrCode && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm px-4" onClick={() => setShowQR(false)}>
-          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Scan QR Code</h3>
-                <p className="text-xs text-gray-500 mt-1">Open WhatsApp and scan to connect this staff device.</p>
-              </div>
-              <button type="button" onClick={() => setShowQR(false)} className="w-9 h-9 rounded-lg border border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50">
-                X
+      {showQR && qrCode && ReactDOM.createPortal(
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-[120] flex items-center justify-center min-h-screen p-3 sm:p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              console.log('[Staff QR] closing modal from backdrop')
+              closeQrModal()
+            }
+          }}
+        >
+          <div
+            className="bg-white rounded-lg sm:rounded-xl shadow-2xl w-full max-w-sm sm:max-w-md p-4 sm:p-6 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900">Scan QR Code</h3>
+              <button
+                type="button"
+                onClick={async () => {
+                  console.log('[Staff QR] closing modal from header close')
+                  await closeQrModal()
+                }}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
+                title="Close QR modal"
+              >
+                <X className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
             </div>
 
-            <div className="mt-4 rounded-xl border border-gray-200 bg-white p-3 flex justify-center">
-              {qrCode?.base64 ? (
+            <div className="bg-white p-3 sm:p-4 rounded-lg border-2 border-gray-200 flex justify-center">
+              {qrImageSrc ? (
                 <img
-                  src={qrCode.base64.startsWith('data:image') ? qrCode.base64 : `data:image/png;base64,${qrCode.base64}`}
+                  src={qrImageSrc}
                   alt="WhatsApp QR code"
-                  className="w-full max-w-xs h-auto"
+                  className="w-full max-w-xs sm:max-w-sm h-auto"
                 />
-              ) : qrCode?.qrcode ? (
-                <pre className="text-xs whitespace-pre-wrap break-words overflow-auto">{qrCode.qrcode}</pre>
+              ) : qrTextValue ? (
+                <div className="bg-gray-100 p-2 sm:p-4 rounded text-center overflow-x-auto">
+                  <pre className="text-xs overflow-auto whitespace-pre-wrap break-words">{qrTextValue}</pre>
+                </div>
               ) : (
-                <p className="text-sm text-gray-500">QR code not available.</p>
+                <p className="text-center text-gray-500 text-sm">QR code not available</p>
               )}
             </div>
+
+            <div className="mt-4 p-3 sm:p-4 bg-blue-50 rounded-lg">
+              <p className="text-xs sm:text-sm text-gray-700 mb-2 font-semibold">
+                Steps to connect:
+              </p>
+              <ol className="text-xs sm:text-sm text-gray-600 space-y-1 list-decimal list-inside">
+                <li>Open WhatsApp on your phone</li>
+                <li>Go to Settings to Linked Devices</li>
+                <li>Tap Link a Device</li>
+                <li>Scan this QR code</li>
+              </ol>
+            </div>
+
+            <button
+              onClick={async () => {
+                console.log('[Staff QR] closing modal from footer close')
+                await closeQrModal()
+              }}
+              className="mt-4 w-full px-4 py-2 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-colors text-sm sm:text-base"
+            >
+              Close
+            </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <ConfirmDialog
