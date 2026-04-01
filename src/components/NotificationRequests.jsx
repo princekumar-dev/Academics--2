@@ -5,6 +5,17 @@ import { X, UserCheck, UserX, Clock, CheckCircle, XCircle, Bell } from 'lucide-r
 import SwipeableCard from './SwipeableCard'
 import { usePushNotifications } from '../hooks/usePushNotifications'
 
+function getAuthUserId(auth) {
+  return (
+    auth?.id ||
+    auth?.user?.id ||
+    auth?._id ||
+    auth?.user?._id ||
+    auth?.userId ||
+    localStorage.getItem('userId')
+  )
+}
+
 // Sub-component for Admin Notification Items
 const AdminNotificationItem = memo(({ notification, onMarkRead }) => (
   <div
@@ -280,6 +291,49 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
   // When we optimistically remove an item (approve/reject), skip the next event-driven refetch to avoid double reload
   const lastOptimisticUpdateRef = useRef(0)
   const SKIP_REFETCH_MS = 2000
+  const optimisticHiddenIdsRef = useRef(new Map())
+  const OPTIMISTIC_HIDE_MS = 15000
+
+  const markOptimisticProcessed = (requestId) => {
+    if (!requestId) return
+    const now = Date.now()
+    lastOptimisticUpdateRef.current = now
+    try { window.__msecOptimisticNotificationsTs = now } catch (e) { }
+    try { optimisticHiddenIdsRef.current.set(String(requestId), now) } catch (e) { }
+  }
+
+  const applyOptimisticVisibility = (items = []) => {
+    const now = Date.now()
+    const hidden = optimisticHiddenIdsRef.current
+    if (!hidden || hidden.size === 0) return items
+
+    const visible = items.filter((item) => {
+      const id = String(item?._id || item?.data?.requestId || '')
+      if (!id) return true
+      const hiddenAt = hidden.get(id)
+      if (!hiddenAt) return true
+      if (now - hiddenAt > OPTIMISTIC_HIDE_MS) {
+        hidden.delete(id)
+        return true
+      }
+      return false
+    })
+
+    return visible
+  }
+
+  const removeRequestOptimistically = (requestId) => {
+    setRequests((prev) => {
+      const next = prev.filter((r) => r._id !== requestId)
+      if (setUnreadCount) setUnreadCount(next.length)
+      if (next.length === 0) {
+        setTimeout(() => {
+          try { onClose() } catch (e) { }
+        }, 0)
+      }
+      return next
+    })
+  }
 
   // Debounced fetch helper to avoid multiple rapid refreshes
   const fetchTimerRef = useRef(null)
@@ -321,7 +375,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
       setLoading(true)
       const auth = JSON.parse(localStorage.getItem('auth') || '{}')
       const userRole = auth?.role || auth.user?.role
-      const userId = auth?.id || auth.user?.id
+      const userId = getAuthUserId(auth)
 
       if (userRole === 'hod') {
         const hodId = userId
@@ -388,31 +442,52 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
             allRequests.push(...leaveRequests)
           }
 
-          setRequests(allRequests)
-          if (setUnreadCount) setUnreadCount(allRequests.length)
+          const visibleRequests = applyOptimisticVisibility(allRequests)
+          setRequests(visibleRequests)
+          if (setUnreadCount) setUnreadCount(visibleRequests.length)
         } catch (error) {
           console.error('[NotificationRequests] Error fetching requests:', error)
           setRequests([])
         }
       } else if (userRole === 'staff') {
         // For Staff: Check approval status from notifications + late requests
-        const data = await apiClient.get(`/api/notifications?userEmail=${auth?.email || auth.user?.email}`, force ? { cache: false, dedupe: false } : {})
+        const staffEmail = (auth?.email || auth?.user?.email || '').toLowerCase()
+        const data = await apiClient.get(`/api/notifications?userEmail=${staffEmail}`, force ? { cache: false, dedupe: false } : {})
 
         let allRequests = []
 
         if (data.success) {
-          const ownRequest = data.notifications.find(
-            n => n.type === 'staff_account_approval' &&
-              n.data?.staffEmail === (auth?.email || auth.user?.email)
-          )
-          if (ownRequest) {
+          const statusTypes = new Set([
+            'staff_account_approval',
+            'staff_account_status',
+            'staff_account_approved',
+            'staff_account_rejected'
+          ])
+
+          const latestStaffStatus = [...(data.notifications || [])]
+            .filter((n) => {
+              if (!n || !statusTypes.has(n.type)) return false
+              const notifEmail = String(n.userEmail || '').toLowerCase()
+              const dataEmail = String(n.data?.staffEmail || '').toLowerCase()
+              return notifEmail === staffEmail || dataEmail === staffEmail
+            })
+            .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0]
+
+          if (latestStaffStatus) {
+            const derivedStatus = latestStaffStatus?.data?.status
+              || (latestStaffStatus.type === 'staff_account_approved'
+                ? 'approved'
+                : latestStaffStatus.type === 'staff_account_rejected'
+                  ? 'rejected'
+                  : 'pending')
+
             setStaffStatus({
-              status: ownRequest.data?.status || 'pending',
-              processedAt: ownRequest.data?.processedAt,
-              department: ownRequest.data?.department,
-              year: ownRequest.data?.year,
-              section: ownRequest.data?.section,
-              createdAt: ownRequest.createdAt
+              status: derivedStatus,
+              processedAt: latestStaffStatus.data?.processedAt,
+              department: latestStaffStatus.data?.department || auth?.department || auth?.user?.department,
+              year: latestStaffStatus.data?.year || auth?.year || auth?.user?.year,
+              section: latestStaffStatus.data?.section || auth?.section || auth?.user?.section,
+              createdAt: latestStaffStatus.createdAt
             })
           }
         }
@@ -490,22 +565,8 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     if (request.type === 'late_arrival') {
       setProcessing(request._id)
 
-      // Mark optimistic update so event-driven refetches/count refreshes
-      // don't immediately pull stale server data.
-      lastOptimisticUpdateRef.current = Date.now()
-      try { window.__msecOptimisticNotificationsTs = Date.now() } catch (e) { }
-      
-      // Optimistically update UI immediately
-      setRequests(prev => {
-        const next = prev.filter(r => r._id !== request._id)
-        if (setUnreadCount) setUnreadCount(next.length)
-        return next
-      })
-      
-      // Close modal immediately if no more requests
-      if (requests.length <= 1) {
-        onClose()
-      }
+      markOptimisticProcessed(request._id)
+      removeRequestOptimistically(request._id)
       
       // Notify other components immediately
       try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdatedImmediate && m.notifyNotificationsUpdatedImmediate()) } catch (e) { }
@@ -513,7 +574,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
 
       // Fire backend update in background (don't wait for it)
       const auth = JSON.parse(localStorage.getItem('auth') || '{}')
-      const staffId = auth?.id || auth.user?.id
+      const staffId = getAuthUserId(auth)
       apiClient.patch(`/api/leaves?id=${request.data.requestId}&action=acknowledge`, { staffId }).catch(err => {
         console.error('Error recording late arrival:', err)
       }).finally(() => {
@@ -525,22 +586,8 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     // For other request types (HOD: staff_account_approval, leave_request): proceed normally
     setProcessing(request._id)
 
-    // Mark optimistic update so event-driven refetches/count refreshes
-    // don't immediately pull stale server data.
-    lastOptimisticUpdateRef.current = Date.now()
-    try { window.__msecOptimisticNotificationsTs = Date.now() } catch (e) { }
-    
-    // Optimistically update UI immediately
-    setRequests(prev => {
-      const next = prev.filter(r => r._id !== request._id)
-      if (setUnreadCount) setUnreadCount(next.length)
-      return next
-    })
-    
-    // Close modal immediately if no more requests remain
-    if (requests.length <= 1) {
-      onClose()
-    }
+    markOptimisticProcessed(request._id)
+    removeRequestOptimistically(request._id)
     
     // Notify other components immediately
     try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdatedImmediate && m.notifyNotificationsUpdatedImmediate()) } catch (e) { }
@@ -548,7 +595,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
 
     // Fire backend update in background (don't wait for it)
     const auth = JSON.parse(localStorage.getItem('auth') || '{}')
-    const hodId = auth?.id || auth.user?.id
+    const hodId = getAuthUserId(auth)
     
     const requestType = request.type === 'staff_account_approval' ? 'Staff account' : 'Leave request'
     console.log(`✅ ${requestType} approved successfully`)
@@ -588,25 +635,11 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     const request = rejectDialog.request
     setProcessing(request._id)
 
-    // Mark optimistic update so event-driven refetches/count refreshes
-    // don't immediately pull stale server data.
-    lastOptimisticUpdateRef.current = Date.now()
-    try { window.__msecOptimisticNotificationsTs = Date.now() } catch (e) { }
-    
-    // Optimistically update UI immediately
-    setRequests(prev => {
-      const next = prev.filter(r => r._id !== request._id)
-      if (setUnreadCount) setUnreadCount(next.length)
-      return next
-    })
+    markOptimisticProcessed(request._id)
+    removeRequestOptimistically(request._id)
     
     // Close reject dialog immediately
     closeReject()
-    
-    // Close modal if no more requests remain
-    if (requests.length <= 1) {
-      onClose()
-    }
     
     // Notify other components immediately
     try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdatedImmediate && m.notifyNotificationsUpdatedImmediate()) } catch (e) { }
@@ -614,7 +647,7 @@ export default function NotificationRequests({ isOpen, onClose, setUnreadCount }
     
     // Fire backend update in background (don't wait for it)
     const auth = JSON.parse(localStorage.getItem('auth') || '{}')
-    const hodId = auth?.id || auth.user?.id
+    const hodId = getAuthUserId(auth)
     const reason = (rejectDialog.reason || '').trim()
     
     const requestType = request.type === 'staff_account_approval' ? 'Staff account' : 'Leave request'

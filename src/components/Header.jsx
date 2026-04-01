@@ -6,6 +6,17 @@ import Settings from './Settings'
 import NotificationRequests from './NotificationRequests'
 import ResponsiveImage from './ResponsiveImage'
 
+function getAuthUserId(auth) {
+  return (
+    auth?.id ||
+    auth?.user?.id ||
+    auth?._id ||
+    auth?.user?._id ||
+    auth?.userId ||
+    localStorage.getItem('userId')
+  )
+}
+
 function Header() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -198,7 +209,7 @@ function Header() {
       if (role === 'hod') {
         // HOD: Count pending staff approval requests + leave requests
         const auth = JSON.parse(localStorage.getItem('auth') || '{}')
-        const hodId = auth?.id || auth.user?.id
+        const hodId = getAuthUserId(auth)
         const department = auth?.department || auth.user?.department
         
         if (hodId && department) {
@@ -228,19 +239,30 @@ function Header() {
         const year = auth?.year || auth.user?.year
         const section = auth?.section || auth.user?.section
         const department = auth?.department || auth.user?.department
+        const normalizedEmail = String(email || '').toLowerCase()
         
         let totalCount = 0
         
         // Check account approval status
-        const notificationData = await apiClient.get(`/api/notifications?userEmail=${email}`, force ? { cache: false, dedupe: false } : {})
+        const notificationData = await apiClient.get(`/api/notifications?userEmail=${normalizedEmail}`, force ? { cache: false, dedupe: false } : {})
         if (notificationData?.success) {
-          const ownRequest = notificationData.notifications.find(
-            n => n.type === 'staff_account_approval' && 
-            n.data?.staffEmail === email &&
-            !n.read &&
-            (n.data?.status === 'approved' || n.data?.status === 'rejected')
-          )
-          if (ownRequest) totalCount += 1
+          const statusTypes = new Set([
+            'staff_account_approval',
+            'staff_account_status',
+            'staff_account_approved',
+            'staff_account_rejected'
+          ])
+
+          const hasUnreadStatusUpdate = (notificationData.notifications || []).some((n) => {
+            if (!n || !statusTypes.has(n.type) || n.read) return false
+            const notifEmail = String(n.userEmail || '').toLowerCase()
+            const dataEmail = String(n.data?.staffEmail || '').toLowerCase()
+            const status = n.data?.status
+              || (n.type === 'staff_account_approved' ? 'approved' : n.type === 'staff_account_rejected' ? 'rejected' : 'pending')
+            return (notifEmail === normalizedEmail || dataEmail === normalizedEmail) && (status === 'approved' || status === 'rejected')
+          })
+
+          if (hasUnreadStatusUpdate) totalCount += 1
         }
         
         // Check late arrival requests
