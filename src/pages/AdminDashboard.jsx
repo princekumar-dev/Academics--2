@@ -6,6 +6,7 @@ import ConfirmDialog from '../components/ConfirmDialog';
 import { useAlert } from '../components/AlertContext';
 import WhatsAppStatus from '../components/WhatsAppStatus';
 import SWControls from '../components/SWControls';
+import { cacheAccessPolicy } from '../utils/accessPolicy';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -21,6 +22,13 @@ export default function AdminDashboard() {
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState(null);
+  const [accessPolicyLoading, setAccessPolicyLoading] = useState(false);
+  const [accessPolicySaving, setAccessPolicySaving] = useState(false);
+  const [accessPolicyForm, setAccessPolicyForm] = useState({
+    staffHodWindowStartTime: '08:30',
+    staffHodWindowEndTime: '17:00',
+    enforceForStaffHod: true
+  });
 
   const getUserDisplayName = (user = {}) => user.name || user.email || 'Unknown User';
   const getUserInitial = (user = {}) => (user.name || user.email || 'U').charAt(0).toUpperCase();
@@ -41,7 +49,62 @@ export default function AdminDashboard() {
     }
 
     fetchUsers();
+    fetchAccessPolicy();
   }, [navigate, showWarning]);
+
+  const fetchAccessPolicy = async () => {
+    setAccessPolicyLoading(true);
+    try {
+      const data = await apiClient.get('/api/access-policy', { cache: false, ttl: 0 });
+      if (data?.success && data.policy) {
+        setAccessPolicyForm({
+          staffHodWindowStartTime: data.policy.staffHodWindowStartTime || '08:30',
+          staffHodWindowEndTime: data.policy.staffHodWindowEndTime || '17:00',
+          enforceForStaffHod: data.policy.enforceForStaffHod !== false
+        });
+        cacheAccessPolicy(data.policy);
+      }
+    } catch (error) {
+      showError('Policy Load Failed', 'Could not load website access time settings.');
+    } finally {
+      setAccessPolicyLoading(false);
+    }
+  };
+
+  const saveAccessPolicy = async () => {
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}');
+    if (!auth?.id) {
+      showError('Session Error', 'Please login again to update access settings.');
+      return;
+    }
+
+    if (!accessPolicyForm.staffHodWindowStartTime || !accessPolicyForm.staffHodWindowEndTime) {
+      showError('Validation Error', 'Start and end time are required.');
+      return;
+    }
+
+    setAccessPolicySaving(true);
+    try {
+      const data = await apiClient.patch('/api/access-policy', {
+        adminUserId: auth.id,
+        staffHodWindowStartTime: accessPolicyForm.staffHodWindowStartTime,
+        staffHodWindowEndTime: accessPolicyForm.staffHodWindowEndTime,
+        enforceForStaffHod: accessPolicyForm.enforceForStaffHod
+      });
+
+      if (data?.success && data.policy) {
+        cacheAccessPolicy(data.policy);
+        showSuccess('Access Time Updated', 'Staff and HOD login window updated successfully.');
+        return;
+      }
+
+      showError('Update Failed', data?.error || 'Could not update access time settings.');
+    } catch (error) {
+      showError('Update Failed', error?.message || 'Could not update access time settings.');
+    } finally {
+      setAccessPolicySaving(false);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -113,8 +176,9 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
+          <div className="space-y-5 sm:space-y-6">
           {/* Stats Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 lg:gap-6">
             {/* Total Users Card */}
             <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl shadow-md hover:shadow-lg transition-shadow border border-blue-200 overflow-hidden">
               <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-4 sm:px-5 py-3 sm:py-4">
@@ -190,6 +254,74 @@ export default function AdminDashboard() {
             </div>
             <div className="p-4 sm:p-5 md:p-6">
               <WhatsAppStatus />
+            </div>
+          </div>
+
+          {/* Website Access Time Section */}
+          <div className="bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden">
+            <div className="bg-gradient-to-r from-amber-50 to-yellow-100 px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-200">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-amber-700" />
+                <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900">Website Access Time</h2>
+              </div>
+              <p className="text-xs sm:text-sm text-gray-700 mt-1">Set login window for Staff and HOD accounts. Admin login is always allowed.</p>
+            </div>
+            <div className="p-4 sm:p-5 md:p-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Start Time</label>
+                  <input
+                    type="time"
+                    value={accessPolicyForm.staffHodWindowStartTime}
+                    onChange={(e) => setAccessPolicyForm((prev) => ({ ...prev, staffHodWindowStartTime: e.target.value }))}
+                    disabled={accessPolicyLoading || accessPolicySaving}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-60"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">End Time</label>
+                  <input
+                    type="time"
+                    value={accessPolicyForm.staffHodWindowEndTime}
+                    onChange={(e) => setAccessPolicyForm((prev) => ({ ...prev, staffHodWindowEndTime: e.target.value }))}
+                    disabled={accessPolicyLoading || accessPolicySaving}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:opacity-60"
+                  />
+                </div>
+                <div className="flex items-end">
+                  <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={accessPolicyForm.enforceForStaffHod}
+                      onChange={(e) => setAccessPolicyForm((prev) => ({ ...prev, enforceForStaffHod: e.target.checked }))}
+                      disabled={accessPolicyLoading || accessPolicySaving}
+                      className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                    />
+                    Enforce for Staff/HOD
+                  </label>
+                </div>
+              </div>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2 sm:gap-3">
+                <button
+                  type="button"
+                  onClick={saveAccessPolicy}
+                  disabled={accessPolicyLoading || accessPolicySaving}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-semibold hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {accessPolicySaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : null}
+                  <span>{accessPolicySaving ? 'Saving...' : 'Save Access Time'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={fetchAccessPolicy}
+                  disabled={accessPolicyLoading || accessPolicySaving}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {accessPolicyLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  <span>{accessPolicyLoading ? 'Loading...' : 'Reload'}</span>
+                </button>
+              </div>
             </div>
           </div>
 
@@ -306,6 +438,7 @@ export default function AdminDashboard() {
             </div>
             {/* Service Worker controls for admins */}
             <SWControls />
+          </div>
           </div>
         </div>
       </div>

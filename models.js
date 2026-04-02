@@ -223,6 +223,21 @@ StaffApprovalRequestSchema.pre('save', function(next) {
   next()
 })
 
+// Access Policy Schema - single document for login window settings
+const AccessPolicySchema = new mongoose.Schema({
+  key: { type: String, required: true, unique: true, default: 'login_window' },
+  staffHodWindowStart: { type: Number, default: 8 * 60 + 30 },
+  staffHodWindowEnd: { type: Number, default: 17 * 60 },
+  enforceForStaffHod: { type: Boolean, default: true },
+  updatedByUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  updatedAt: { type: Date, default: Date.now }
+})
+
+AccessPolicySchema.pre('save', function(next) {
+  this.updatedAt = new Date()
+  next()
+})
+
 // Generate marksheet ID before saving
 MarksheetSchema.pre('save', function(next) {
   if (!this.marksheetId) {
@@ -248,6 +263,7 @@ if (mongoose.models.Marksheet) delete mongoose.models.Marksheet
 if (mongoose.models.ImportSession) delete mongoose.models.ImportSession
 if (mongoose.models.LeaveRequest) delete mongoose.models.LeaveRequest
 if (mongoose.models.StaffApprovalRequest) delete mongoose.models.StaffApprovalRequest
+if (mongoose.models.AccessPolicy) delete mongoose.models.AccessPolicy
 
 // Create new models with explicit collection names
 export const User = mongoose.model('User', UserSchema)
@@ -256,3 +272,4 @@ export const Marksheet = mongoose.model('Marksheet', MarksheetSchema)
 export const ImportSession = mongoose.model('ImportSession', ImportSessionSchema)
 export const LeaveRequest = mongoose.model('LeaveRequest', LeaveRequestSchema)
 export const StaffApprovalRequest = mongoose.model('StaffApprovalRequest', StaffApprovalRequestSchema)
+export const AccessPolicy = mongoose.model('AccessPolicy', AccessPolicySchema)

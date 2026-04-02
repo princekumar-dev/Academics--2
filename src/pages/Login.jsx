@@ -3,7 +3,7 @@ import apiClient from '../utils/apiClient'
 import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { useNavigate } from 'react-router-dom'
 import { useAlert } from '../components/AlertContext'
-import { getAccessBlockMeta, getAccessWindowLabel } from '../utils/accessPolicy'
+import { getAccessBlockMeta, getAccessPolicy, getAccessWindowLabel } from '../utils/accessPolicy'
 
 const LOGIN_TAB_STORAGE_KEY = 'msec:login_tab'
 
@@ -60,7 +60,15 @@ function Login() {
   const [error, setError] = useState('')
   const navigate = useNavigate()
   const { showSuccess, showError, showWarning } = useAlert()
-  const accessBlocked = useMemo(() => getAccessBlockMeta(formData.loginType === 'student' ? 'student' : 'staff'), [formData.loginType])
+  const accessPolicy = getAccessPolicy()
+  const accessBlocked = useMemo(() => {
+    if (formData.loginType === 'student') {
+      return getAccessBlockMeta('student')
+    }
+
+    // Admin and staff share the same login mode; final role-based window checks run on the server.
+    return null
+  }, [formData.loginType])
   const messageTone = useMemo(() => getMessageTone(error), [error])
 
   const switchLoginType = (nextType) => {
@@ -276,6 +284,17 @@ function Login() {
                     messageTone === 'info' ? 'text-yellow-800' : 'text-red-100'
                   }`}>{error}</p>
                 </div>
+              </div>
+            )}
+
+            {formData.loginType === 'staff' && (
+              <div className="mb-6 rounded-xl border border-amber-300/50 bg-amber-100/15 backdrop-blur-sm p-3 sm:p-4">
+                <p className="text-[11px] sm:text-xs font-bold text-amber-100 uppercase tracking-wider">Current Access Window</p>
+                <p className="text-xs sm:text-sm text-amber-50 mt-1">
+                  {accessPolicy.enforceForStaffHod
+                    ? `Staff and HOD login is allowed between ${getAccessWindowLabel()} (IST).`
+                    : 'Staff and HOD time restriction is currently disabled by admin.'}
+                </p>
               </div>
             )}
 

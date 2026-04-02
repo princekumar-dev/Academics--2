@@ -24,7 +24,7 @@ import { AlertProvider } from './components/AlertContext'
 import apiClient from './utils/apiClient'
 import { ensureBodyScrollable } from './utils/scrollFix'
 import { getAuthOrNull } from './utils/auth'
-import { getAccessBlockMeta } from './utils/accessPolicy'
+import { getAccessBlockMeta, refreshAccessPolicy } from './utils/accessPolicy'
 // Removed old notification imports for academic system
 
 const clearStoredAuth = () => {
@@ -172,6 +172,7 @@ function AppContent() {
 
   // Ping both backend servers on load to wake up Render services
   useEffect(() => {
+    refreshAccessPolicy().catch(() => {})
     // Ping local API (Vercel proxy)
     apiClient.get('/api/generate-pdf?test=true').catch(() => { })
     // Removed unreachable Academics backend health check

@@ -524,7 +524,6 @@ function DispatchRequests() {
     const totalApproved = approvedMarksheets.length
     const selectedBatchSize = Math.ceil(totalApproved / requestedSplits)
     const selectedMarksheets = approvedMarksheets.slice(0, selectedBatchSize)
-    const remainingMarksheets = totalApproved - selectedMarksheets.length
     approvedMarksheets = selectedMarksheets
 
     setFeedback('')
@@ -537,12 +536,11 @@ function DispatchRequests() {
       const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
       // Anti-spam controls for WhatsApp bulk sends
-      const MESSAGE_DELAY_MIN_MS = 60000   // 60s
-      const MESSAGE_DELAY_MAX_MS = 90000   // 90s
-      const BATCH_SIZE_MIN = 2
-      const BATCH_SIZE_MAX = 6
-      const BATCH_PAUSE_MIN_MS = 120000    // 120s
-      const BATCH_PAUSE_MAX_MS = 180000    // 180s
+      const MESSAGE_DELAY_MIN_MS = 6000    // 6s
+      const MESSAGE_DELAY_MAX_MS = 9000    // 9s
+      const COOL_DOWN_MIN_MS = 10000       // 10s
+      const COOL_DOWN_MAX_MS = 20000       // 20s
+      const COOL_DOWN_EVERY_MESSAGES = 10
 
       const controlState = {
         paused: false,
@@ -558,11 +556,7 @@ function DispatchRequests() {
         cooldownSeconds: 0,
         timerLabel: '',
         currentBatch: 1,
-        totalBatches: requestedSplits,
-        currentChunk: 0,
-        totalChunks: 0,
-        currentChunkSize: 0,
-        chunkSizes: []
+        totalBatches: requestedSplits
       }
 
       const formatEta = (seconds) => {
@@ -575,31 +569,20 @@ function DispatchRequests() {
       const estimateRemainingSeconds = ({
         total,
         processed,
-        cooldownSeconds = 0,
-        currentChunk = 0,
-        currentChunkSize = 0,
-        chunkSizes = []
+        cooldownSeconds = 0
       }) => {
         const remaining = Math.max(0, total - processed)
         const avgMessageSeconds = ((MESSAGE_DELAY_MIN_MS + MESSAGE_DELAY_MAX_MS) / 2) / 1000
-        const avgBatchPauseSeconds = ((BATCH_PAUSE_MIN_MS + BATCH_PAUSE_MAX_MS) / 2) / 1000
+        const avgCoolDownSeconds = ((COOL_DOWN_MIN_MS + COOL_DOWN_MAX_MS) / 2) / 1000
 
         if (remaining === 0) {
           return Math.round(cooldownSeconds)
         }
 
-        const normalizedChunkSizes = Array.isArray(chunkSizes) ? chunkSizes.filter((size) => Number.isFinite(size) && size > 0) : []
-        const currentChunkIndex = Math.max(0, currentChunk - 1)
-        const cumulativeBeforeCurrent = normalizedChunkSizes
-          .slice(0, currentChunkIndex)
-          .reduce((sum, size) => sum + size, 0)
-        const processedInCurrentChunk = Math.max(0, processed - cumulativeBeforeCurrent)
-        const remainingInCurrentChunk = Math.max(0, currentChunkSize - processedInCurrentChunk)
-        const startChunkIndex = remainingInCurrentChunk > 0 ? currentChunkIndex : Math.min(normalizedChunkSizes.length, currentChunkIndex + 1)
-        const futureChunkCount = normalizedChunkSizes.slice(startChunkIndex).length
-        const estimatedFuturePauses = Math.max(0, futureChunkCount - 1)
+        const remainingBeforeFinal = Math.max(0, remaining - 1)
+        const estimatedFutureCooldowns = Math.floor(remainingBeforeFinal / COOL_DOWN_EVERY_MESSAGES)
 
-        return Math.round((remaining * avgMessageSeconds) + (estimatedFuturePauses * avgBatchPauseSeconds) + cooldownSeconds)
+        return Math.round((remaining * avgMessageSeconds) + (estimatedFutureCooldowns * avgCoolDownSeconds) + cooldownSeconds)
       }
 
       const getProgressMessage = ({
@@ -612,27 +595,18 @@ function DispatchRequests() {
         timerLabel = '',
         currentBatch = 0,
         totalBatches = 0,
-        currentChunk = 0,
-        totalChunks = 0,
-        currentChunkSize = 0,
-        chunkSizes = [],
         paused = false,
         onPauseToggle,
         onCancel
       }) => {
         const percent = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0
-        const etaSeconds = estimateRemainingSeconds({ total, processed, cooldownSeconds, currentChunk, currentChunkSize, chunkSizes })
+        const etaSeconds = estimateRemainingSeconds({ total, processed, cooldownSeconds })
         return (
           <span className="block">
             <span className="block text-xs sm:text-sm font-semibold text-slate-700 mb-2">{phase}</span>
             {totalBatches > 0 && (
               <span className="block text-[11px] sm:text-xs text-slate-600 mb-2">
                 Batch {Math.min(currentBatch, totalBatches)}/{totalBatches}
-              </span>
-            )}
-            {totalChunks > 0 && (
-              <span className="block text-[11px] sm:text-xs text-slate-600 mb-2">
-                Chunk {Math.min(currentChunk, totalChunks)}/{totalChunks} • Selected chunk size: {currentChunkSize}
               </span>
             )}
             <span className="block h-2 w-full rounded-full bg-white/70 border border-blue-100 overflow-hidden mb-2">
@@ -769,94 +743,75 @@ function DispatchRequests() {
         }
       }
 
-      const batches = []
-      let sourceIndex = 0
-      while (sourceIndex < selectedMarksheets.length) {
-        const batchSize = randomBetween(BATCH_SIZE_MIN, BATCH_SIZE_MAX)
-        const batch = selectedMarksheets.slice(sourceIndex, sourceIndex + batchSize)
-        batches.push(batch)
-        sourceIndex += batch.length
-      }
-
-      progressState.totalChunks = batches.length
-      progressState.chunkSizes = batches.map((batch) => batch.length)
-
       showBulkProgressAlert()
 
       const results = []
 
-      for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+      for (let itemIndex = 0; itemIndex < approvedMarksheets.length; itemIndex += 1) {
         if (controlState.cancelled) break
 
-        const batch = batches[batchIndex]
+        const marksheet = approvedMarksheets[itemIndex]
+
         updateBulkProgress({
           currentBatch: 1,
-          currentChunk: batchIndex + 1,
-          totalChunks: batches.length,
-          currentChunkSize: batch.length,
-          phase: `Sending selected batch part ${batchIndex + 1}/${batches.length} (${batch.length} marksheets)...`,
+          phase: `Sending selected batch ${itemIndex + 1}/${approvedMarksheets.length}...`,
           cooldownSeconds: 0
         })
 
-        for (let itemIndex = 0; itemIndex < batch.length; itemIndex += 1) {
-          if (controlState.cancelled) break
+        const result = await worker(marksheet)
+        results.push(result)
 
+        if (result && result.success) {
+          progressState.successCount += 1
+        } else {
+          progressState.failCount += 1
+        }
+
+        progressState.processed = results.length
+        setFeedback(`Sending marksheets... ${progressState.processed}/${progressState.total}`)
+        showBulkProgressAlert()
+
+        if (itemIndex >= approvedMarksheets.length - 1 || controlState.cancelled) {
+          continue
+        }
+
+        const sentCount = itemIndex + 1
+        const isCooldownPoint = sentCount % COOL_DOWN_EVERY_MESSAGES === 0
+
+        if (isCooldownPoint) {
+          const cooldownMs = randomBetween(COOL_DOWN_MIN_MS, COOL_DOWN_MAX_MS)
+          const cooldownSeconds = Math.ceil(cooldownMs / 1000)
+
+          updateBulkProgress({
+            phase: `Cooling down ${cooldownSeconds}s after ${sentCount} sends...`,
+            cooldownSeconds,
+            timerLabel: 'Cooldown'
+          })
+
+          const canContinue = await waitWithControls(cooldownMs, (remainingSeconds) => {
+            updateBulkProgress({
+              phase: `Cooling down to avoid rate limits (${remainingSeconds}s left)...`,
+              cooldownSeconds: remainingSeconds,
+              timerLabel: 'Cooldown'
+            })
+          })
+
+          if (!canContinue) break
+        } else {
           const jitterMs = randomBetween(MESSAGE_DELAY_MIN_MS, MESSAGE_DELAY_MAX_MS)
           const jitterSeconds = Math.ceil(jitterMs / 1000)
+
           updateBulkProgress({
-            phase: `Waiting ${jitterSeconds}s before next send to reduce spam risk...`,
+            phase: `Waiting ${jitterSeconds}s before next send...`,
             cooldownSeconds: jitterSeconds,
             timerLabel: 'Delay'
           })
 
           const canContinue = await waitWithControls(jitterMs, (remainingSeconds) => {
             updateBulkProgress({
-              phase: 'Applying randomized delay between messages...',
+              phase: 'Applying message delay...',
               cooldownSeconds: remainingSeconds,
               timerLabel: 'Delay'
-            })
-          })
-
-          if (!canContinue) break
-
-          updateBulkProgress({
-            phase: `Dispatching marksheet ${progressState.processed + 1}/${progressState.total}...`,
-            cooldownSeconds: 0,
-            timerLabel: ''
-          })
-
-          const result = await worker(batch[itemIndex])
-          results.push(result)
-
-          if (result && result.success) {
-            progressState.successCount += 1
-          } else {
-            progressState.failCount += 1
-          }
-
-          progressState.processed = results.length
-          setFeedback(`Sending marksheets... ${progressState.processed}/${progressState.total}`)
-          showBulkProgressAlert()
-        }
-
-        if (controlState.cancelled) break
-
-        if (batchIndex < batches.length - 1) {
-          const cooldownMs = randomBetween(BATCH_PAUSE_MIN_MS, BATCH_PAUSE_MAX_MS)
-          const cooldownSeconds = Math.ceil(cooldownMs / 1000)
-
-          setFeedback(`Selected batch part ${batchIndex + 1}/${batches.length} completed. Cooling down ${cooldownSeconds}s before the next part...`)
-          updateBulkProgress({
-            phase: 'Cooling down inside the selected batch to avoid rate limits...',
-            cooldownSeconds,
-            timerLabel: 'Chunk cooldown'
-          })
-
-          const canContinue = await waitWithControls(cooldownMs, (remainingSeconds) => {
-            updateBulkProgress({
-              phase: 'Cooling down inside the selected batch to avoid rate limits...',
-              cooldownSeconds: remainingSeconds,
-              timerLabel: 'Chunk cooldown'
             })
           })
 

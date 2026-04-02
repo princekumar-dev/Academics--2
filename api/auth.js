@@ -1,8 +1,35 @@
 import { connectToDatabase } from '../lib/mongo.js'
-import { User, Student, StaffApprovalRequest } from '../models.js'
+import { User, Student, StaffApprovalRequest, AccessPolicy } from '../models.js'
 import bcrypt from 'bcryptjs'
 
 const DEFAULT_STUDENT_PASSWORD = process.env.DEFAULT_STUDENT_PASSWORD || 'msec@123'
+const DEFAULT_START_MINUTES = 8 * 60 + 30
+const DEFAULT_END_MINUTES = 17 * 60
+const ACCESS_POLICY_KEY = 'login_window'
+
+const clampMinute = (value, fallback) => {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return fallback
+  return Math.max(0, Math.min(23 * 60 + 59, Math.floor(n)))
+}
+
+const minutesToDisplay = (minutes) => {
+  const safe = clampMinute(minutes, DEFAULT_START_MINUTES)
+  const hour24 = Math.floor(safe / 60)
+  const minute = safe % 60
+  const suffix = hour24 >= 12 ? 'PM' : 'AM'
+  const hour12 = hour24 % 12 || 12
+  return `${hour12}:${String(minute).padStart(2, '0')} ${suffix}`
+}
+
+const getLoginWindowPolicy = async () => {
+  const policy = await AccessPolicy.findOne({ key: ACCESS_POLICY_KEY }).lean()
+  return {
+    startMinutes: clampMinute(policy?.staffHodWindowStart, DEFAULT_START_MINUTES),
+    endMinutes: clampMinute(policy?.staffHodWindowEnd, DEFAULT_END_MINUTES),
+    enforceForStaffHod: policy?.enforceForStaffHod !== false
+  }
+}
 
 export default async function handler(req, res) {
   // CORS is already handled by the cors middleware in server.js
@@ -29,8 +56,7 @@ export default async function handler(req, res) {
       const { email, password, regNumber, loginType } = req.body
       console.log('🔐 [AUTH] Request body:', { email, password: password ? '***' : 'none', regNumber, loginType })
 
-      // Site policy: enforce IST time window (8:30 AM – 5:00 PM)
-      // Outside working hours, only students can access
+      // Site policy: enforce IST time window (8:30 AM - 5:00 PM)
       const isStudent = loginType === 'student' || (!!regNumber && !email)
       const nowIST = new Intl.DateTimeFormat('en-GB', {
         timeZone: 'Asia/Kolkata',
@@ -41,23 +67,8 @@ export default async function handler(req, res) {
       const hour = Number(nowIST.find(p => p.type === 'hour')?.value || '0')
       const minute = Number(nowIST.find(p => p.type === 'minute')?.value || '0')
       const nowMinutes = hour * 60 + minute
-      const windowStart = 8 * 60 + 30  // 8:30 AM
-      const windowEnd = 17 * 60         // 5:00 PM
-      const withinWindow = nowMinutes >= windowStart && nowMinutes <= windowEnd
-
-      if (!withinWindow && !isStudent) {
-        return res.status(403).json({
-          success: false,
-          error: 'Access restricted: only students can access this website outside working hours (8:30 AM – 5:00 PM IST).'
-        })
-      }
-
-      if (!withinWindow && isStudent) {
-        return res.status(403).json({
-          success: false,
-          error: 'Login is allowed only between 8:30 AM and 5:00 PM IST.'
-        })
-      }
+      const accessPolicy = await getLoginWindowPolicy()
+      const withinWindow = nowMinutes >= accessPolicy.startMinutes && nowMinutes <= accessPolicy.endMinutes
 
       // Student login branch (registration number + default password)
       if (isStudent) {
@@ -173,6 +184,15 @@ export default async function handler(req, res) {
         return res.status(401).json({
           success: false,
           error: 'Invalid password'
+        })
+      }
+
+      const normalizedRole = String(user.role || '').toLowerCase()
+      const shouldEnforce = accessPolicy.enforceForStaffHod && (normalizedRole === 'staff' || normalizedRole === 'hod')
+      if (!withinWindow && shouldEnforce) {
+        return res.status(403).json({
+          success: false,
+          error: `Login is allowed only between ${minutesToDisplay(accessPolicy.startMinutes)} and ${minutesToDisplay(accessPolicy.endMinutes)} IST for staff and HOD accounts.`
         })
       }
 
