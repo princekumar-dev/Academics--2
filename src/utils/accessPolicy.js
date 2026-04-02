@@ -62,7 +62,7 @@ export const getAccessPolicy = () => readCachedPolicy()
 
 export const refreshAccessPolicy = async () => {
   try {
-    const data = await apiClient.get('/api/access-policy', { cache: false, ttl: 0, retry: 1 })
+    const data = await apiClient.get('/api/users?action=access-policy', { cache: false, ttl: 0, retry: 1 })
     if (data?.success && data.policy) {
       return cacheAccessPolicy(data.policy)
     }

@@ -55,7 +55,7 @@ export default function AdminDashboard() {
   const fetchAccessPolicy = async () => {
     setAccessPolicyLoading(true);
     try {
-      const data = await apiClient.get('/api/access-policy', { cache: false, ttl: 0 });
+      const data = await apiClient.get('/api/users?action=access-policy', { cache: false, ttl: 0 });
       if (data?.success && data.policy) {
         setAccessPolicyForm({
           staffHodWindowStartTime: data.policy.staffHodWindowStartTime || '08:30',
@@ -85,7 +85,7 @@ export default function AdminDashboard() {
 
     setAccessPolicySaving(true);
     try {
-      const data = await apiClient.patch('/api/access-policy', {
+      const data = await apiClient.patch('/api/users?action=access-policy', {
         adminUserId: auth.id,
         staffHodWindowStartTime: accessPolicyForm.staffHodWindowStartTime,
         staffHodWindowEndTime: accessPolicyForm.staffHodWindowEndTime,

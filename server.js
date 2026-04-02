@@ -143,7 +143,6 @@ import examinationsHandler from './api/examinations.js';
 import subscriptionCheckHandler from './api/subscription-check.js';
 import leavesHandler from './api/leaves.js';
 import staffApprovalHandler from './api/staff-approval.js';
-import accessPolicyHandler from './api/access-policy.js';
 // Health check endpoint removed; now handled in generate-pdf.js
 
 // Debug endpoint to verify server is updated
@@ -173,7 +172,6 @@ app.all('/api/examinations', examinationsHandler);
 app.all('/api/subscription-check', subscriptionCheckHandler);
 app.all('/api/leaves', leavesHandler);
 app.all('/api/staff-approval', staffApprovalHandler);
-app.all('/api/access-policy', accessPolicyHandler);
 
 // Connect to MongoDB and start server
 connectToDatabase()
