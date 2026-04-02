@@ -115,6 +115,7 @@ function SwipeableCard({ children, actions = [], onSwipe }) {
   }
 
   const handleActionClick = (action) => {
+    if (action.disabled) return
     closeSwipe()
     if (action.onClick) {
       action.onClick()
@@ -137,7 +138,8 @@ function SwipeableCard({ children, actions = [], onSwipe }) {
           <button
             key={idx}
             onClick={() => handleActionClick(action)}
-            className={`flex items-center justify-center gap-2 px-6 py-3 font-semibold transition-all duration-200 text-sm rounded-lg shadow-md hover:shadow-lg active:scale-95 ${
+            disabled={Boolean(action.disabled)}
+            className={`flex items-center justify-center gap-2 px-6 py-3 font-semibold transition-all duration-200 text-sm rounded-lg shadow-md ${action.disabled ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-lg active:scale-95'} ${
               action.className || 'border-gray-200 text-gray-600 bg-white'
             }`}
             style={{ 
@@ -146,6 +148,9 @@ function SwipeableCard({ children, actions = [], onSwipe }) {
             }}
             title={action.label}
           >
+            {action.disabled && (
+              <span className="inline-block h-4 w-4 rounded-full border-2 border-current border-b-transparent animate-spin" />
+            )}
             {action.icon}
             <span>{action.label}</span>
           </button>
@@ -158,7 +163,8 @@ function SwipeableCard({ children, actions = [], onSwipe }) {
           <button
             key={idx}
             onClick={() => handleActionClick(action)}
-            className={`flex items-center justify-center gap-2 px-6 py-3 font-semibold transition-all duration-200 text-sm rounded-lg shadow-md hover:shadow-lg active:scale-95 ${
+            disabled={Boolean(action.disabled)}
+            className={`flex items-center justify-center gap-2 px-6 py-3 font-semibold transition-all duration-200 text-sm rounded-lg shadow-md ${action.disabled ? 'opacity-70 cursor-not-allowed' : 'hover:shadow-lg active:scale-95'} ${
               action.className || 'border-gray-200 text-gray-600 bg-white'
             }`}
             style={{ 
@@ -167,6 +173,9 @@ function SwipeableCard({ children, actions = [], onSwipe }) {
             }}
             title={action.label}
           >
+            {action.disabled && (
+              <span className="inline-block h-4 w-4 rounded-full border-2 border-current border-b-transparent animate-spin" />
+            )}
             {action.icon}
             <span>{action.label}</span>
           </button>

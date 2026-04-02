@@ -907,6 +907,15 @@ function DispatchRequests() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      {dispatchingId && (
+        <div className="sm:hidden fixed top-2 left-2 right-2 z-[70] rounded-xl border border-green-200 bg-green-50 text-green-800 px-3 py-2 shadow-lg">
+          <div className="flex items-center gap-2 text-xs font-semibold">
+            <span className="inline-block h-4 w-4 rounded-full border-2 border-green-700 border-b-transparent animate-spin" />
+            Sending marksheet via WhatsApp...
+          </div>
+        </div>
+      )}
+
       {/* Pull to Refresh Indicator */}
       <PullToRefreshIndicator
         isPulling={isPulling}
@@ -1231,6 +1240,8 @@ function DispatchRequests() {
 
                     <div className="space-y-4">
                       {filteredMarksheets.map((marksheet) => {
+                        const isDispatchingCurrent = dispatchingId === marksheet._id
+
                         // Build swipe actions using stable handlers passed as props
                         const swipeActions = [
                           {
@@ -1279,8 +1290,9 @@ function DispatchRequests() {
                               }
                             },
                             {
-                              label: 'Send',
-                              icon: '📤',
+                              label: isDispatchingCurrent ? 'Sending...' : 'Send',
+                              icon: isDispatchingCurrent ? '⏳' : '📤',
+                              disabled: isDispatchingCurrent,
                               className: 'border-green-300 text-green-600 hover:border-green-500 hover:bg-green-50',
                               onClick: () => sendDispatch(marksheet)
                             }
