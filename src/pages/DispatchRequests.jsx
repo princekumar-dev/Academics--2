@@ -54,10 +54,23 @@ function DispatchRequests() {
   const activeMarksheetsRef = useRef([])
   const dispatchedMarksheetsRef = useRef([])
   const bulkProgressAlertIdRef = useRef(null)
+  const reopenBulkProgressRef = useRef(null)
+  const sendingAllRef = useRef(false)
+  const bulkProgressCanMinimizeRef = useRef(false)
+  const bulkProgressMinimizedRef = useRef(false)
   const batchSplitAlertIdRef = useRef(null)
   const batchSplitResolverRef = useRef(null)
   const [batchSplitPrompt, setBatchSplitPrompt] = useState(null)
   const [batchSplitDraft, setBatchSplitDraft] = useState('2')
+  const [bulkProgressMinimized, setBulkProgressMinimized] = useState(false)
+
+  useEffect(() => {
+    bulkProgressMinimizedRef.current = bulkProgressMinimized
+  }, [bulkProgressMinimized])
+
+  useEffect(() => {
+    sendingAllRef.current = sendingAll
+  }, [sendingAll])
 
   const clearBulkProgressAlert = useCallback(() => {
     if (!bulkProgressAlertIdRef.current) return
@@ -95,13 +108,20 @@ function DispatchRequests() {
   }, [batchSplitDraft, batchSplitPrompt, closeBatchSplitPrompt])
 
   const requestBatchSplit = useCallback((total) => new Promise((resolve) => {
+    // Always reset any existing alert id before re-opening the prompt.
+    // This prevents stale ids when user closes the toast manually (X button).
+    if (batchSplitAlertIdRef.current) {
+      hideAlert(batchSplitAlertIdRef.current)
+      batchSplitAlertIdRef.current = null
+    }
+
     if (batchSplitResolverRef.current) {
       batchSplitResolverRef.current(null)
     }
     batchSplitResolverRef.current = resolve
     setBatchSplitDraft(total > 1 ? '2' : '1')
     setBatchSplitPrompt({ total, error: '' })
-  }), [])
+  }), [hideAlert])
 
   useEffect(() => {
     return () => clearBulkProgressAlert()
@@ -529,6 +549,7 @@ function DispatchRequests() {
     setFeedback('')
     setError('')
     setSendingAll(true)
+    bulkProgressCanMinimizeRef.current = true
 
     try {
       const origin = getPublicOrigin()
@@ -545,6 +566,18 @@ function DispatchRequests() {
       const controlState = {
         paused: false,
         cancelled: false
+      }
+
+      const minimizeBulkProgress = () => {
+        // Only minimize while bulk sending is actively running.
+        // If not running, close it completely.
+        if (!bulkProgressCanMinimizeRef.current && !sendingAllRef.current) {
+          clearBulkProgressAlert()
+          setBulkProgressMinimized(false)
+          return
+        }
+        clearBulkProgressAlert()
+        setBulkProgressMinimized(true)
       }
 
       const progressState = {
@@ -644,7 +677,9 @@ function DispatchRequests() {
         )
       }
 
-      const showBulkProgressAlert = () => {
+      const showBulkProgressAlert = (force = false) => {
+        if (bulkProgressMinimizedRef.current && !force) return
+
         const message = getProgressMessage({
           ...progressState,
           paused: controlState.paused,
@@ -664,7 +699,8 @@ function DispatchRequests() {
           bulkProgressAlertIdRef.current = showInfo('📤 Bulk Dispatch Running', message, {
             autoClose: false,
             duration: 0,
-            position: 'top-right'
+            position: 'top-right',
+            onClose: minimizeBulkProgress
           })
           return
         }
@@ -675,7 +711,8 @@ function DispatchRequests() {
             message,
             autoClose: false,
             duration: 0,
-            position: 'top-right'
+            position: 'top-right',
+            onClose: minimizeBulkProgress
           })
           return
         }
@@ -683,8 +720,14 @@ function DispatchRequests() {
         bulkProgressAlertIdRef.current = showInfo('📤 Bulk Dispatch Running', message, {
           autoClose: false,
           duration: 0,
-          position: 'top-right'
+          position: 'top-right',
+          onClose: minimizeBulkProgress
         })
+      }
+
+      reopenBulkProgressRef.current = () => {
+        setBulkProgressMinimized(false)
+        showBulkProgressAlert(true)
       }
 
       const updateBulkProgress = (patch = {}) => {
@@ -843,8 +886,11 @@ function DispatchRequests() {
       clearBulkProgressAlert()
       setError(getUserFriendlyMessage(err, 'Could not send marksheets. Please try again.'))
     } finally {
+      bulkProgressCanMinimizeRef.current = false
       clearBulkProgressAlert()
       setSendingAll(false)
+      setBulkProgressMinimized(false)
+      reopenBulkProgressRef.current = null
       await fetchVerifiedMarksheets(true)
     }
   }
@@ -907,6 +953,18 @@ function DispatchRequests() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+      {sendingAll && bulkProgressMinimized && (
+        <button
+          type="button"
+          onClick={() => reopenBulkProgressRef.current && reopenBulkProgressRef.current()}
+          className="fixed bottom-20 right-4 z-[80] h-12 w-12 rounded-full bg-blue-600 text-white shadow-lg border-2 border-white flex items-center justify-center hover:bg-blue-700"
+          title="Show Send All progress"
+          aria-label="Show Send All progress"
+        >
+          <span className="inline-block h-5 w-5 rounded-full border-2 border-white border-b-transparent animate-spin" />
+        </button>
+      )}
+
       {dispatchingId && (
         <div className="sm:hidden fixed top-2 left-2 right-2 z-[70] rounded-xl border border-green-200 bg-green-50 text-green-800 px-3 py-2 shadow-lg">
           <div className="flex items-center gap-2 text-xs font-semibold">

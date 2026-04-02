@@ -107,7 +107,13 @@ export function AlertProvider({ children }) {
           duration={alert.duration}
           position={alert.position}
           autoClose={alert.autoClose}
-          onClose={() => hideAlert(alert.id)}
+          onClose={() => {
+            if (typeof alert.onClose === 'function') {
+              alert.onClose(alert.id)
+              return
+            }
+            hideAlert(alert.id)
+          }}
         />
       ))}
     </AlertContext.Provider>
