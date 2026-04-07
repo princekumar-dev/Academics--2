@@ -57,8 +57,18 @@ function DepartmentOverview() {
       ])
       
       if (marksheetsData.success) {
-        const marksheets = marksheetsData.marksheets
+        let marksheets = marksheetsData.marksheets
         const users = usersData.success ? usersData.users : []
+        
+        // Filter based on year access:
+        // - HNS HOD: Already filtered by year=I in API call
+        // - Other HODs: Exclude Year I (only count years 2-4)
+        if (userData.department !== 'HNS') {
+          marksheets = marksheets.filter(m => {
+            const year = m.studentDetails?.year || 'Unknown'
+            return year !== 'I'
+          })
+        }
         
         // Create a map of userId to user data
         // API returns _id as id, so we need to handle both formats
@@ -118,14 +128,26 @@ function DepartmentOverview() {
         const pendingActions = byStatus.pending
         const stats = { totalMarksheets, totalStudents, byClass: {}, byStatus, completionRate, pendingActions }
         
-        // Group by year
-        marksheets.forEach(m => {
-          const yearKey = m.studentDetails?.year || 'Unknown'
-          if (!stats.byClass[yearKey]) {
-            stats.byClass[yearKey] = 0
-          }
-          stats.byClass[yearKey]++
-        })
+        // Group by year for regular HOD, by department for HNS HOD
+        if (userData.department === 'HNS') {
+          // For HNS: group by department
+          marksheets.forEach(m => {
+            const deptKey = m.studentDetails?.department || 'Unknown'
+            if (!stats.byClass[deptKey]) {
+              stats.byClass[deptKey] = 0
+            }
+            stats.byClass[deptKey]++
+          })
+        } else {
+          // For other HODs: group by year
+          marksheets.forEach(m => {
+            const yearKey = m.studentDetails?.year || 'Unknown'
+            if (!stats.byClass[yearKey]) {
+              stats.byClass[yearKey] = 0
+            }
+            stats.byClass[yearKey]++
+          })
+        }
         
         // Get recent activity (last 10 updates)
         const recent = marksheets
@@ -246,6 +268,7 @@ function DepartmentOverview() {
             staffId: id,
             staffName: stats.staffName,
             className: className,
+            year: year,
             department: dept,
             total: stats.total,
             verified: stats.verified,
@@ -253,6 +276,17 @@ function DepartmentOverview() {
             completionRate: stats.total > 0 ? Math.round((stats.dispatched / stats.total) * 100) : 0
           }
         }).sort((a, b) => b.completionRate - a.completionRate)
+        
+        // Filter staff based on HOD access level
+        const filteredStaffPerf = staffPerf.filter(staff => {
+          if (userData.department === 'HNS') {
+            // HNS HOD: Show only first-year staff (Year I)
+            return staff.year === 'I'
+          } else {
+            // Other HODs: Show only staff for years 2-4 (not Year I) in their department
+            return staff.department === userData.department && staff.year !== 'I'
+          }
+        })
         
         // Prepare department breakdown array (only useful for HNS HOD; for others it's just current department)
         const deptBreakdownArr = Object.entries(deptMap).map(([deptCode, info]) => {
@@ -272,7 +306,7 @@ function DepartmentOverview() {
 
         setDepartmentStats(stats)
         setRecentActivity(recent)
-        setStaffPerformance(staffPerf)
+        setStaffPerformance(filteredStaffPerf)
         setDepartmentBreakdown(deptBreakdownArr)
       }
     } catch (error) {
@@ -306,7 +340,7 @@ function DepartmentOverview() {
                     Department Overview
                   </h1>
                   <p className="text-base sm:text-lg text-gray-600">
-                    Real-time overview for {userData.department} Department
+                    Real-time overview for {userData.department === 'HNS' ? 'first year students across all departments' : `${userData.department} Department`}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">

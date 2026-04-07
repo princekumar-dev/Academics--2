@@ -68,6 +68,11 @@ function Records() {
     navigate(location.pathname, { replace: true, state: null })
   }, [location.state, location.pathname, navigate])
 
+  // Reset examination filter when department filter changes
+  useEffect(() => {
+    setSelectedExamination('all')
+  }, [departmentFilter])
+
   const fetchAllMarksheets = async (force = false) => {
     if (!userData) return
     setLoading(true)
@@ -111,10 +116,32 @@ function Records() {
       }
 
       if (data && data.success) {
-        setMarksheets(data.marksheets || [])
+        let marksheetsData = data.marksheets || []
+        
+        // Filter based on year access:
+        // - HNS HOD: Already filtered by year=I in API call
+        // - Other HODs: Exclude Year I (only show years 2-4)
+        if (userData.role === 'hod' && userData.department !== 'HNS') {
+          marksheetsData = marksheetsData.filter(m => {
+            const year = m.studentDetails?.year || 'Unknown'
+            return year !== 'I'
+          })
+        }
+        
+        setMarksheets(marksheetsData)
       } else if (Array.isArray(data)) {
         // allow apiClient which may return the array directly
-        setMarksheets(data)
+        let marksheetsData = data
+        
+        // Filter based on year access for array data too
+        if (userData.role === 'hod' && userData.department !== 'HNS') {
+          marksheetsData = marksheetsData.filter(m => {
+            const year = m.studentDetails?.year || 'Unknown'
+            return year !== 'I'
+          })
+        }
+        
+        setMarksheets(marksheetsData)
       } else {
         setMarksheets([])
       }
@@ -149,11 +176,30 @@ function Records() {
     return groups
   }, [marksheets])
 
+  // Get examinations available for the current department filter (for HNS HOD)
+  const filteredGroupedMarksheets = useMemo(() => {
+    if (userData?.role === 'hod' && userData?.department === 'HNS' && departmentFilter && departmentFilter !== 'ALL') {
+      const depFilterNorm = departmentFilter.toString().trim().toUpperCase()
+      const groups = {}
+      marksheets
+        .filter(m => ((m.studentDetails?.department || '').toString().trim().toUpperCase()) === depFilterNorm)
+        .forEach((marksheet) => {
+          const examName = marksheet.examinationName || marksheet.studentDetails?.examinationName || 'Unknown Examination'
+          if (!groups[examName]) {
+            groups[examName] = []
+          }
+          groups[examName].push(marksheet)
+        })
+      return groups
+    }
+    return groupedMarksheets
+  }, [groupedMarksheets, marksheets, departmentFilter, userData])
+
   // Get examination statistics
   const examinationStats = useMemo(() => {
     const stats = {}
-    Object.keys(groupedMarksheets).forEach((examName) => {
-      const examMarksheets = groupedMarksheets[examName]
+    Object.keys(filteredGroupedMarksheets).forEach((examName) => {
+      const examMarksheets = filteredGroupedMarksheets[examName]
       stats[examName] = {
         total: examMarksheets.length,
         draft: examMarksheets.filter(m => m.status === 'draft').length,
@@ -165,7 +211,7 @@ function Records() {
       }
     })
     return stats
-  }, [groupedMarksheets])
+  }, [filteredGroupedMarksheets])
 
   // Calculate total unique examinations
   const totalExams = useMemo(() => {
@@ -360,7 +406,7 @@ function Records() {
                     Marksheet Records
                   </h1>
                   <p className="text-sm sm:text-lg text-gray-600">
-                    View and manage all marksheet records for {userData.department} Department
+                    View and manage all marksheet records for {userData.department === 'HNS' ? 'first year students across all departments' : `${userData.department} Department (Years 2-4)`}
                   </p>
                 </div>
                 <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3">
@@ -483,13 +529,13 @@ function Records() {
                           : 'bg-white text-gray-700 border border-gray-200 hover:bg-gray-50'
                       }`}
                     >
-                      All Examinations ({marksheets.length})
+                      All Examinations ({Object.values(filteredGroupedMarksheets).reduce((sum, exams) => sum + exams.length, 0)})
                     </button>
-                    {Object.keys(groupedMarksheets).sort().map((examName) => (
+                    {Object.keys(filteredGroupedMarksheets).sort().map((examName) => (
                       <ExamButton
                         key={examName}
                         examName={examName}
-                        count={groupedMarksheets[examName].length}
+                        count={filteredGroupedMarksheets[examName].length}
                         active={selectedExamination === examName}
                         onSelect={handleSetSelectedExamination}
                       />
@@ -502,7 +548,7 @@ function Records() {
                   <div className="mb-5 sm:mb-8">
                     <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Examination Overview</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
-                      {Object.keys(groupedMarksheets).sort().map((examName) => {
+                      {Object.keys(filteredGroupedMarksheets).sort().map((examName) => {
                         const stats = examinationStats[examName]
                         const isExpanded = expandedExams.has(examName)
                         return (

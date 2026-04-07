@@ -24,14 +24,35 @@ function Reports() {
   const fetchDepartmentMarksheets = async () => {
     try {
       setLoading(true)
-      const data = await apiClient.get(`/api/marksheets?department=${userData.department}&includeAll=true`)
+      let apiUrl
+      
+      // If HNS HOD, fetch Year I marksheets across all departments
+      if (userData.role === 'hod' && userData.department === 'HNS') {
+        apiUrl = '/api/marksheets?year=I&includeAll=true'
+      } else {
+        // For other HODs, fetch only their department
+        apiUrl = `/api/marksheets?department=${userData.department}&includeAll=true`
+      }
+      
+      const data = await apiClient.get(apiUrl)
       if (data.success) {
         // Sort marksheets by register number in ascending order
-        const sortedMarksheets = data.marksheets.sort((a, b) => {
+        let sortedMarksheets = data.marksheets.sort((a, b) => {
           const regA = (a.studentDetails?.regNumber || '').toString().toLowerCase()
           const regB = (b.studentDetails?.regNumber || '').toString().toLowerCase()
           return regA.localeCompare(regB, undefined, { numeric: true, sensitivity: 'base' })
         })
+        
+        // Filter based on year access:
+        // - HNS HOD: Already filtered by year=I in API call
+        // - Other HODs: Exclude Year I (only show years 2-4)
+        if (userData.role === 'hod' && userData.department !== 'HNS') {
+          sortedMarksheets = sortedMarksheets.filter(m => {
+            const year = m.studentDetails?.year || 'Unknown'
+            return year !== 'I'
+          })
+        }
+        
         setMarksheets(sortedMarksheets)
       }
     } catch (err) {
@@ -43,19 +64,22 @@ function Reports() {
   }
 
   const generateDepartmentSummary = () => {
-    const yearWiseStats = {}
+    const statsCollection = {}
     const overallResults = {}
     const dispatched = marksheets.filter(m => m.status === 'dispatched').length
     const pending = marksheets.filter(m => m.status === 'approved_by_hod' || m.status === 'dispatch_requested').length
     const rejected = marksheets.filter(m => m.status === 'rejected_by_hod').length
 
     marksheets.forEach(m => {
-      // Year-wise breakdown
-      const year = m.studentDetails?.year || 'Unknown'
-      if (!yearWiseStats[year]) {
-        yearWiseStats[year] = 0
+      // For HNS: group by department, for others: group by year
+      const groupKey = userData.department === 'HNS' 
+        ? (m.studentDetails?.department || 'Unknown')
+        : (m.studentDetails?.year || 'Unknown')
+      
+      if (!statsCollection[groupKey]) {
+        statsCollection[groupKey] = 0
       }
-      yearWiseStats[year]++
+      statsCollection[groupKey]++
 
       // Result distribution
       const overallResult = deriveOverallResult(m)
@@ -73,7 +97,9 @@ function Reports() {
         pending,
         rejected
       },
-      byYear: yearWiseStats,
+      isDepartmentWise: userData.department === 'HNS',
+      byYear: userData.department !== 'HNS' ? statsCollection : undefined,
+      byDepartment: userData.department === 'HNS' ? statsCollection : undefined,
       overallResults: overallResults
     }
 
@@ -81,15 +107,26 @@ function Reports() {
   }
 
   const generateClasswisePerformance = () => {
+    // For HNS HOD: Group by department first, then by class
+    // For regular HOD: Just group by class
     const classwiseStats = {}
     
     marksheets.forEach(m => {
       const year = m.studentDetails?.year || 'Unknown'
       const section = m.studentDetails?.section || 'Unknown'
-      const classKey = year && section ? `${year}-${section}` : `Class ${year}`
+      const department = m.studentDetails?.department || 'Unknown'
+      
+      // For HNS, create hierarchical key: department -> class
+      let classKey
+      if (userData.role === 'hod' && userData.department === 'HNS') {
+        classKey = `${department}-${year}-${section}`
+      } else {
+        classKey = year && section ? `${year}-${section}` : `Class ${year}`
+      }
       
       if (!classwiseStats[classKey]) {
         classwiseStats[classKey] = {
+          department: userData.role === 'hod' && userData.department === 'HNS' ? department : undefined,
           year,
           section,
           totalStudents: 0,
@@ -316,7 +353,7 @@ function Reports() {
                     Report Management
                   </h1>
                   <p className="text-base sm:text-lg text-gray-600">
-                    Generate and export reports for {userData.department} Department
+                    Generate and export reports for {userData.department === 'HNS' ? 'first year students across all departments' : `${userData.department} Department`}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
@@ -426,9 +463,9 @@ function Reports() {
                 </div>
                 <div className="flex items-center gap-2 mb-2">
                   <h3 className="text-base md:text-lg font-bold text-gray-900">Department Summary</h3>
-                  <HelpTooltip content="Shows overall statistics including status breakdown, year-wise distribution, and pass/fail/absent analysis for all marksheets." />
+                  <HelpTooltip content="Shows overall statistics including status breakdown, distribution by year or department, and pass/fail/absent analysis for all marksheets." />
                 </div>
-                <p className="text-sm text-gray-600 mb-4 line-clamp-2">Complete overview with status breakdown, year-wise stats, and result distribution</p>
+                <p className="text-sm text-gray-600 mb-4 line-clamp-2">Complete overview with status breakdown, distribution stats, and result distribution</p>
                 <button 
                   onClick={generateDepartmentSummary}
                   disabled={loading}
@@ -656,10 +693,21 @@ function Reports() {
                           <svg className="w-5 h-5 text-indigo-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                           </svg>
-                          <h4 className="text-base md:text-lg font-bold text-indigo-900 leading-none">Year-wise Distribution</h4>
+                          <h4 className="text-base md:text-lg font-bold text-indigo-900 leading-none">
+                            {reportData.data.isDepartmentWise ? 'Department-wise Distribution' : 'Year-wise Distribution'}
+                          </h4>
                         </div>
                         <div className="space-y-3">
-                          {reportData.data.byYear && Object.entries(reportData.data.byYear).map(([year, count]) => (
+                          {reportData.data.isDepartmentWise && reportData.data.byDepartment && Object.entries(reportData.data.byDepartment).map(([dept, count]) => (
+                            <div key={dept} className="flex items-center justify-between p-3 bg-white rounded-lg hover:shadow-md transition-shadow">
+                              <div className="flex items-center gap-2">
+                                <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                                <span className="text-sm md:text-base font-medium text-gray-700">{dept}</span>
+                              </div>
+                              <span className="text-base md:text-lg font-bold text-indigo-600">{count}</span>
+                            </div>
+                          ))}
+                          {!reportData.data.isDepartmentWise && reportData.data.byYear && Object.entries(reportData.data.byYear).map(([year, count]) => (
                             <div key={year} className="flex items-center justify-between p-3 bg-white rounded-lg hover:shadow-md transition-shadow">
                               <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
@@ -804,59 +852,137 @@ function Reports() {
                 {reportData.type === 'classwise_performance' && (
                   <div className="space-y-4">
                     <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                      {reportData.data && Object.entries(reportData.data).map(([classKey, data]) => (
-                        <div key={classKey} className="responsive-card bg-gradient-to-br from-green-50 to-green-100 border-green-200 hover:shadow-lg transition-all">
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-green-200 rounded-lg">
-                                <svg className="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                </svg>
-                              </div>
-                              <div>
-                                <h5 className="text-base md:text-lg font-bold text-green-900">Class {classKey}</h5>
-                                <p className="text-xs md:text-sm text-green-700">Year {data.year} - Section {data.section}</p>
-                              </div>
-                            </div>
-                            <div className="flex gap-2">
-                              <span className="text-xs font-semibold text-green-600 bg-green-200 px-3 py-1 rounded-full">
-                                {data.totalStudents} Students
-                              </span>
-                              <span className="text-xs font-semibold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">
-                                {data.dispatchRate}% Dispatched
-                              </span>
-                            </div>
-                          </div>
+                      {reportData.data && (() => {
+                        // For HNS HOD: Group by department first
+                        if (userData.role === 'hod' && userData.department === 'HNS') {
+                          const byDepartment = {}
+                          Object.entries(reportData.data).forEach(([classKey, data]) => {
+                            const dept = data.department || 'Unknown'
+                            if (!byDepartment[dept]) {
+                              byDepartment[dept] = {}
+                            }
+                            byDepartment[dept][classKey] = data
+                          })
                           
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-                            <div className="bg-white p-3 rounded-lg">
-                              <p className="text-xs text-gray-500 mb-1">Total</p>
-                              <p className="text-lg md:text-xl font-bold text-green-700">{data.totalStudents}</p>
-                            </div>
-                            <div className="bg-white p-3 rounded-lg">
-                              <p className="text-xs text-gray-500 mb-1">Dispatched</p>
-                              <p className="text-lg md:text-xl font-bold text-blue-600">{data.dispatched}</p>
-                            </div>
-                            <div className="bg-white p-3 rounded-lg">
-                              <p className="text-xs text-gray-500 mb-1">Pending</p>
-                              <p className="text-lg md:text-xl font-bold text-yellow-600">{data.pending}</p>
-                            </div>
-                          </div>
-                          
-                          {data.resultDistribution && Object.keys(data.resultDistribution).length > 0 && (
-                            <div className="bg-white p-3 rounded-lg">
-                              <p className="text-xs font-semibold text-gray-700 mb-2">Result Distribution</p>
-                              <div className="flex flex-wrap gap-2">
-                                {Object.entries(data.resultDistribution).map(([result, count]) => (
-                                  <span key={result} className="text-xs font-medium bg-gradient-to-r from-green-100 to-green-200 text-green-800 px-3 py-1 rounded-full">
-                                    {result}: {count}
-                                  </span>
+                          return Object.entries(byDepartment).map(([dept, classes]) => (
+                            <div key={dept} className="space-y-3">
+                              <div className="bg-gradient-to-r from-indigo-600 to-blue-600 text-white p-3 rounded-lg">
+                                <h4 className="font-bold text-base">{dept} Department</h4>
+                              </div>
+                              <div className="space-y-3 pl-2 border-l-4 border-indigo-300">
+                                {Object.entries(classes).map(([classKey, data]) => (
+                                  <div key={classKey} className="responsive-card bg-gradient-to-br from-green-50 to-green-100 border-green-200 hover:shadow-lg transition-all">
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                                      <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-green-200 rounded-lg">
+                                          <svg className="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                          </svg>
+                                        </div>
+                                        <div>
+                                          <h5 className="text-base md:text-lg font-bold text-green-900">Class {data.year}-{data.section}</h5>
+                                          <p className="text-xs md:text-sm text-green-700">Year {data.year} - Section {data.section}</p>
+                                        </div>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <span className="text-xs font-semibold text-green-600 bg-green-200 px-3 py-1 rounded-full">
+                                          {data.totalStudents} Students
+                                        </span>
+                                        <span className="text-xs font-semibold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">
+                                          {data.dispatchRate}% Dispatched
+                                        </span>
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                                      <div className="bg-white p-3 rounded-lg">
+                                        <p className="text-xs text-gray-500 mb-1">Total</p>
+                                        <p className="text-lg md:text-xl font-bold text-green-700">{data.totalStudents}</p>
+                                      </div>
+                                      <div className="bg-white p-3 rounded-lg">
+                                        <p className="text-xs text-gray-500 mb-1">Dispatched</p>
+                                        <p className="text-lg md:text-xl font-bold text-blue-600">{data.dispatched}</p>
+                                      </div>
+                                      <div className="bg-white p-3 rounded-lg">
+                                        <p className="text-xs text-gray-500 mb-1">Pending</p>
+                                        <p className="text-lg md:text-xl font-bold text-yellow-600">{data.pending}</p>
+                                      </div>
+                                    </div>
+                                    
+                                    {data.resultDistribution && Object.keys(data.resultDistribution).length > 0 && (
+                                      <div className="bg-white p-3 rounded-lg">
+                                        <p className="text-xs font-semibold text-gray-700 mb-2">Result Distribution</p>
+                                        <div className="flex flex-wrap gap-2">
+                                          {Object.entries(data.resultDistribution).map(([result, count]) => (
+                                            <span key={result} className="text-xs font-medium bg-gradient-to-r from-green-100 to-green-200 text-green-800 px-3 py-1 rounded-full">
+                                              {result}: {count}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
                                 ))}
                               </div>
                             </div>
-                          )}
-                        </div>
-                      ))}
+                          ))
+                        } else {
+                          // For regular HOD: Just show classes
+                          return Object.entries(reportData.data).map(([classKey, data]) => (
+                            <div key={classKey} className="responsive-card bg-gradient-to-br from-green-50 to-green-100 border-green-200 hover:shadow-lg transition-all">
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-green-200 rounded-lg">
+                                    <svg className="w-5 h-5 text-green-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                    </svg>
+                                  </div>
+                                  <div>
+                                    <h5 className="text-base md:text-lg font-bold text-green-900">Class {classKey}</h5>
+                                    <p className="text-xs md:text-sm text-green-700">Year {data.year} - Section {data.section}</p>
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <span className="text-xs font-semibold text-green-600 bg-green-200 px-3 py-1 rounded-full">
+                                    {data.totalStudents} Students
+                                  </span>
+                                  <span className="text-xs font-semibold text-blue-600 bg-blue-100 px-3 py-1 rounded-full">
+                                    {data.dispatchRate}% Dispatched
+                                  </span>
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                                <div className="bg-white p-3 rounded-lg">
+                                  <p className="text-xs text-gray-500 mb-1">Total</p>
+                                  <p className="text-lg md:text-xl font-bold text-green-700">{data.totalStudents}</p>
+                                </div>
+                                <div className="bg-white p-3 rounded-lg">
+                                  <p className="text-xs text-gray-500 mb-1">Dispatched</p>
+                                  <p className="text-lg md:text-xl font-bold text-blue-600">{data.dispatched}</p>
+                                </div>
+                                <div className="bg-white p-3 rounded-lg">
+                                  <p className="text-xs text-gray-500 mb-1">Pending</p>
+                                  <p className="text-lg md:text-xl font-bold text-yellow-600">{data.pending}</p>
+                                </div>
+                              </div>
+                              
+                              {data.resultDistribution && Object.keys(data.resultDistribution).length > 0 && (
+                                <div className="bg-white p-3 rounded-lg">
+                                  <p className="text-xs font-semibold text-gray-700 mb-2">Result Distribution</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {Object.entries(data.resultDistribution).map(([result, count]) => (
+                                      <span key={result} className="text-xs font-medium bg-gradient-to-r from-green-100 to-green-200 text-green-800 px-3 py-1 rounded-full">
+                                        {result}: {count}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))
+                        }
+                      })()}
                     </div>
                   </div>
                 )}
