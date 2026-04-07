@@ -377,7 +377,7 @@ function DepartmentOverview() {
                     <h2 className="responsive-heading-2 text-gray-900">Staff Performance</h2>
                   </div>
                   <div className="responsive-grid responsive-grid-2 lg:grid-cols-3">
-                    {staffPerformance.slice(0, 6).map((staff, index) => (
+                    {staffPerformance.map((staff, index) => (
                       <div key={staff.staffId} className="responsive-card bg-gradient-to-br from-indigo-50 to-indigo-100 border-2 border-indigo-200">
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
