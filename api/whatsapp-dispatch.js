@@ -1,10 +1,10 @@
 import { connectToDatabase } from '../lib/mongo.js'
-import { Marksheet, User } from '../models.js'
+import { Marksheet, User, WhatsappInstance } from '../models.js'
 import { getUserSubscriptions, storeNotification } from '../lib/notificationService.js'
 import webpush from 'web-push'
 import { applyResultNormalization } from './utils/resultUtils.js'
 import { sendBroadcastNotification } from '../lib/broadcastNotification.js'
-import { evolutionApi } from '../lib/evolutionApiService.js'
+import evolutionApi, { getEvolutionApiForStaff } from '../lib/evolutionApiService.js'
 import QRCode from 'qrcode'
 
 // Temporary in-memory store for the last Evolution error (for debugging)
@@ -49,11 +49,11 @@ const getBaseUrl = (req) => {
   return host ? `${proto}://${host}` : ''
 }
 
-// Check Evolution API configuration on startup
+// Check Evolution API configuration on startup (global/default)
 if (evolutionApi.isConfigured()) {
-  console.log('✅ Evolution API for WhatsApp is configured and ready')
+  console.log('✅ Evolution API for WhatsApp is configured and ready (global)')
 } else {
-  console.warn('⚠️  Evolution API not configured. Set EVOLUTION_API_URL, EVOLUTION_API_KEY, and EVOLUTION_INSTANCE_NAME in .env file')
+  console.warn('⚠️  Evolution API not configured globally. Set EVOLUTION_API_URL and EVOLUTION_API_KEY in .env file')
 }
 
 export default async function handler(req, res) {
@@ -77,23 +77,28 @@ export default async function handler(req, res) {
   if (req.method === 'GET' && req.query.action === 'qrcode') {
     try {
       console.log('📱 QR Code request received');
+      // Allow staff-scoped instance if staffId is provided
+      const staffIdForInstance = req.query?.staffId || null
+      const evo = staffIdForInstance ? getEvolutionApiForStaff(staffIdForInstance) : evolutionApi
+
       // If already connected, no QR is needed
       try {
-        const status = await evolutionApi.getInstanceStatus()
+        const status = await evo.getInstanceStatus()
         if (status.success && (status.connected || status.state === 'open')) {
-        console.log('✅ Instance already connected, no QR needed');
-        return res.status(200).json({
-          success: true,
-          message: 'Instance already connected. No QR required.',
-          state: status.state,
-          connected: true
-        })
+          console.log('✅ Instance already connected, no QR needed');
+          return res.status(200).json({
+            success: true,
+            message: 'Instance already connected. No QR required.',
+            state: status.state,
+            connected: true,
+            instance: status.instance
+          })
         }
       } catch {}
 
       // Try to get QR directly
       console.log('🔄 Attempting to fetch QR from Evolution API...');
-      const qrResult = await evolutionApi.getQRCode()
+      const qrResult = await evo.getQRCode()
       console.log('📊 QR Result from service:', { success: qrResult.success, hasBase64: !!qrResult.base64, hasQrcode: !!qrResult.qrcode, qrcodeLength: qrResult.qrcode?.length || 0 });
       
       if (qrResult.success && (qrResult.base64 || qrResult.qrcode)) {
@@ -149,7 +154,7 @@ export default async function handler(req, res) {
 
       // Fallback: auto-create instance with QR
       console.log('🆕 Instance not found, creating new instance...');
-      const createResult = await evolutionApi.createInstance(true);
+      const createResult = await evo.createInstance(true);
       console.log('📊 Create Result:', { success: createResult.success, hasQrcode: !!createResult.qrcode, hasBase64: !!createResult.data?.base64, qrcodeLength: createResult.qrcode?.length || createResult.data?.qrcode?.length || 0 });
       
       if (createResult.success && (createResult.qrcode || createResult.data?.qrcode)) {
@@ -214,8 +219,11 @@ export default async function handler(req, res) {
   // Evolution API instance status endpoint
   if (req.method === 'GET' && req.query.action === 'status') {
     try {
-      const status = await evolutionApi.getInstanceStatus()
-      const config = evolutionApi.getConfig()
+      const staffIdForInstance = req.query?.staffId || null
+      const evo = staffIdForInstance ? getEvolutionApiForStaff(staffIdForInstance) : evolutionApi
+
+      const status = await evo.getInstanceStatus()
+      const config = evo.getConfig()
       
       // Merge instance status with configuration info
       return res.status(200).json({
@@ -242,7 +250,10 @@ export default async function handler(req, res) {
   // Connection status endpoint for UI
   if (req.method === 'GET' && req.query.action === 'connection-status') {
     try {
-      const status = await evolutionApi.getInstanceStatus()
+      const staffIdForInstance = req.query.staffId || null
+      const evo = staffIdForInstance ? getEvolutionApiForStaff(staffIdForInstance) : evolutionApi
+
+      const status = await evo.getInstanceStatus()
       console.log('📊 Instance status from Evolution API:', status);
       const withinDeleteGuardWindow = lastInstanceDeleteAt > 0 && Date.now() - lastInstanceDeleteAt < 15000
       const isStaleConnectedState = status?.state === 'open' || status?.connected === true
@@ -292,13 +303,32 @@ export default async function handler(req, res) {
 
   // Return the last Evolution error (debugging only)
   if (req.method === 'GET' && req.query.action === 'last-evolution-error') {
-    return res.status(200).json({ success: true, lastEvolutionError })
+    res.status(200).json({ success: true, lastEvolutionError })
   }
 
   // Create/Initialize Evolution API instance
   if (req.method === 'POST' && req.query.action === 'create-instance') {
     try {
-      const result = await evolutionApi.createInstance(true)
+      const staffIdForInstance = req.query?.staffId || req.body?.staffId || null
+      const evo = staffIdForInstance ? getEvolutionApiForStaff(staffIdForInstance) : evolutionApi
+
+      const result = await evo.createInstance(true)
+
+      // Persist instance metadata for staff-scoped instances
+      try {
+        await connectToDatabase()
+        const instanceName = evo.instanceName
+        const ownerJid = result.data?.ownerJid || result.data?.instance?.ownerJid || null
+        const metadata = result.data || {}
+        await WhatsappInstance.findOneAndUpdate(
+          { instanceName },
+          { $set: { instanceName, staffId: staffIdForInstance || null, ownerJid, configured: true, metadata } },
+          { upsert: true, new: true }
+        )
+      } catch (dbErr) {
+        console.warn('Failed to persist whatsapp instance metadata:', dbErr?.message || dbErr)
+      }
+
       return res.status(200).json(result)
     } catch (error) {
       return res.status(500).json({ 
@@ -311,7 +341,10 @@ export default async function handler(req, res) {
   // Logout/disconnect current WhatsApp number
   if (req.method === 'POST' && req.query.action === 'logout') {
     try {
-      const result = await evolutionApi.logout()
+      const staffIdForInstance = req.query?.staffId || req.body?.staffId || null
+      const evo = staffIdForInstance ? getEvolutionApiForStaff(staffIdForInstance) : evolutionApi
+
+      const result = await evo.logout()
       return res.status(200).json(result)
     } catch (error) {
       return res.status(500).json({ 
@@ -324,10 +357,28 @@ export default async function handler(req, res) {
   // Delete instance (complete fresh start)
   if (req.method === 'DELETE' && req.query.action === 'delete-instance') {
     try {
-      const result = await evolutionApi.deleteInstance()
+      const staffIdForInstance = req.query?.staffId || req.body?.staffId || null
+      const evo = staffIdForInstance ? getEvolutionApiForStaff(staffIdForInstance) : evolutionApi
+
+      const result = await evo.deleteInstance()
       if (result?.success) {
         lastInstanceDeleteAt = Date.now()
+
+        // Remove persisted mapping for this instance
+        try {
+          await connectToDatabase()
+          const instanceName = evo.instanceName
+          if (staffIdForInstance) {
+            await WhatsappInstance.deleteOne({ instanceName, staffId: staffIdForInstance })
+          } else {
+            // If no staff provided, delete any records matching instanceName
+            await WhatsappInstance.deleteMany({ instanceName })
+          }
+        } catch (dbErr) {
+          console.warn('Failed to remove whatsapp instance metadata after delete:', dbErr?.message || dbErr)
+        }
       }
+
       return res.status(200).json(result)
     } catch (error) {
       return res.status(500).json({ 
@@ -340,7 +391,10 @@ export default async function handler(req, res) {
   // Restart instance
   if (req.method === 'POST' && req.query.action === 'restart') {
     try {
-      const result = await evolutionApi.restartInstance()
+      const staffIdForInstance = req.query?.staffId || req.body?.staffId || null
+      const evo = staffIdForInstance ? getEvolutionApiForStaff(staffIdForInstance) : evolutionApi
+
+      const result = await evo.restartInstance()
       return res.status(200).json(result)
     } catch (error) {
       return res.status(500).json({ 
@@ -371,8 +425,19 @@ export default async function handler(req, res) {
           })
         }
 
-        // Check if Evolution API is configured
-        if (!evolutionApi.isConfigured()) {
+        const marksheet = await Marksheet.findById(marksheetId)
+        if (!marksheet) {
+          return res.status(404).json({ success: false, error: 'Marksheet not found' })
+        }
+
+        const normalizedMarksheet = applyResultNormalization(marksheet.toObject ? marksheet.toObject() : { ...marksheet })
+
+        // Choose staff-scoped Evolution API instance (marksheet.staffId preferred)
+        const staffIdForInstance = marksheet.staffId || req.query.staffId || req.body.staffId || null
+        const evo = staffIdForInstance ? getEvolutionApiForStaff(String(staffIdForInstance)) : evolutionApi
+
+        // Check if Evolution API is configured for this instance
+        if (!evo.isConfigured()) {
           console.error('❌ Evolution API not configured.')
           console.error('Configuration error: Set EVOLUTION_API_URL, EVOLUTION_API_KEY, and EVOLUTION_INSTANCE_NAME in .env file')
           
@@ -383,13 +448,6 @@ export default async function handler(req, res) {
             setupGuide: 'See EVOLUTION_API_SETUP.md for Evolution API setup instructions'
           })
         }
-
-        const marksheet = await Marksheet.findById(marksheetId)
-        if (!marksheet) {
-          return res.status(404).json({ success: false, error: 'Marksheet not found' })
-        }
-
-        const normalizedMarksheet = applyResultNormalization(marksheet.toObject ? marksheet.toObject() : { ...marksheet })
 
         // Allow dispatch if approved, rescheduled by HOD, or already dispatched (for re-sending)
         const allowedStatuses = ['approved_by_hod', 'rescheduled_by_hod', 'dispatched']
@@ -472,11 +530,11 @@ export default async function handler(req, res) {
             console.warn('⚠️ PDF URL is not publicly accessible. Falling back to text-only message.')
             pdfAccessible = false
           }
-          console.log('📱 Using Evolution API for WhatsApp')
+          console.error('📱 Using Evolution API for WhatsApp')
           console.log('📞 Sending to:', parentNumber)
 
-          // Send via Evolution API
-          const sendResult = await evolutionApi.sendMarksheetNotification({
+          // Send via staff-scoped Evolution API instance
+          const sendResult = await evo.sendMarksheetNotification({
             studentName,
             registerNumber,
             parentPhoneNumber: parentNumber,
@@ -529,7 +587,7 @@ export default async function handler(req, res) {
           }
           return res.status(200).json(resp)
 
-        } catch (evolutionErr) {
+          } catch (evolutionErr) {
           console.error('❌ Evolution API WhatsApp error:', evolutionErr)
           console.error('Error code:', evolutionErr.code)
           console.error('Error status:', evolutionErr.status || evolutionErr.response?.status)
@@ -631,7 +689,11 @@ export default async function handler(req, res) {
           })
         }
 
-        if (!evolutionApi.isConfigured()) {
+        // For bulk, support staffId in body to pick the correct instance
+        const bulkStaffId = req.body.staffId || req.query.staffId || null
+        const evo = bulkStaffId ? getEvolutionApiForStaff(String(bulkStaffId)) : evolutionApi
+
+        if (!evo.isConfigured()) {
           return res.status(500).json({ 
             success: false, 
             error: 'Evolution WhatsApp API not configured' 
@@ -701,9 +763,9 @@ Best regards,
 MSEC Academics Department`
 
 
-            // Use Evolution API to send marksheet notification
+            // Use staff-scoped Evolution API to send marksheet notification
             try {
-              await evolutionApi.sendMarksheetNotification({
+              await evo.sendMarksheetNotification({
                 studentName: normalizedMarksheet.studentDetails.name,
                 registerNumber: normalizedMarksheet.studentDetails.regNumber,
                 parentPhoneNumber: phoneNumber,

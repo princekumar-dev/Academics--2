@@ -2,15 +2,15 @@ import { connectToDatabase } from '../lib/mongo.js'
 import { LeaveRequest, Student, User } from '../models.js'
 import { storeNotification } from '../lib/notificationService.js'
 import { sendBroadcastNotification } from '../lib/broadcastNotification.js'
-import { evolutionApi } from '../lib/evolutionApiService.js'
+import evolutionApi, { getEvolutionApiForStaff } from '../lib/evolutionApiService.js'
 import axios from 'axios'
 import { generateLeavePDF } from './generate-pdf.js'
 
-// Check Evolution API configuration
+// Check Evolution API configuration (global)
 if (evolutionApi.isConfigured()) {
-  console.log('✅ [leaves.js] Evolution API configured for WhatsApp notifications')
+  console.log('✅ [leaves.js] Evolution API configured for WhatsApp notifications (global)')
 } else {
-  console.warn('⚠️ [leaves.js] Evolution API not configured for WhatsApp notifications')
+  console.warn('⚠️ [leaves.js] Evolution API not configured globally for WhatsApp notifications')
 }
 
 const normalizePhone = (num) => {
@@ -229,13 +229,15 @@ export default async function handler(req, res) {
 
         // Notify parent on WhatsApp with leave letter PDF attachment
         console.log('🔍 [Leave Approval] Starting WhatsApp dispatch via Evolution API...')
-        console.log('🔍 Evolution API configured:', evolutionApi.isConfigured())
+        // Use HOD-scoped Evolution API instance if HOD is present so message originates from HOD's connected number
+        const evo = hod && hod._id ? getEvolutionApiForStaff(String(hod._id)) : evolutionApi
+        console.log('🔍 Evolution API configured (for this sender):', evo.isConfigured())
         console.log('🔍 Parent phone from request:', request.studentDetails?.parentPhoneNumber)
         
         // Track WhatsApp send result so it can be returned to caller and logged
         let whatsappResult = { sentPdf: false, sentImage: false, sentText: false, pdfMessageId: null, textMessageId: null, errors: [] }
 
-        if (evolutionApi.isConfigured()) {
+        if (evo.isConfigured()) {
           const parentPhone = request.studentDetails?.parentPhoneNumber
           console.log('🔍 Parent phone:', parentPhone)
           
@@ -299,7 +301,7 @@ MSEC Academics Department`
                   if (pdfBuf && pdfBuf.length) {
                     const dataUrl = `data:application/pdf;base64,${pdfBuf.toString('base64')}`
                     try {
-                      const mediaResp = await evolutionApi.sendMediaMessage(parentPhone, dataUrl, '', 'document', 'leave-letter.pdf')
+                      const mediaResp = await evo.sendMediaMessage(parentPhone, dataUrl, '', 'document', 'leave-letter.pdf')
                       if (mediaResp && mediaResp.success) {
                         whatsappResult.sentPdf = true
                         whatsappResult.pdfMessageId = mediaResp.messageId || null
@@ -375,7 +377,7 @@ MSEC Academics Department`
                     while (attempt < maxAttempts && !whatsappResult.sentPdf) {
                       attempt++
                       try {
-                        const mediaResp = await evolutionApi.sendMediaMessage(parentPhone, leavePdfUrl, '', 'document', 'leave-letter.pdf')
+                        const mediaResp = await evo.sendMediaMessage(parentPhone, leavePdfUrl, '', 'document', 'leave-letter.pdf')
                         if (mediaResp && mediaResp.success) {
                           whatsappResult.sentPdf = true
                           whatsappResult.pdfMessageId = mediaResp.messageId || null
@@ -405,7 +407,7 @@ MSEC Academics Department`
               // If PDF wasn't sent and image URL available, try sending image
               if (!whatsappResult.sentPdf && leaveImageUrl) {
                 try {
-                  const imgResp = await evolutionApi.sendMediaMessage(parentPhone, leaveImageUrl, '', 'image')
+                  const imgResp = await evo.sendMediaMessage(parentPhone, leaveImageUrl, '', 'image')
                   if (imgResp && imgResp.success) {
                     whatsappResult.sentImage = true
                     whatsappResult.pdfMessageId = imgResp.messageId || null
@@ -425,7 +427,7 @@ MSEC Academics Department`
 
               // Send the textual notification after any media. Include a download link
               try {
-                const textResp = await evolutionApi.sendTextMessage(parentPhone, message)
+                const textResp = await evo.sendTextMessage(parentPhone, message)
                 whatsappResult.sentText = true
                 whatsappResult.textMessageId = textResp?.messageId || null
                 console.log('✅ Leave approval text sent successfully via Evolution API -> messageId=', whatsappResult.textMessageId)
@@ -526,13 +528,13 @@ MSEC Academics Department`
 
         // Send only a plain text WhatsApp message to parent with rejection + reason (no attachments)
         try {
-          if (evolutionApi.isConfigured()) {
+          const evo = request.hodId ? getEvolutionApiForStaff(String(request.hodId)) : evolutionApi
+          if (evo.isConfigured()) {
             const parentPhone = request.studentDetails?.parentPhoneNumber
             if (parentPhone) {
               const text = `Hello!\n\nYour leave request for ${request.studentDetails.name} (Reg: ${request.studentDetails.regNumber}) has been rejected by the HOD.\n\nReason: ${reason || 'Not specified'}\n\nRegards,\nMSEC Academics Department`
               try {
-                await evolutionApi.sendTextMessage(parentPhone, text)
-                // Optionally record that we attempted/ succeeded — storeNotification for HOD could be added
+                await evo.sendTextMessage(parentPhone, text)
                 console.log('✅ Sent plain-text rejection WhatsApp message to', parentPhone)
               } catch (sendErr) {
                 console.warn('⚠️ Failed to send rejection text via Evolution API:', sendErr && (sendErr.message || sendErr))
@@ -607,7 +609,8 @@ MSEC Academics Department`
         )
 
         // Send WhatsApp notification to parent via Evolution API
-        if (evolutionApi.isConfigured()) {
+        const evoForConfirm = request.staffId ? getEvolutionApiForStaff(String(request.staffId)) : evolutionApi
+        if (evoForConfirm.isConfigured()) {
           try {
             const parentPhone = request.studentDetails?.parentPhoneNumber
             console.log('📱 [WhatsApp] Parent phone number:', parentPhone)
@@ -634,7 +637,7 @@ MSEC Academics Department`
               console.log('📤 [WhatsApp] Sending message via Evolution API...')
               console.log('   To:', parentPhone)
               
-              await evolutionApi.sendTextMessage(parentPhone, text)
+              await evoForConfirm.sendTextMessage(parentPhone, text)
               
               console.log('✅ [WhatsApp] Late arrival confirmation sent successfully')
             }
