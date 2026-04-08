@@ -79,7 +79,22 @@ export default async function handler(req, res) {
       console.log('📱 QR Code request received');
       // Allow staff-scoped instance if staffId is provided
       const staffIdForInstance = req.query?.staffId || null
-      const evo = staffIdForInstance ? getEvolutionApiForStaff(staffIdForInstance) : evolutionApi
+
+      // If staff-scoped, check DB for existing instance to avoid creating duplicates
+      let evo
+      if (staffIdForInstance) {
+        await connectToDatabase()
+        const existing = await WhatsappInstance.findOne({ staffId: staffIdForInstance })
+        if (existing) {
+          // Use staff-scoped client for the saved instance name
+          evo = getEvolutionApiForStaff(staffIdForInstance)
+        } else {
+          // No persisted instance yet — create a staff-scoped client but DO NOT auto-create here.
+          evo = getEvolutionApiForStaff(staffIdForInstance)
+        }
+      } else {
+        evo = evolutionApi
+      }
 
       // If already connected, no QR is needed
       try {
@@ -152,12 +167,32 @@ export default async function handler(req, res) {
         return res.status(200).json({ success: true, qrcode: qrcodeText, base64 });
       }
 
-      // Fallback: auto-create instance with QR
-      console.log('🆕 Instance not found, creating new instance...');
-      const createResult = await evo.createInstance(true);
-      console.log('📊 Create Result:', { success: createResult.success, hasQrcode: !!createResult.qrcode, hasBase64: !!createResult.data?.base64, qrcodeLength: createResult.qrcode?.length || createResult.data?.qrcode?.length || 0 });
+      // For staff-scoped requests, DO NOT auto-create a new instance if a record exists
+      // If no persisted instance exists, allow auto-creation here and persist it.
+      let createResult = null
+      if (!staffIdForInstance) {
+        console.log('🆕 Instance not found (global), creating new instance...');
+        createResult = await evo.createInstance(true);
+      } else {
+        // Staff-scoped: if there is no persisted instance, attempt creation and persist
+        await connectToDatabase()
+        const existing = await WhatsappInstance.findOne({ staffId: staffIdForInstance })
+        if (!existing) {
+          console.log('🆕 No persisted staff instance found, creating new staff-scoped instance...');
+          createResult = await evo.createInstance(true);
+        } else {
+          // Persisted record exists but provider did not return QR earlier — return informative error
+          console.log('ℹ️ Persisted instance exists for staff but provider returned no QR.');
+          return res.status(404).json({
+            success: false,
+            error: 'Instance exists for this staff but provider did not return a QR. If you believe this is stale, please delete the instance from settings and recreate.',
+            instance: existing.instanceName
+          })
+        }
+      }
+      console.log('📊 Create Result:', { success: createResult?.success, hasQrcode: !!createResult?.qrcode, hasBase64: !!createResult?.data?.base64, qrcodeLength: createResult?.qrcode?.length || createResult?.data?.qrcode?.length || 0 });
       
-      if (createResult.success && (createResult.qrcode || createResult.data?.qrcode)) {
+      if (createResult?.success && (createResult.qrcode || createResult.data?.qrcode)) {
         const qrText = createResult.qrcode || createResult.data?.qrcode;
         let base64 = createResult.data?.base64;
 
@@ -193,6 +228,23 @@ export default async function handler(req, res) {
           } catch (genErr) {
             console.warn('Failed to generate QR PNG (create fallback):', genErr.message);
           }
+        }
+
+        // Persist instance metadata for staff-scoped instances
+        try {
+          if (staffIdForInstance) {
+            await connectToDatabase()
+            const instanceName = evo.instanceName
+            const ownerJid = createResult.data?.ownerJid || createResult.data?.instance?.ownerJid || null
+            const metadata = createResult.data || {}
+            await WhatsappInstance.findOneAndUpdate(
+              { instanceName },
+              { $set: { instanceName, staffId: staffIdForInstance || null, ownerJid, configured: true, metadata } },
+              { upsert: true, new: true }
+            )
+          }
+        } catch (dbErr) {
+          console.warn('Failed to persist whatsapp instance metadata (create flow):', dbErr?.message || dbErr)
         }
 
         console.log('📤 Returning created instance QR with base64');
@@ -311,6 +363,33 @@ export default async function handler(req, res) {
     try {
       const staffIdForInstance = req.query?.staffId || req.body?.staffId || null
       const evo = staffIdForInstance ? getEvolutionApiForStaff(staffIdForInstance) : evolutionApi
+      // If staff-scoped, ensure we only create one instance per staff
+      if (staffIdForInstance) {
+        try {
+          await connectToDatabase()
+          const existing = await WhatsappInstance.findOne({ staffId: staffIdForInstance })
+          if (existing) {
+            // Return existing instance status instead of creating a new one
+            try {
+              const status = await evo.getInstanceStatus()
+              return res.status(200).json({
+                success: true,
+                message: 'Instance already exists for this staff',
+                instance: existing.instanceName,
+                providerStatus: status
+              })
+            } catch (statusErr) {
+              return res.status(200).json({
+                success: true,
+                message: 'Instance already exists for this staff (status fetch failed)',
+                instance: existing.instanceName
+              })
+            }
+          }
+        } catch (dbErr) {
+          console.warn('Failed to check existing whatsapp instance metadata before create:', dbErr?.message || dbErr)
+        }
+      }
 
       const result = await evo.createInstance(true)
 
@@ -358,6 +437,17 @@ export default async function handler(req, res) {
   if (req.method === 'DELETE' && req.query.action === 'delete-instance') {
     try {
       const staffIdForInstance = req.query?.staffId || req.body?.staffId || null
+      const confirmGlobal = req.query?.confirmGlobal === '1' || req.body?.confirmGlobal === '1'
+
+      // Require explicit staffId to delete a staff-scoped instance. To delete
+      // the global/default instance the caller must pass confirmGlobal=1.
+      if (!staffIdForInstance && !confirmGlobal) {
+        return res.status(400).json({
+          success: false,
+          error: 'Missing staffId. To delete a staff-specific instance include ?staffId=<id>. To delete the global instance include ?confirmGlobal=1.'
+        })
+      }
+
       const evo = staffIdForInstance ? getEvolutionApiForStaff(staffIdForInstance) : evolutionApi
 
       const result = await evo.deleteInstance()
@@ -369,10 +459,11 @@ export default async function handler(req, res) {
           await connectToDatabase()
           const instanceName = evo.instanceName
           if (staffIdForInstance) {
+            // Delete only the record that matches both instanceName and staffId
             await WhatsappInstance.deleteOne({ instanceName, staffId: staffIdForInstance })
-          } else {
-            // If no staff provided, delete any records matching instanceName
-            await WhatsappInstance.deleteMany({ instanceName })
+          } else if (confirmGlobal) {
+            // Only remove records for the global instance (staffId == null)
+            await WhatsappInstance.deleteMany({ instanceName, staffId: null })
           }
         } catch (dbErr) {
           console.warn('Failed to remove whatsapp instance metadata after delete:', dbErr?.message || dbErr)
