@@ -273,3 +273,22 @@ export const ImportSession = mongoose.model('ImportSession', ImportSessionSchema
 export const LeaveRequest = mongoose.model('LeaveRequest', LeaveRequestSchema)
 export const StaffApprovalRequest = mongoose.model('StaffApprovalRequest', StaffApprovalRequestSchema)
 export const AccessPolicy = mongoose.model('AccessPolicy', AccessPolicySchema)
+
+// WhatsApp Instance Schema - track per-staff Evolution instances
+const WhatsappInstanceSchema = new mongoose.Schema({
+  instanceName: { type: String, required: true, index: true },
+  staffId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  ownerJid: { type: String },
+  configured: { type: Boolean, default: true },
+  metadata: { type: mongoose.Schema.Types.Mixed },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+})
+
+WhatsappInstanceSchema.pre('save', function(next) {
+  this.updatedAt = new Date()
+  next()
+})
+
+if (mongoose.models.WhatsappInstance) delete mongoose.models.WhatsappInstance
+export const WhatsappInstance = mongoose.model('WhatsappInstance', WhatsappInstanceSchema)
