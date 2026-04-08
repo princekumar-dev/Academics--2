@@ -7,6 +7,11 @@ import apiClient from '../utils/apiClient';
 import { getUserFriendlyMessage } from '../utils/apiErrorMessages';
 
 export default function WhatsAppStatus() {
+  // Resolve current staff identifier from localStorage so cached data is per-staff
+  const authRaw = localStorage.getItem('auth')
+  const auth = authRaw ? JSON.parse(authRaw) : {}
+  const staffId = auth?._id || auth?.id || localStorage.getItem('userId') || null
+
   const [status, setStatus] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -17,7 +22,8 @@ export default function WhatsAppStatus() {
   const { showSuccess, showError, showInfo } = useAlert();
   const origin = import.meta.env.VITE_API_URL || '';
 
-  const CACHE_KEY = 'whatsapp_status_cache_v1';
+  const CACHE_KEY_BASE = 'whatsapp_status_cache_v1';
+  const CACHE_KEY = `${CACHE_KEY_BASE}_${staffId || 'anon'}`;
   const STALE_MS = 30 * 1000; // 30 seconds
 
   const intervalRef = useRef(null);
@@ -52,7 +58,8 @@ export default function WhatsAppStatus() {
 
   const fetchStatus = async () => {
     try {
-      const data = await apiClient.get('/api/whatsapp-dispatch?action=status', { cache: true, ttl: 30 * 1000, timeout: 15000 });
+      const url = `/api/whatsapp-dispatch?action=status${staffId ? `&staffId=${encodeURIComponent(staffId)}` : ''}`
+      const data = await apiClient.get(url, { cache: true, ttl: 30 * 1000, timeout: 15000 });
       if (!data) return;
       console.log('WhatsApp status data:', data); // Debug log
       setStatus(data);
@@ -72,7 +79,8 @@ export default function WhatsAppStatus() {
 
   const fetchConnectionStatus = async () => {
     try {
-      const data = await apiClient.get('/api/whatsapp-dispatch?action=connection-status', { cache: true, ttl: 15 * 1000, timeout: 60000, retry: 1, retryDelay: 800 });
+      const url = `/api/whatsapp-dispatch?action=connection-status${staffId ? `&staffId=${encodeURIComponent(staffId)}` : ''}`
+      const data = await apiClient.get(url, { cache: true, ttl: 15 * 1000, timeout: 60000, retry: 1, retryDelay: 800 });
       if (!data) return;
       console.log('Connection status data:', data); // Debug log
       setConnectionStatus(data);
@@ -110,7 +118,8 @@ export default function WhatsAppStatus() {
   const fetchQRCode = async () => {
     setLoading(true);
     try {
-      const data = await apiClient.get('/api/whatsapp-dispatch?action=qrcode', { cache: false, timeout: 20000 });
+      const url = `/api/whatsapp-dispatch?action=qrcode${staffId ? `&staffId=${encodeURIComponent(staffId)}` : ''}`
+      const data = await apiClient.get(url, { cache: false, timeout: 20000 });
       
       console.log('QR Code API response:', data); // Debug log
       
@@ -152,7 +161,8 @@ export default function WhatsAppStatus() {
     setLoading(true);
     try {
       console.log('Logging out instance...');
-      const data = await apiClient.post(`${origin}/api/whatsapp-dispatch?action=logout`, null, { timeout: 10000 });
+      const logoutUrl = `${origin}/api/whatsapp-dispatch?action=logout${staffId ? `&staffId=${encodeURIComponent(staffId)}` : ''}`;
+      const data = await apiClient.post(logoutUrl, null, { timeout: 10000 });
       console.log('Logout response:', data);
       if (data && data.success) {
         showSuccess('Disconnected', data.message || 'WhatsApp disconnected successfully. Use "Get QR Code" to connect a different number.');
@@ -177,7 +187,8 @@ export default function WhatsAppStatus() {
     try {
       console.log('🗑️ Starting instance deletion...');
       try {
-        const data = await apiClient.del(`${origin}/api/whatsapp-dispatch?action=delete-instance`, { timeout: 15000 });
+        const deleteUrl = `${origin}/api/whatsapp-dispatch?action=delete-instance${staffId ? `&staffId=${encodeURIComponent(staffId)}` : ''}`;
+        const data = await apiClient.del(deleteUrl, { timeout: 15000 });
         console.log('Delete instance result:', data);
         showSuccess('Instance Deleted', data.message || 'WhatsApp instance has been deleted successfully');
 

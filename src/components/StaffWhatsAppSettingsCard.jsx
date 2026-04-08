@@ -21,7 +21,10 @@ export default function StaffWhatsAppSettingsCard() {
   const fetchConnectionStatus = async (showLoader = false, forceFresh = false) => {
     if (showLoader) setLoading(true)
     try {
-      const data = await apiClient.get('/api/whatsapp-dispatch?action=connection-status', {
+      const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+      const staffId = auth?._id || auth?.id || localStorage.getItem('userId') || null
+      const url = `/api/whatsapp-dispatch?action=connection-status${staffId ? `&staffId=${encodeURIComponent(staffId)}` : ''}`
+      const data = await apiClient.get(url, {
         cache: !forceFresh,
         ttl: forceFresh ? 0 : 15 * 1000,
         timeout: 60000,
@@ -55,7 +58,10 @@ export default function StaffWhatsAppSettingsCard() {
       await new Promise((resolve) => setTimeout(resolve, delayMs))
 
       try {
-        const data = await apiClient.get('/api/whatsapp-dispatch?action=connection-status', {
+        const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+        const staffId = auth?._id || auth?.id || localStorage.getItem('userId') || null
+        const url = `/api/whatsapp-dispatch?action=connection-status${staffId ? `&staffId=${encodeURIComponent(staffId)}` : ''}`
+        const data = await apiClient.get(url, {
           cache: false,
           ttl: 0,
           timeout: 60000,
@@ -211,7 +217,10 @@ export default function StaffWhatsAppSettingsCard() {
     setQRCode(null)
     setQrImageSrc(null)
     try {
-      const data = await apiClient.get('/api/whatsapp-dispatch?action=qrcode', { cache: false, timeout: 20000 })
+      const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+      const staffId = auth?._id || auth?.id || localStorage.getItem('userId') || null
+      const url = `/api/whatsapp-dispatch?action=qrcode${staffId ? `&staffId=${encodeURIComponent(staffId)}` : ''}`
+      const data = await apiClient.get(url, { cache: false, timeout: 20000 })
       const normalizedPayload = normalizeQrPayload(data)
       console.log('[Staff QR] QR API response received', {
         success: data?.success,
@@ -266,14 +275,20 @@ export default function StaffWhatsAppSettingsCard() {
     try {
       // First, logout the instance to ensure device is logged out
       try {
-        await apiClient.post('/api/whatsapp-dispatch?action=logout', null, { timeout: 10000 })
+        const auth = JSON.parse(localStorage.getItem('auth') || '{}')
+        const staffId = auth?._id || auth?.id || localStorage.getItem('userId') || null
+        const logoutUrl = `/api/whatsapp-dispatch?action=logout${staffId ? `&staffId=${encodeURIComponent(staffId)}` : ''}`
+        await apiClient.post(logoutUrl, null, { timeout: 10000 })
         console.log('[Staff QR] Instance logout called before delete')
       } catch (logoutErr) {
         console.warn('[Staff QR] Instance logout failed before delete:', logoutErr?.message || logoutErr)
       }
 
       // Then, delete the instance
-      const data = await apiClient.del('/api/whatsapp-dispatch?action=delete-instance', { timeout: 15000 })
+      const auth2 = JSON.parse(localStorage.getItem('auth') || '{}')
+      const staffId2 = auth2?._id || auth2?.id || localStorage.getItem('userId') || null
+      const deleteUrl = `/api/whatsapp-dispatch?action=delete-instance${staffId2 ? `&staffId=${encodeURIComponent(staffId2)}` : ''}`
+      const data = await apiClient.del(deleteUrl, { timeout: 15000 })
       setConnectionStatus({ connected: false, state: 'close' })
       void refreshAfterDelete()
     } catch (error) {
