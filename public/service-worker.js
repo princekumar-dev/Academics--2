@@ -1,5 +1,5 @@
 // Service Worker for Push Notifications
-const CACHE_NAME = 'msec-connect-v1';
+const CACHE_NAME = 'msec-connect-v2';
 const urlsToCache = [
   '/',
   '/manifest.json'
@@ -54,6 +54,34 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   
+  // For HTML navigations, use Network First, falling back to cache.
+  // This ensures users always get the latest index.html pointing to correct asset hashes.
+  if (event.request.mode === 'navigate' || event.request.headers.get('accept').includes('text/html')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          // Update the cache with the latest version
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+          return response;
+        })
+        .catch(() => {
+          // If network is absent, fall back to cache
+          return caches.match(event.request).then((cachedResponse) => {
+            if (cachedResponse) {
+              return cachedResponse;
+            }
+            // If there's no cache, return the root cache as a last resort
+            return caches.match('/');
+          });
+        })
+    );
+    return;
+  }
+
+  // For other requests (like assets), use Cache First strategy
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
