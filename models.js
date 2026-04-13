@@ -258,6 +258,25 @@ const EmailVerificationSchema = new mongoose.Schema({
 EmailVerificationSchema.index({ email: 1, purpose: 1, createdAt: -1 })
 EmailVerificationSchema.index({ sessionTokenHash: 1 })
 
+// WhatsApp Instance Schema - track per-staff Evolution instances
+const WhatsappInstanceSchema = new mongoose.Schema({
+  instanceName: { type: String, required: true, index: true },
+  staffId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  ownerJid: { type: String },
+  configured: { type: Boolean, default: true },
+  metadata: { type: mongoose.Schema.Types.Mixed },
+  createdAt: { type: Date, default: Date.now },
+  updatedAt: { type: Date, default: Date.now }
+})
+
+WhatsappInstanceSchema.pre('save', function(next) {
+  this.updatedAt = new Date()
+  next()
+})
+
+WhatsappInstanceSchema.index({ instanceName: 1 })
+WhatsappInstanceSchema.index({ staffId: 1, updatedAt: -1 })
+
 // Generate marksheet ID before saving
 MarksheetSchema.pre('save', function(next) {
   if (!this.marksheetId) {
@@ -285,6 +304,7 @@ if (mongoose.models.LeaveRequest) delete mongoose.models.LeaveRequest
 if (mongoose.models.StaffApprovalRequest) delete mongoose.models.StaffApprovalRequest
 if (mongoose.models.AccessPolicy) delete mongoose.models.AccessPolicy
 if (mongoose.models.EmailVerification) delete mongoose.models.EmailVerification
+if (mongoose.models.WhatsappInstance) delete mongoose.models.WhatsappInstance
 
 // Create new models with explicit collection names
 export const User = mongoose.model('User', UserSchema)
@@ -295,3 +315,4 @@ export const LeaveRequest = mongoose.model('LeaveRequest', LeaveRequestSchema)
 export const StaffApprovalRequest = mongoose.model('StaffApprovalRequest', StaffApprovalRequestSchema)
 export const AccessPolicy = mongoose.model('AccessPolicy', AccessPolicySchema)
 export const EmailVerification = mongoose.model('EmailVerification', EmailVerificationSchema)
+export const WhatsappInstance = mongoose.model('WhatsappInstance', WhatsappInstanceSchema)
