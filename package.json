@@ -15,6 +15,7 @@
     "clean": "rmdir /s /q dist 2>nul || echo \"Directory already clean\"",
     "prebuild": "npm run clean",
     "seed-users": "node seed-users.js",
+    "smtp:verify": "node scripts/smtp-verify.js",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
