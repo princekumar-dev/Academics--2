@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import apiClient from '../utils/apiClient'
 import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { useNavigate } from 'react-router-dom'
@@ -7,6 +7,9 @@ import { getAuthOrNull } from '../utils/auth'
 const SINGLE_SECTION_DEPARTMENTS = ['MECH', 'CIVIL', 'EEE']
 
 function SignUp() {
+  const auth = getAuthOrNull()
+  const isAdminCreating = (auth?.role || '').toLowerCase() === 'admin'
+  const creatorUserId = auth?.id || auth?.userId || auth?._id
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -21,7 +24,14 @@ function SignUp() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [verificationCode, setVerificationCode] = useState('')
+  const [verificationToken, setVerificationToken] = useState('')
+  const [isSendingCode, setIsSendingCode] = useState(false)
+  const [isVerifyingCode, setIsVerifyingCode] = useState(false)
+  const [isCodeSent, setIsCodeSent] = useState(false)
+  const [isEmailVerified, setIsEmailVerified] = useState(false)
   const navigate = useNavigate()
+  const requiresEmailVerification = !isAdminCreating
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
@@ -34,11 +44,100 @@ function SignUp() {
           updated.section = ''
         }
       }
+
+      if (name === 'email' && value.trim().toLowerCase() !== prev.email.trim().toLowerCase()) {
+        setIsCodeSent(false)
+        setIsEmailVerified(false)
+        setVerificationToken('')
+        setVerificationCode('')
+      }
+
       return updated
     })
     if (error) setError('')
     if (success) setSuccess('')
   }
+
+  const handleSendVerificationCode = async () => {
+    const normalizedEmail = formData.email.trim().toLowerCase()
+    if (!normalizedEmail) {
+      setError('Please enter your email first.')
+      return
+    }
+
+    if (!normalizedEmail.endsWith('@msec.edu.in')) {
+      setError('Only @msec.edu.in email addresses are allowed.')
+      return
+    }
+
+    setIsSendingCode(true)
+    setError('')
+    setSuccess('')
+    setIsEmailVerified(false)
+    setVerificationToken('')
+
+    try {
+      const data = await apiClient.post('/api/users?action=email-verification', {
+        mode: 'request',
+        email: normalizedEmail,
+        purpose: 'signup'
+      })
+
+      if (!data?.success) {
+        setError(data?.error || 'Unable to send verification code. Please try again.')
+        return
+      }
+
+      setIsCodeSent(true)
+      setSuccess(data.developmentCode
+        ? `Verification code sent. Development code: ${data.developmentCode}`
+        : 'Verification code sent to your email.')
+    } catch (err) {
+      setError(getUserFriendlyMessage(err, 'Unable to send verification code. Please try again.'))
+    } finally {
+      setIsSendingCode(false)
+    }
+  }
+
+  const handleVerifyCode = async () => {
+    const normalizedEmail = formData.email.trim().toLowerCase()
+    const candidateCode = verificationCode.trim()
+    if (!candidateCode) {
+      setError('Please enter the verification code from your email.')
+      return
+    }
+
+    setIsVerifyingCode(true)
+    setError('')
+
+    try {
+      const data = await apiClient.post('/api/users?action=email-verification', {
+        mode: 'verify',
+        email: normalizedEmail,
+        purpose: 'signup',
+        code: candidateCode
+      })
+
+      if (!data?.success || !data?.verificationToken) {
+        setError(data?.error || 'Invalid verification code. Please try again.')
+        return
+      }
+
+      setVerificationToken(data.verificationToken)
+      setIsEmailVerified(true)
+      setSuccess('Email verified successfully. You can now create your account.')
+    } catch (err) {
+      setError(getUserFriendlyMessage(err, 'Verification failed. Please try again.'))
+    } finally {
+      setIsVerifyingCode(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!isCodeSent || isEmailVerified || isVerifyingCode) return
+    if (verificationCode.length !== 6) return
+    handleVerifyCode()
+  }, [verificationCode, isCodeSent, isEmailVerified, isVerifyingCode])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -83,15 +182,17 @@ function SignUp() {
       return
     }
 
-    try {
-      const auth = getAuthOrNull()
-      const isAdminCreating = (auth?.role || '').toLowerCase() === 'admin'
-      const creatorUserId = auth?.id || auth?.userId || auth?._id
+    if (requiresEmailVerification && (!isEmailVerified || !verificationToken)) {
+      setError('Please verify your email before creating an account.')
+      setIsLoading(false)
+      return
+    }
 
+    try {
       // Create user via API
       const userData = {
         name: formData.name,
-        email: formData.email,
+        email: formData.email.trim().toLowerCase(),
         password: formData.password,
         role: formData.role,
         department: formData.department,
@@ -106,6 +207,10 @@ function SignUp() {
       if (formData.role === 'staff') {
         userData.year = formData.year
         userData.section = formData.section
+      }
+
+      if (requiresEmailVerification) {
+        userData.emailVerificationToken = verificationToken
       }
       
       try {
@@ -155,11 +260,15 @@ function SignUp() {
           transition: all 0.3s ease;
         }
         .login-wave-button:hover { animation-duration: 1.5s; }
+
+        .mail-send-btn {
+          background: linear-gradient(135deg, rgba(34, 197, 94, 0.85), rgba(16, 185, 129, 0.9));
+        }
       `}</style>
 
-      <div className="relative z-10">
-        <div className="w-full max-w-md">
-          <div className="backdrop-blur-md bg-white/20 border border-white/30 p-8 rounded-3xl shadow-2xl">
+      <div className="relative z-10 w-full max-w-md mx-auto">
+        <div className="w-full">
+          <div className="backdrop-blur-md bg-white/20 border border-white/30 p-5 sm:p-8 rounded-2xl sm:rounded-3xl shadow-2xl">
             <div className="text-center mb-8">
               <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full mb-6">
                 <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -194,19 +303,63 @@ function SignUp() {
 
               <div>
                 <label className="block text-sm font-bold text-white mb-3">Email Address</label>
-                <input 
-                  type="email" 
-                  name="email" 
-                  value={formData.email} 
-                  onChange={handleInputChange} 
-                  pattern=".*@msec\.edu\.in$"
-                  title="Please use your MSEC email address (@msec.edu.in)"
-                  className="w-full px-4 py-4 border-0 rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200" 
-                  placeholder="Enter your email" 
-                  required 
-                />
+                <div className="relative">
+                  <input 
+                    type="email" 
+                    name="email" 
+                    value={formData.email} 
+                    onChange={handleInputChange} 
+                    pattern=".*@msec\.edu\.in$"
+                    title="Please use your MSEC email address (@msec.edu.in)"
+                    className="w-full pl-4 pr-10 md:pr-14 py-3 sm:py-4 border-0 rounded-xl sm:rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200" 
+                    placeholder="Enter your email" 
+                    required 
+                  />
+
+                  {requiresEmailVerification && (
+                    <div className="absolute inset-y-0 right-1 md:right-2 flex items-center">
+                      <button
+                        type="button"
+                        onClick={handleSendVerificationCode}
+                        disabled={isSendingCode || !formData.email || isEmailVerified}
+                        className="mail-send-btn h-6 w-6 md:h-9 md:w-9 rounded-xl border border-emerald-200/35 text-white flex items-center justify-center shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={isEmailVerified ? 'Email verified' : (isSendingCode ? 'Sending OTP...' : (isCodeSent ? 'Resend OTP' : 'Send OTP'))}
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M22 2L11 13" />
+                          <path d="M22 2L15 22L11 13L2 9L22 2Z" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <p className="mt-2 text-xs text-gray-100">Use your official MSEC email address</p>
+                {requiresEmailVerification && (
+                  <p className="mt-2 text-xs leading-relaxed text-emerald-100/95">
+                    {isEmailVerified ? 'Email verified successfully.' : (isCodeSent ? 'OTP sent. Enter 6-digit code below.' : 'Click the send icon to get OTP.')}
+                  </p>
+                )}
               </div>
+
+              {requiresEmailVerification && (
+                !isEmailVerified && isCodeSent && (
+                  <div className="rounded-2xl border border-emerald-200/40 bg-emerald-100/15 p-4">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-emerald-100 mb-2">Enter OTP</label>
+                    <input
+                      type="text"
+                      value={verificationCode}
+                      onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      className="w-full px-3 py-3 border-0 rounded-xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-emerald-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200 tracking-[0.35em] text-center"
+                      placeholder="------"
+                      inputMode="numeric"
+                      maxLength={6}
+                    />
+                    <p className="mt-2 text-xs leading-relaxed text-emerald-100">
+                      {isVerifyingCode ? 'Verifying OTP...' : 'OTP auto-verifies when 6 digits are entered.'}
+                    </p>
+                  </div>
+                )
+              )}
 
               <div>
                 <label className="block text-sm font-bold text-white mb-3">Role</label>
@@ -297,7 +450,7 @@ function SignUp() {
               </div>
 
               <div className="pt-4">
-                <button type="submit" disabled={isLoading} className="glass-button w-full py-4 px-6 text-blue-600 text-lg font-bold rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
+                <button type="submit" disabled={isLoading || (requiresEmailVerification && !isEmailVerified)} className="glass-button w-full py-4 px-6 text-blue-600 text-lg font-bold rounded-2xl transition-all duration-300 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed">
                   <span className="truncate">{isLoading ? 'Creating account...' : 'Create Account'}</span>
                 </button>
               </div>
