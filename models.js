@@ -238,6 +238,26 @@ AccessPolicySchema.pre('save', function(next) {
   next()
 })
 
+// Email Verification Schema - OTP-based mailbox ownership verification
+const EmailVerificationSchema = new mongoose.Schema({
+  email: { type: String, required: true, index: true },
+  purpose: { type: String, enum: ['signup', 'login'], required: true, index: true },
+  codeHash: { type: String, required: true },
+  expiresAt: { type: Date, required: true },
+  attempts: { type: Number, default: 0 },
+  lastAttemptAt: { type: Date },
+  verifiedAt: { type: Date },
+  sessionTokenHash: { type: String },
+  sessionExpiresAt: { type: Date },
+  tokenUsedAt: { type: Date },
+  requestIp: { type: String },
+  userAgent: { type: String },
+  createdAt: { type: Date, default: Date.now, expires: '2d' }
+})
+
+EmailVerificationSchema.index({ email: 1, purpose: 1, createdAt: -1 })
+EmailVerificationSchema.index({ sessionTokenHash: 1 })
+
 // Generate marksheet ID before saving
 MarksheetSchema.pre('save', function(next) {
   if (!this.marksheetId) {
@@ -264,6 +284,7 @@ if (mongoose.models.ImportSession) delete mongoose.models.ImportSession
 if (mongoose.models.LeaveRequest) delete mongoose.models.LeaveRequest
 if (mongoose.models.StaffApprovalRequest) delete mongoose.models.StaffApprovalRequest
 if (mongoose.models.AccessPolicy) delete mongoose.models.AccessPolicy
+if (mongoose.models.EmailVerification) delete mongoose.models.EmailVerification
 
 // Create new models with explicit collection names
 export const User = mongoose.model('User', UserSchema)
@@ -273,22 +294,4 @@ export const ImportSession = mongoose.model('ImportSession', ImportSessionSchema
 export const LeaveRequest = mongoose.model('LeaveRequest', LeaveRequestSchema)
 export const StaffApprovalRequest = mongoose.model('StaffApprovalRequest', StaffApprovalRequestSchema)
 export const AccessPolicy = mongoose.model('AccessPolicy', AccessPolicySchema)
-
-// WhatsApp Instance Schema - track per-staff Evolution instances
-const WhatsappInstanceSchema = new mongoose.Schema({
-  instanceName: { type: String, required: true, index: true },
-  staffId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-  ownerJid: { type: String },
-  configured: { type: Boolean, default: true },
-  metadata: { type: mongoose.Schema.Types.Mixed },
-  createdAt: { type: Date, default: Date.now },
-  updatedAt: { type: Date, default: Date.now }
-})
-
-WhatsappInstanceSchema.pre('save', function(next) {
-  this.updatedAt = new Date()
-  next()
-})
-
-if (mongoose.models.WhatsappInstance) delete mongoose.models.WhatsappInstance
-export const WhatsappInstance = mongoose.model('WhatsappInstance', WhatsappInstanceSchema)
+export const EmailVerification = mongoose.model('EmailVerification', EmailVerificationSchema)
