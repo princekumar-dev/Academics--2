@@ -1,12 +1,29 @@
 import { connectToDatabase } from '../lib/mongo.js'
-import { User, Student, StaffApprovalRequest, AccessPolicy } from '../models.js'
+import { User, Student, StaffApprovalRequest, AccessPolicy, EmailVerification } from '../models.js'
 import bcrypt from 'bcryptjs'
 import { storeNotification, getUserSubscriptions } from '../lib/notificationService.js'
 import webpush from 'web-push'
+import { consumeVerificationToken, normalizeEmail, generateOtpCode, createVerificationRequest, verifyOtpCode } from '../lib/emailVerification.js'
+import { sendVerificationCodeEmail } from '../lib/emailService.js'
 
 const DEFAULT_START_MINUTES = 8 * 60 + 30
 const DEFAULT_END_MINUTES = 17 * 60
 const ACCESS_POLICY_KEY = 'login_window'
+const ALLOWED_VERIFICATION_PURPOSES = new Set(['signup', 'login'])
+const RATE_WINDOW_MS = 15 * 60 * 1000
+const MAX_REQUESTS_PER_EMAIL = 3
+const MAX_REQUESTS_PER_IP = 20
+
+const getRequestIp = (req) => {
+  const forwarded = req.headers['x-forwarded-for']
+  if (Array.isArray(forwarded)) return forwarded[0]
+  if (typeof forwarded === 'string' && forwarded.length > 0) {
+    return forwarded.split(',')[0].trim()
+  }
+  return req.socket?.remoteAddress || req.ip || 'unknown'
+}
+
+const isMsecEmail = (email) => normalizeEmail(email).endsWith('@msec.edu.in')
 
 const clampMinute = (value, fallback) => {
   const n = Number(value)
@@ -171,8 +188,120 @@ export default async function handler(req, res) {
     }
 
     if (req.method === 'POST') {
+      const action = String(req.query?.action || req.body?.action || '').trim().toLowerCase()
+
+      if (action === 'email-verification') {
+        const { email, purpose, code, mode } = req.body || {}
+        const normalizedEmail = normalizeEmail(email)
+        const normalizedPurpose = String(purpose || '').trim().toLowerCase()
+        const normalizedMode = String(mode || req.body?.action || '').trim().toLowerCase()
+
+        if (!normalizedEmail || !normalizedPurpose || !ALLOWED_VERIFICATION_PURPOSES.has(normalizedPurpose)) {
+          return res.status(400).json({ success: false, error: 'email and valid purpose are required' })
+        }
+
+        if (!isMsecEmail(normalizedEmail)) {
+          return res.status(400).json({ success: false, error: 'Only @msec.edu.in email addresses are allowed' })
+        }
+
+        if (normalizedMode === 'request') {
+          const now = new Date()
+          const windowStart = new Date(now.getTime() - RATE_WINDOW_MS)
+          const requestIp = getRequestIp(req)
+
+          const [emailRequests, ipRequests] = await Promise.all([
+            EmailVerification.countDocuments({
+              email: normalizedEmail,
+              purpose: normalizedPurpose,
+              createdAt: { $gte: windowStart }
+            }),
+            EmailVerification.countDocuments({
+              requestIp,
+              createdAt: { $gte: windowStart }
+            })
+          ])
+
+          if (emailRequests >= MAX_REQUESTS_PER_EMAIL || ipRequests >= MAX_REQUESTS_PER_IP) {
+            return res.status(429).json({
+              success: false,
+              error: 'Too many verification requests. Please wait a few minutes and try again.'
+            })
+          }
+
+          if (normalizedPurpose === 'login') {
+            const [user, pendingRequest] = await Promise.all([
+              User.findOne({ email: normalizedEmail }).select('_id').lean(),
+              StaffApprovalRequest.findOne({ email: normalizedEmail }).select('_id').lean()
+            ])
+
+            if (!user && !pendingRequest) {
+              return res.status(404).json({
+                success: false,
+                error: 'No account found for this email. Please check your email or sign up first.'
+              })
+            }
+          }
+
+          const otp = generateOtpCode()
+          const verificationDoc = await createVerificationRequest({
+            email: normalizedEmail,
+            purpose: normalizedPurpose,
+            code: otp,
+            requestIp,
+            userAgent: req.headers['user-agent'] || 'unknown'
+          })
+
+          const sent = await sendVerificationCodeEmail({
+            to: normalizedEmail,
+            code: otp,
+            purpose: normalizedPurpose
+          })
+
+          if (!sent.success) {
+            await EmailVerification.findByIdAndDelete(verificationDoc._id)
+            return res.status(503).json({ success: false, error: sent.error || 'Failed to send verification email' })
+          }
+
+          const response = {
+            success: true,
+            message: 'Verification code sent to your email. It is valid for 10 minutes.'
+          }
+
+          if (sent.messageId) {
+            console.log(`[users.js] OTP email sent to ${normalizedEmail}, messageId=${sent.messageId}`)
+          }
+
+          return res.status(200).json(response)
+        }
+
+        if (normalizedMode === 'verify') {
+          if (!code) {
+            return res.status(400).json({ success: false, error: 'code is required for verification' })
+          }
+
+          const result = await verifyOtpCode({
+            email: normalizedEmail,
+            purpose: normalizedPurpose,
+            code
+          })
+
+          if (!result.success) {
+            return res.status(result.status || 400).json({ success: false, error: result.error })
+          }
+
+          return res.status(200).json({
+            success: true,
+            message: 'Email verified successfully.',
+            verificationToken: result.verificationToken,
+            expiresInMinutes: result.expiresInMinutes
+          })
+        }
+
+        return res.status(400).json({ success: false, error: 'Unsupported email verification action' })
+      }
+
       // create academic user
-      const { name, email, password, role, department, year, section, phoneNumber, creatorUserId } = req.body
+      const { name, email, password, role, department, year, section, phoneNumber, creatorUserId, emailVerificationToken } = req.body
       if (!name || !email || !password || !role || !department) {
         return res.status(400).json({ success: false, error: 'name, email, password, role and department are required' })
       }
@@ -214,6 +343,28 @@ export default async function handler(req, res) {
       }
 
       const isAdminCreatingStaff = role === 'staff' && creatorUser?.role === 'admin'
+
+      if (!isAdminCreatingStaff) {
+        if (!emailVerificationToken) {
+          return res.status(403).json({
+            success: false,
+            error: 'Please verify your email before creating an account.'
+          })
+        }
+
+        const verificationStatus = await consumeVerificationToken({
+          email: email.toLowerCase(),
+          purpose: 'signup',
+          token: emailVerificationToken
+        })
+
+        if (!verificationStatus.success) {
+          return res.status(403).json({
+            success: false,
+            error: verificationStatus.error || 'Email verification is required before signup.'
+          })
+        }
+      }
 
       // Check if there's already a pending approval request
       if (!isAdminCreatingStaff) {
