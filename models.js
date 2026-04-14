@@ -260,7 +260,7 @@ EmailVerificationSchema.index({ sessionTokenHash: 1 })
 
 // WhatsApp Instance Schema - track per-staff Evolution instances
 const WhatsappInstanceSchema = new mongoose.Schema({
-  instanceName: { type: String, required: true, index: true },
+  instanceName: { type: String, required: true },
   staffId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   ownerJid: { type: String },
   configured: { type: Boolean, default: true },
