@@ -1,7 +1,6 @@
 import { connectToDatabase } from '../lib/mongo.js'
 import { User, Student, StaffApprovalRequest, AccessPolicy } from '../models.js'
 import bcrypt from 'bcryptjs'
-import { validateVerificationToken } from '../lib/emailVerification.js'
 
 const DEFAULT_STUDENT_PASSWORD = process.env.DEFAULT_STUDENT_PASSWORD || 'msec@123'
 const DEFAULT_START_MINUTES = 8 * 60 + 30
@@ -54,7 +53,7 @@ export default async function handler(req, res) {
         })
       }
 
-      const { email, password, regNumber, loginType, emailVerificationToken } = req.body
+      const { email, password, regNumber, loginType } = req.body
       console.log('🔐 [AUTH] Request body:', { email, password: password ? '***' : 'none', regNumber, loginType })
 
       // Site policy: enforce IST time window (8:30 AM - 5:00 PM)
@@ -140,27 +139,6 @@ export default async function handler(req, res) {
       }
 
       const normalizedEmail = email.toLowerCase().trim()
-
-      if (!emailVerificationToken) {
-        return res.status(403).json({
-          success: false,
-          error: 'Please verify your email before signing in.'
-        })
-      }
-
-      const verificationStatus = await validateVerificationToken({
-        email: normalizedEmail,
-        purpose: 'login',
-        token: emailVerificationToken
-      })
-
-      if (!verificationStatus.success) {
-        return res.status(403).json({
-          success: false,
-          error: verificationStatus.error || 'Email verification has expired. Please verify again.'
-        })
-      }
-
       const user = await User.findOne({ email: normalizedEmail })
       if (!user) {
         const latestApprovalRequest = await StaffApprovalRequest
