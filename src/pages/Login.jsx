@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import apiClient from '../utils/apiClient'
 import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { useNavigate } from 'react-router-dom'
@@ -58,12 +58,6 @@ function Login() {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const [loginCode, setLoginCode] = useState('')
-  const [isSendingLoginCode, setIsSendingLoginCode] = useState(false)
-  const [isVerifyingLoginCode, setIsVerifyingLoginCode] = useState(false)
-  const [isLoginCodeSent, setIsLoginCodeSent] = useState(false)
-  const [isStaffEmailVerified, setIsStaffEmailVerified] = useState(false)
-  const [loginVerificationToken, setLoginVerificationToken] = useState('')
   const navigate = useNavigate()
   const { showSuccess, showError, showWarning } = useAlert()
   const accessPolicy = getAccessPolicy()
@@ -88,10 +82,6 @@ function Login() {
 
     setFormData(prev => {
       if (normalizedType === 'student') {
-        setIsLoginCodeSent(false)
-        setIsStaffEmailVerified(false)
-        setLoginVerificationToken('')
-        setLoginCode('')
         return {
           ...prev,
           loginType: 'student',
@@ -100,11 +90,6 @@ function Login() {
           regNumber: ''
         }
       }
-
-      setIsLoginCodeSent(false)
-      setIsStaffEmailVerified(false)
-      setLoginVerificationToken('')
-      setLoginCode('')
 
       return {
         ...prev,
@@ -118,14 +103,6 @@ function Login() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target
-
-    if (name === 'email' && value.trim().toLowerCase() !== formData.email.trim().toLowerCase()) {
-      setIsLoginCodeSent(false)
-      setIsStaffEmailVerified(false)
-      setLoginVerificationToken('')
-      setLoginCode('')
-    }
-
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -133,84 +110,6 @@ function Login() {
     // Clear error when user starts typing
     if (error) setError('')
   }
-
-  const sendLoginVerificationCode = async () => {
-    const normalizedEmail = formData.email.trim().toLowerCase()
-    if (!normalizedEmail) {
-      setError('Please enter your email first.')
-      return
-    }
-
-    if (!normalizedEmail.endsWith('@msec.edu.in')) {
-      setError('Only @msec.edu.in email addresses are allowed.')
-      return
-    }
-
-    setIsSendingLoginCode(true)
-    setError('')
-
-    try {
-      const data = await apiClient.post('/api/users?action=email-verification', {
-        mode: 'request',
-        email: normalizedEmail,
-        purpose: 'login'
-      })
-
-      if (!data?.success) {
-        setError(data?.error || 'Unable to send login verification code.')
-        return
-      }
-
-      setIsLoginCodeSent(true)
-      if (data.developmentCode) {
-        showWarning('Development OTP', `Verification code: ${data.developmentCode}`)
-      }
-    } catch (err) {
-      setError(getUserFriendlyMessage(err, 'Unable to send login verification code.'))
-    } finally {
-      setIsSendingLoginCode(false)
-    }
-  }
-
-  const verifyLoginCode = async () => {
-    const normalizedEmail = formData.email.trim().toLowerCase()
-    const candidateCode = loginCode.trim()
-    if (!candidateCode) {
-      setError('Please enter the verification code from your email.')
-      return
-    }
-
-    setIsVerifyingLoginCode(true)
-    setError('')
-
-    try {
-      const data = await apiClient.post('/api/users?action=email-verification', {
-        mode: 'verify',
-        email: normalizedEmail,
-        purpose: 'login',
-        code: candidateCode
-      })
-
-      if (!data?.success || !data?.verificationToken) {
-        setError(data?.error || 'Invalid verification code.')
-        return
-      }
-
-      setIsStaffEmailVerified(true)
-      setLoginVerificationToken(data.verificationToken)
-    } catch (err) {
-      setError(getUserFriendlyMessage(err, 'Unable to verify code. Please try again.'))
-    } finally {
-      setIsVerifyingLoginCode(false)
-    }
-  }
-
-  useEffect(() => {
-    if (formData.loginType !== 'staff') return
-    if (!isLoginCodeSent || isStaffEmailVerified || isVerifyingLoginCode) return
-    if (loginCode.length !== 6) return
-    verifyLoginCode()
-  }, [loginCode, isLoginCodeSent, isStaffEmailVerified, isVerifyingLoginCode, formData.loginType])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -247,23 +146,10 @@ function Login() {
         setIsLoading(false)
         return
       }
-
-      if (!isStaffEmailVerified || !loginVerificationToken) {
-        setError('Please verify your email before signing in.')
-        setIsLoading(false)
-        return
-      }
     }
 
     try {
-      const payload = {
-        ...formData,
-        email: formData.email.trim().toLowerCase()
-      }
-      if (formData.loginType === 'staff') {
-        payload.emailVerificationToken = loginVerificationToken
-      }
-      const data = await apiClient.post('/api/auth', payload)
+      const data = await apiClient.post('/api/auth', formData)
 
       if (data.success) {
         // Set authentication state in localStorage
@@ -351,10 +237,6 @@ function Login() {
           .login-wave-button:hover {
             animation-duration: 1.5s;
           }
-
-          .mail-send-btn {
-            background: linear-gradient(135deg, rgba(34, 197, 94, 0.85), rgba(16, 185, 129, 0.9));
-          }
         `}
       </style>
 
@@ -439,57 +321,18 @@ function Login() {
                   <label className="block text-sm font-bold text-white mb-3">
                     Email Address
                   </label>
-                  <div className="relative">
-                    <input
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      autoComplete="username"
-                      pattern=".*@msec\.edu\.in$"
-                      title="Please use your MSEC email address (@msec.edu.in)"
-                      className="w-full pl-4 pr-10 md:pr-14 py-3 sm:py-4 border-0 rounded-xl sm:rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200"
-                      placeholder="Enter your MSEC email address"
-                      required={formData.loginType === 'staff'}
-                    />
-
-                    <div className="absolute inset-y-0 right-1 md:right-2 flex items-center">
-                      <button
-                        type="button"
-                        onClick={sendLoginVerificationCode}
-                        disabled={isSendingLoginCode || !formData.email || isStaffEmailVerified}
-                        className="mail-send-btn h-6 w-6 md:h-9 md:w-9 rounded-xl border border-emerald-200/35 text-white flex items-center justify-center shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                        title={isStaffEmailVerified ? 'Email verified' : (isSendingLoginCode ? 'Sending OTP...' : (isLoginCodeSent ? 'Resend OTP' : 'Send OTP'))}
-                      >
-                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M22 2L11 13" />
-                          <path d="M22 2L15 22L11 13L2 9L22 2Z" />
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-
-                  <p className="mt-2 text-xs leading-relaxed text-emerald-100/95">
-                    {isStaffEmailVerified ? 'Email verified. Continue with password.' : (isLoginCodeSent ? 'OTP sent. Enter 6-digit code below.' : 'Click send icon to receive OTP.')}
-                  </p>
-
-                  {!isStaffEmailVerified && isLoginCodeSent && (
-                    <div className="mt-3 rounded-xl border border-emerald-300/45 bg-emerald-100/15 p-3">
-                      <label className="block text-[11px] uppercase tracking-wider font-bold text-emerald-100 mb-2">Enter OTP</label>
-                      <input
-                        type="text"
-                        value={loginCode}
-                        onChange={(e) => setLoginCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                        className="w-full px-3 py-2.5 border-0 rounded-lg backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-emerald-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200 tracking-[0.35em] text-center"
-                        placeholder="------"
-                        inputMode="numeric"
-                        maxLength={6}
-                      />
-                      <p className="mt-2 text-xs leading-relaxed text-emerald-100">
-                        {isVerifyingLoginCode ? 'Verifying OTP...' : 'OTP auto-verifies after entering 6 digits.'}
-                      </p>
-                    </div>
-                  )}
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    autoComplete="username"
+                    pattern=".*@msec\.edu\.in$"
+                    title="Please use your MSEC email address (@msec.edu.in)"
+                    className="w-full px-4 py-3 sm:py-4 border-0 rounded-xl sm:rounded-2xl backdrop-blur-sm bg-white/20 border border-white/30 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-200 text-white placeholder:text-gray-200"
+                    placeholder="Enter your MSEC email address"
+                    required={formData.loginType === 'staff'}
+                  />
                 </div>
               )}
 
@@ -534,7 +377,7 @@ function Login() {
               <div className="pt-4">
                 <button
                   type="submit"
-                  disabled={isLoading || !!accessBlocked || (formData.loginType === 'staff' && !isStaffEmailVerified)}
+                  disabled={isLoading || !!accessBlocked}
                   className="glass-button w-full py-3.5 sm:py-4 px-6 text-blue-600 text-base sm:text-lg font-bold rounded-xl sm:rounded-2xl transition-all duration-300 md:hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <span className="truncate">
