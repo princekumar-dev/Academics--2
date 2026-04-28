@@ -4,10 +4,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm exec vite build && echo 'Build completed successfully'",
+    "build": "node node_modules/vite/bin/vite.js build && echo 'Build completed successfully'",
     "convert-images": "node scripts/convert-images.js",
     "build:ci": "ENABLE_COMPRESSION=true npm run build",
-    "preview": "npm exec vite preview",
+    "preview": "node node_modules/vite/bin/vite.js preview",
     "server": "node server.js",
     "dev:full": "concurrently \"npm run server\" \"npm run dev\"",
     "warm-tunnel": "node scripts/warm-tunnel.js",
@@ -15,11 +15,11 @@
     "clean": "rmdir /s /q dist 2>nul || echo \"Directory already clean\"",
     "prebuild": "npm run clean",
     "seed-users": "node seed-users.js",
-    "smtp:verify": "node scripts/smtp-verify.js",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "postinstall": "chmod +x node_modules/.bin/* 2>/dev/null || true"
   },
   "dependencies": {
     "axios": "^1.7.9",
@@ -36,7 +36,6 @@
     "mongoose": "^8.18.3",
     "multer": "^1.4.5-lts.1",
     "node-cron": "^4.2.1",
-    "nodemailer": "^8.0.5",
     "pdf2pic": "^3.2.0",
     "pdfkit": "^0.15.2",
     "qrcode": "^1.5.4",
