@@ -5,7 +5,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://academics-su1d.onrender.com/api/$1"
+      "destination": "https://academics-2.onrender.com/api/$1"
     },
     {
       "source": "/((?!assets|favicon|manifest|service-worker|images|browserconfig|_redirects|.*\\.png|.*\\.json|.*\\.xml|.*\\.ico|.*\\.webmanifest).*)",
