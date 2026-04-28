@@ -4,10 +4,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npm exec vite build && echo 'Build completed successfully'",
+    "build": "npx vite build && echo 'Build completed successfully'",
     "convert-images": "node scripts/convert-images.js",
     "build:ci": "ENABLE_COMPRESSION=true npm run build",
-    "preview": "npm exec vite preview",
+    "preview": "npx vite preview",
     "server": "node server.js",
     "dev:full": "concurrently \"npm run server\" \"npm run dev\"",
     "warm-tunnel": "node scripts/warm-tunnel.js",
