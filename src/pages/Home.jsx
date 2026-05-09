@@ -40,7 +40,7 @@ function Home() {
     }
     // If section is missing, fetch latest user data from backend
     if (!authData.section || authData.section === undefined) {
-      apiClient.get(`/api/users?id=${authData.id}`)
+      apiClient.get(`/api/users?action=profile&userId=${authData.id}`)
         .then(data => {
           if (data?.success && data.user) {
             const updatedAuth = { ...authData, section: data.user.section, year: data.user.year, department: data.user.department }

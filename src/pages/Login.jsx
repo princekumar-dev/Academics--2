@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import apiClient from '../utils/apiClient'
 import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { useNavigate } from 'react-router-dom'
@@ -70,6 +70,21 @@ function Login() {
     return null
   }, [formData.loginType])
   const messageTone = useMemo(() => getMessageTone(error), [error])
+
+  // Auth guard: redirect if already logged in
+  useEffect(() => {
+    try {
+      const auth = localStorage.getItem('auth')
+      if (auth) {
+        const authData = JSON.parse(auth)
+        if (authData?.isAuthenticated && authData?.id) {
+          navigate('/', { replace: true })
+        }
+      }
+    } catch (e) {
+      // Ignore storage/parsing errors
+    }
+  }, [navigate])
 
   const switchLoginType = (nextType) => {
     const normalizedType = nextType === 'student' ? 'student' : 'staff'
