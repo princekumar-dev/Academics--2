@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import apiClient from '../utils/apiClient'
 import { useNavigate } from 'react-router-dom';
-import { Users, RefreshCw, Shield, PhoneCall } from 'lucide-react';
+import { Users, RefreshCw, Shield, PhoneCall, KeyRound } from 'lucide-react';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useAlert } from '../components/AlertContext';
 import WhatsAppStatus from '../components/WhatsAppStatus';
@@ -22,6 +22,11 @@ export default function AdminDashboard() {
   const [showCreateUser, setShowCreateUser] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState(null);
+  const [passwordUser, setPasswordUser] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSaving, setPasswordSaving] = useState(false);
   const [accessPolicyLoading, setAccessPolicyLoading] = useState(false);
   const [accessPolicySaving, setAccessPolicySaving] = useState(false);
   const [accessPolicyForm, setAccessPolicyForm] = useState({
@@ -157,6 +162,78 @@ export default function AdminDashboard() {
     if (!confirmDeleteUser) return;
     await handleDeleteUser(confirmDeleteUser._id || confirmDeleteUser.id, confirmDeleteUser.email);
     setConfirmDeleteUser(null);
+  };
+
+  const openPasswordModal = (user) => {
+    setPasswordUser(user);
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+  };
+
+  const closePasswordModal = ({ force = false } = {}) => {
+    if (passwordSaving && !force) return;
+    setPasswordUser(null);
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+  };
+
+  const handleAdminPasswordReset = async () => {
+    if (!passwordUser) return;
+
+    const passwordValue = newPassword;
+    const confirmValue = confirmPassword;
+    if (!passwordValue.trim() || !confirmValue.trim()) {
+      setPasswordError('New password and confirmation are required.');
+      return;
+    }
+
+    if (passwordValue.length < 6) {
+      setPasswordError('New password must be at least 6 characters.');
+      return;
+    }
+
+    if (passwordValue !== confirmValue) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+
+    const auth = JSON.parse(localStorage.getItem('auth') || '{}');
+    if (!auth?.id) {
+      setPasswordError('Session expired. Please log in again.');
+      return;
+    }
+
+    setPasswordSaving(true);
+    setPasswordError('');
+    try {
+      const targetUserId = passwordUser._id || passwordUser.id;
+      if (!targetUserId) {
+        setPasswordError('Could not find the selected user id. Please refresh and try again.');
+        return;
+      }
+
+      const data = await apiClient.patch(`/api/users?action=admin-reset-password&userId=${encodeURIComponent(targetUserId)}`, {
+        action: 'admin-reset-password',
+        adminUserId: auth.id,
+        userId: targetUserId,
+        targetUserId,
+        newPassword: passwordValue
+      });
+
+      if (data?.success) {
+        showSuccess('Password Updated', `${getUserDisplayName(passwordUser)} can now login with the new password.`);
+        closePasswordModal({ force: true });
+        return;
+      }
+
+      setPasswordError(data?.error || 'Could not update password.');
+    } catch (error) {
+      setPasswordError(error?.message || 'Could not update password.');
+    } finally {
+      setPasswordSaving(false);
+    }
   };
 
   return (
@@ -405,12 +482,22 @@ export default function AdminDashboard() {
                         </td>
                         <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap text-xs font-medium">
                           {user.role !== 'admin' ? (
-                            <button
-                              onClick={() => requestDeleteUser(user)}
-                              className="text-red-600 hover:text-red-900 hover:bg-red-50 px-2 py-1 rounded transition-colors"
-                            >
-                              Delete
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => openPasswordModal(user)}
+                                className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                                title={`Change password for ${getUserDisplayName(user)}`}
+                              >
+                                <KeyRound className="w-3.5 h-3.5" />
+                                <span>Password</span>
+                              </button>
+                              <button
+                                onClick={() => requestDeleteUser(user)}
+                                className="text-red-600 hover:text-red-900 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                              >
+                                Delete
+                              </button>
+                            </div>
                           ) : (
                             <span className="text-gray-400 italic">Admin</span>
                           )}
@@ -453,6 +540,76 @@ export default function AdminDashboard() {
       onConfirm={confirmDelete}
       onCancel={() => setConfirmDeleteUser(null)}
     />
+
+    {passwordUser && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 py-6">
+        <div className="w-full max-w-md rounded-xl bg-white shadow-2xl border border-gray-200 overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-200 bg-blue-50">
+            <div className="flex items-center gap-2">
+              <KeyRound className="w-5 h-5 text-blue-700" />
+              <h2 className="text-lg font-bold text-gray-900">Change User Password</h2>
+            </div>
+            <p className="text-sm text-gray-600 mt-1">
+              Set a new login password for {getUserDisplayName(passwordUser)}.
+            </p>
+          </div>
+
+          <div className="p-5 space-y-4">
+            {passwordError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {passwordError}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">New Password</label>
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+                autoComplete="new-password"
+                disabled={passwordSaving}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Confirm Password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm new password"
+                autoComplete="new-password"
+                disabled={passwordSaving}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={closePasswordModal}
+                disabled={passwordSaving}
+                className="px-4 py-2 rounded-lg border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleAdminPasswordReset}
+                disabled={passwordSaving}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+              >
+                {passwordSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
+                <span>{passwordSaving ? 'Saving...' : 'Update Password'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   );
 }
