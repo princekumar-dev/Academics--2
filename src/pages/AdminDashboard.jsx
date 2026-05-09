@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import apiClient from '../utils/apiClient'
 import { useNavigate } from 'react-router-dom';
-import { Users, RefreshCw, Shield, PhoneCall, KeyRound } from 'lucide-react';
+import { Users, RefreshCw, Shield, PhoneCall, KeyRound, Trash2 } from 'lucide-react';
 import ConfirmDialog from '../components/ConfirmDialog';
 import { useAlert } from '../components/AlertContext';
 import WhatsAppStatus from '../components/WhatsAppStatus';
@@ -19,7 +19,7 @@ export default function AdminDashboard() {
     totalHODs: 0,
     totalAdmins: 0
   });
-  const [showCreateUser, setShowCreateUser] = useState(false);
+
   const [editingUser, setEditingUser] = useState(null);
   const [confirmDeleteUser, setConfirmDeleteUser] = useState(null);
   const [passwordUser, setPasswordUser] = useState(null);
@@ -235,6 +235,8 @@ export default function AdminDashboard() {
       setPasswordSaving(false);
     }
   };
+
+
 
   return (
     <>
@@ -482,24 +484,29 @@ export default function AdminDashboard() {
                         </td>
                         <td className="px-3 sm:px-4 md:px-6 py-3 sm:py-4 whitespace-nowrap text-xs font-medium">
                           {user.role !== 'admin' ? (
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 lg:gap-3">
                               <button
                                 onClick={() => openPasswordModal(user)}
-                                className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 hover:bg-blue-50 px-2 py-1 rounded transition-colors"
+                                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 btn-fill-gold rounded-lg font-semibold text-xs"
                                 title={`Change password for ${getUserDisplayName(user)}`}
                               >
-                                <KeyRound className="w-3.5 h-3.5" />
-                                <span>Password</span>
+                                <KeyRound className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span className="hidden sm:inline">Password</span>
                               </button>
                               <button
                                 onClick={() => requestDeleteUser(user)}
-                                className="text-red-600 hover:text-red-900 hover:bg-red-50 px-2 py-1 rounded transition-colors"
+                                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 btn-fill-red rounded-lg font-semibold text-xs"
+                                title={`Delete ${getUserDisplayName(user)}`}
                               >
-                                Delete
+                                <Trash2 className="w-3.5 h-3.5 flex-shrink-0" />
+                                <span className="hidden sm:inline">Delete</span>
                               </button>
                             </div>
                           ) : (
-                            <span className="text-gray-400 italic">Admin</span>
+                            <div className="flex items-center justify-center px-3 py-2 bg-gray-100 rounded-lg text-gray-600 text-xs font-semibold">
+                              <span className="hidden sm:inline">System Admin</span>
+                              <span className="sm:hidden">—</span>
+                            </div>
                           )}
                         </td>
                       </tr>
@@ -516,8 +523,11 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-1 gap-3 sm:gap-4">
               <button
                 type="button"
-                onClick={() => navigate('/signup')}
-                className="flex items-center justify-center gap-2 sm:gap-3 px-3 py-2 sm:px-4 sm:py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-md sm:rounded-lg hover:shadow-lg transition-all transform hover:scale-105 text-xs sm:text-sm font-semibold"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.location.href = '/signup?adminMode=true';
+                }}
+                className="flex items-center justify-center gap-2 sm:gap-3 px-3 py-2 sm:px-4 sm:py-3 bg-blue-600 text-white text-xs sm:text-sm font-semibold rounded-md sm:rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
               >
                 <Users className="w-4 h-4 sm:w-5 sm:h-5" />
                 <span>Create User</span>
@@ -600,7 +610,7 @@ export default function AdminDashboard() {
                 type="button"
                 onClick={handleAdminPasswordReset}
                 disabled={passwordSaving}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 btn-fill-gold rounded-lg text-sm font-semibold disabled:opacity-50"
               >
                 {passwordSaving ? <RefreshCw className="w-4 h-4 animate-spin" /> : <KeyRound className="w-4 h-4" />}
                 <span>{passwordSaving ? 'Saving...' : 'Update Password'}</span>
@@ -610,6 +620,8 @@ export default function AdminDashboard() {
         </div>
       </div>
     )}
+
+
     </>
   );
 }
