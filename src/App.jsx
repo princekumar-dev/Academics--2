@@ -137,11 +137,12 @@ const ProtectedStaffOrHod = ({ children }) => {
 
 // Redirect to dashboard if already authenticated (for Login/SignUp)
 const RedirectIfAuthenticated = ({ children, allowAdmin = false }) => {
-  void allowAdmin
   const parsed = getAuthOrNull()
   if (!parsed) return children
   const blocked = getAccessBlockMeta(parsed.role)
   if (blocked) return children
+  // Allow admin to access signup page for creating new users
+  if (allowAdmin && parsed.role === 'admin') return children
   return <Navigate to={getDashboardPathForRole(parsed.role)} replace />
 }
 
