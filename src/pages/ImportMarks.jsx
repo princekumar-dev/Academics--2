@@ -41,7 +41,13 @@ function ImportMarks() {
           setErrors(data.errorMessages || [])
         }
       } catch (err) {
-        setErrors([getUserFriendlyMessage(err, 'Unexpected error')])
+        if (err.data && err.data.errorMessages && err.data.errorMessages.length > 0) {
+          setErrors(err.data.errorMessages)
+        } else if (err.data && err.data.error) {
+          setErrors([err.data.error])
+        } else {
+          setErrors([getUserFriendlyMessage(err, 'Unexpected error')])
+        }
       }
     } catch (e) {
       setErrors([getUserFriendlyMessage(e, 'Unexpected error')])
@@ -62,7 +68,13 @@ function ImportMarks() {
           setResult(data)
         }
       } catch (err) {
-        setErrors([getUserFriendlyMessage(err, 'Unexpected error')])
+        if (err.data && err.data.errorMessages && err.data.errorMessages.length > 0) {
+          setErrors(err.data.errorMessages)
+        } else if (err.data && err.data.error) {
+          setErrors([err.data.error])
+        } else {
+          setErrors([getUserFriendlyMessage(err, 'Unexpected error')])
+        }
       }
     } catch (e) {
       setErrors([getUserFriendlyMessage(e, 'Unexpected error')])

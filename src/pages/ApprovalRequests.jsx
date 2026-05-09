@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 import apiClient from '../utils/apiClient'
 import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { useNavigate } from 'react-router-dom'
@@ -11,6 +11,51 @@ import { useConfetti } from '../components/Confetti'
 import { HelpTooltip } from '../components/ContextualHelp'
 import usePullToRefresh, { PullToRefreshIndicator } from '../hooks/usePullToRefresh.jsx'
 import { usePushNotifications, usePageFocus } from '../hooks/usePushNotifications'
+
+const departmentDisplay = {
+  'AI_DS': 'AI & DS',
+  'CSE': 'CSE',
+  'IT': 'IT',
+  'ECE': 'ECE',
+  'EEE': 'EEE',
+  'MECH': 'MECH',
+  'CIVIL': 'CIVIL',
+  'HNS': 'H&S'
+}
+
+const departmentColors = {
+  'CSE': 'bg-blue-100 text-blue-800',
+  'AI_DS': 'bg-indigo-100 text-indigo-800',
+  'ECE': 'bg-teal-100 text-teal-800',
+  'IT': 'bg-green-100 text-green-800',
+  'MECH': 'bg-amber-100 text-amber-800',
+  'CIVIL': 'bg-red-100 text-red-800',
+  'EEE': 'bg-purple-100 text-purple-800',
+  'HNS': 'bg-yellow-50 text-yellow-800'
+}
+
+const statusStyles = {
+  dispatch_requested: 'bg-yellow-100 text-yellow-800',
+  approved_by_hod: 'bg-green-100 text-green-800',
+  rejected_by_hod: 'bg-red-100 text-red-800',
+  dispatched: 'bg-purple-100 text-purple-800'
+}
+
+const statusIcons = {
+  dispatch_requested: '⏳',
+  approved_by_hod: '✅',
+  rejected_by_hod: '⛔',
+  dispatched: '📤'
+}
+
+const formatClass = (details = {}) => {
+  const year = (details.year || '').toString()
+  const section = (details.section || '').toString()
+  if (!year && !section) return 'N/A'
+  if (!section) return year
+  if (!year) return section
+  return `${year}-${section}`
+}
 
 function ApprovalRequests() {
   const { showSuccess, showError, showWarning } = useAlert()
@@ -34,29 +79,6 @@ function ApprovalRequests() {
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [leaveRequests, setLeaveRequests] = useState([])
-  // Map department codes to friendly names (used for badges)
-  const departmentDisplay = {
-    'AI_DS': 'AI & DS',
-    'CSE': 'CSE',
-    'IT': 'IT',
-    'ECE': 'ECE',
-    'EEE': 'EEE',
-    'MECH': 'MECH',
-    'CIVIL': 'CIVIL',
-    'HNS': 'H&S'
-  }
-
-  // Department color classes for badges (Tailwind)
-  const departmentColors = {
-    'CSE': 'bg-blue-100 text-blue-800',
-    'AI_DS': 'bg-indigo-100 text-indigo-800',
-    'ECE': 'bg-teal-100 text-teal-800',
-    'IT': 'bg-green-100 text-green-800',
-    'MECH': 'bg-amber-100 text-amber-800',
-    'CIVIL': 'bg-red-100 text-red-800',
-    'EEE': 'bg-purple-100 text-purple-800',
-    'HNS': 'bg-yellow-50 text-yellow-800'
-  }
   const navigate = useNavigate()
 
   // Pull-to-refresh functionality
@@ -200,31 +222,18 @@ function ApprovalRequests() {
     }
   }
 
-  const handleAction = (event, marksheet, type) => {
-    const hasWindow = typeof window !== 'undefined'
-    const rect = event?.currentTarget?.getBoundingClientRect()
-    const anchorRect = rect && hasWindow
-      ? {
-        top: rect.top + window.scrollY,
-        left: rect.left + window.scrollX,
-        width: rect.width,
-        height: rect.height
-      }
-      : null
-    setActionError('')
-    setActionModal({ open: true, type, marksheet, anchorRect })
-  }
+  const handleViewDetails = useCallback((marksheet) => {
+    navigate(`/marksheets/${marksheet._id || marksheet.marksheetId}`)
+  }, [navigate])
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setActionModal({ open: false, type: null, marksheet: null, anchorRect: null })
     setActionError('')
-  }
+  }, [])
 
-  const submitAction = async ({ comments }) => {
-    if (!actionModal.marksheet || !actionModal.type) return
+  const processApprovalAction = useCallback(async (marksheet, type, comments = '') => {
     try {
       setActionLoading(true)
-      // Ensure HOD has a saved signature before allowing approve/reject
       const latest = await ensureHodSignature()
       if (!latest?.eSignature) {
         showError('Signature Missing', 'Please add your signature in Settings before approving requests')
@@ -233,33 +242,29 @@ function ApprovalRequests() {
       }
       const hodId = userData._id || userData.id
       const data = await apiClient.post('/api/marksheets?action=hod-response', {
-        marksheetId: actionModal.marksheet._id,
+        marksheetId: marksheet._id,
         hodId,
-        response: actionModal.type,
+        response: type,
         comments
       })
       if (!data || !data.success) throw new Error(data?.error || 'Failed to submit response')
-      const actionVerb = actionModal.type === 'approved' ? 'approved' : 'rejected'
-      const studentName = actionModal.marksheet?.studentDetails?.name || 'Student'
+      const actionVerb = type === 'approved' ? 'approved' : 'rejected'
+      const studentName = marksheet?.studentDetails?.name || 'Student'
       setFeedback(`Dispatch request ${actionVerb} successfully.`)
 
-      // Show glassmorphism alert
-      if (actionModal.type === 'approved') {
+      if (type === 'approved') {
         showSuccess('✓ Approved', `Dispatch approved for ${studentName}`)
       } else {
         showWarning('Request Rejected', `Dispatch rejected for ${studentName}`)
       }
 
       closeModal()
-      // Optimistically remove the processed marksheet so UI updates immediately
       try {
-        setPendingRequests(prev => prev.filter(m => m._id !== actionModal.marksheet._id))
+        setPendingRequests(prev => prev.filter(m => m._id !== marksheet._id))
       } catch (e) { }
-      // Notify header and other listeners to refresh counts and marksheet lists
       try { import('../utils/notificationEvents').then(m => m.notifyNotificationsUpdated()) } catch (e) { try { window.dispatchEvent(new Event('notificationsUpdated')) } catch (ee) { } }
       try { window.dispatchEvent(new Event('marksheetsUpdated')) } catch (e) { }
       try { window.refreshNotificationCount && window.refreshNotificationCount() } catch (e) { }
-      // Ensure a backend-backed refresh (force) to reconcile state
       await fetchPendingRequests(true)
     } catch (err) {
       const msg = getUserFriendlyMessage(err, 'Could not process the request.')
@@ -268,6 +273,15 @@ function ApprovalRequests() {
     } finally {
       setActionLoading(false)
     }
+  }, [userData, ensureHodSignature, showSuccess, showError, setPendingRequests, fetchPendingRequests])
+
+  const handleAction = useCallback((event, marksheet, type) => {
+    processApprovalAction(marksheet, type, '')
+  }, [processApprovalAction])
+
+  const submitAction = async ({ comments }) => {
+    if (!actionModal.marksheet || !actionModal.type) return
+    await processApprovalAction(actionModal.marksheet, actionModal.type, comments)
   }
 
   const handleBulkAction = async (actionType) => {
@@ -391,20 +405,13 @@ function ApprovalRequests() {
   ]), [pendingRequests])
 
   const filteredRequests = useMemo(() => {
-    const filtered = selectedStatus === 'all' ? pendingRequests : pendingRequests.filter(m => m.status === selectedStatus)
+    const filtered = selectedStatus === 'all' ? [...pendingRequests] : pendingRequests.filter(m => m.status === selectedStatus)
     return filtered.sort((a, b) => {
       const regA = (a.studentDetails?.regNumber || '').toString().toLowerCase()
       const regB = (b.studentDetails?.regNumber || '').toString().toLowerCase()
       return regA.localeCompare(regB, undefined, { numeric: true, sensitivity: 'base' })
     })
   }, [pendingRequests, selectedStatus])
-
-  const statusStyles = {
-    dispatch_requested: 'bg-yellow-100 text-yellow-800',
-    approved_by_hod: 'bg-green-100 text-green-800',
-    rejected_by_hod: 'bg-red-100 text-red-800',
-    dispatched: 'bg-purple-100 text-purple-800'
-  }
 
   const statusIcons = {
     dispatch_requested: '⏳',
@@ -551,115 +558,14 @@ function ApprovalRequests() {
                 </div>
 
                 <div className="space-y-4">
-                  {filteredRequests.map((marksheet) => {
-                    const swipeActions = [
-                      {
-                        label: 'Details',
-                        icon: '👁️',
-                        className: 'border-slate-300 text-slate-600 hover:border-slate-500 hover:bg-slate-50',
-                        onClick: () => navigate(`/marksheets/${marksheet._id || marksheet.marksheetId}`)
-                      },
-                      {
-                        label: 'Reject',
-                        icon: '❌',
-                        className: 'border-red-300 text-red-600 hover:border-red-500 hover:bg-red-50',
-                        onClick: (e) => handleAction(e, marksheet, 'rejected')
-                      },
-                      {
-                        label: 'Approve',
-                        icon: '✅',
-                        className: 'border-green-300 text-green-600 hover:border-green-500 hover:bg-green-50',
-                        onClick: (e) => handleAction(e, marksheet, 'approved')
-                      }
-                    ];
-
-                    return (
-                      <SwipeableCard key={marksheet._id} actions={swipeActions}>
-                        <div className="bg-white">
-                          {/* Header Section */}
-                          <div className="p-4 sm:p-6 pb-3 sm:pb-4">
-                            <div className="flex items-start justify-between mb-3 gap-2">
-                              <div className="flex-1 min-w-0">
-                                <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1 truncate">{marksheet.studentDetails?.name}</h3>
-                                <p className="text-xs sm:text-sm text-gray-600 flex flex-wrap items-center gap-2">
-                                  <span className="min-w-0">{marksheet.studentDetails?.regNumber} • {formatClass(marksheet.studentDetails)}</span>
-                                  {marksheet.studentDetails?.department && (
-                                    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase whitespace-nowrap shrink-0 ${departmentColors[marksheet.studentDetails.department] || 'bg-gray-100 text-gray-800'}`}>
-                                      {departmentDisplay[marksheet.studentDetails?.department] || (marksheet.studentDetails?.department || '').toUpperCase()}
-                                    </span>
-                                  )}
-                                </p>
-                              </div>
-                              <span className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide flex items-center gap-1 whitespace-nowrap ${statusStyles[marksheet.status] || 'bg-yellow-100 text-yellow-800'}`}>
-                                <span className="text-xs sm:text-sm">{statusIcons[marksheet.status] || '📄'}</span>
-                                <span className="text-xs">{(marksheet.status || '').replace(/_/g, ' ')}</span>
-                              </span>
-                            </div>
-
-                            {/* Info Grid */}
-                            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 text-xs sm:text-sm">
-                              <div>
-                                <p className="text-gray-500 mb-1">Staff:</p>
-                                <p className="font-medium text-gray-900 truncate">{marksheet.staffName || 'demo staff'}</p>
-                              </div>
-                              <div>
-                                <p className="text-gray-500 mb-1">Parent Phone:</p>
-                                <p className="font-medium text-gray-900">{marksheet.studentDetails?.parentPhoneNumber || '—'}</p>
-                              </div>
-                              <div>
-                                <p className="text-gray-500 mb-1">Exam Date:</p>
-                                <p className="font-medium text-gray-900">
-                                  {marksheet.examinationDate
-                                    ? new Date(marksheet.examinationDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
-                                    : '—'
-                                  }
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-gray-500 mb-1">Subjects:</p>
-                                <p className="font-medium text-gray-900">{marksheet.subjects?.length || 0}</p>
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Divider */}
-                          <div className="border-t border-gray-100"></div>
-
-                          {/* Action Buttons Section - Desktop Only */}
-                          <div className="hidden sm:block p-4 sm:p-6 pt-3 sm:pt-4 bg-gray-50">
-                            <div className="grid grid-cols-4 gap-3">
-                              <button
-                                onClick={(e) => handleAction(e, marksheet, 'approved')}
-                                className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1"
-                              >
-                                Approve Dispatch
-                              </button>
-                              <button
-                                onClick={(e) => handleAction(e, marksheet, 'rejected')}
-                                className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
-                              >
-                                Reject Request
-                              </button>
-                              <button
-                                onClick={() => navigate(`/marksheets/${marksheet._id || marksheet.marksheetId}`)}
-                                className="px-4 py-2.5 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg border border-gray-300 transition-all duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1"
-                              >
-                                View Details
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Mobile: Swipe instruction hint */}
-                          <div className="sm:hidden p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-blue-100">
-                            <p className="text-xs text-center text-gray-600 flex items-center justify-center gap-2">
-                              <span>👈</span>
-                              <span className="font-medium">Swipe left for actions</span>
-                            </p>
-                          </div>
-                        </div>
-                      </SwipeableCard>
-                    );
-                  })}
+                  {filteredRequests.map((marksheet) => (
+                    <MarksheetRequestCard
+                      key={marksheet._id}
+                      marksheet={marksheet}
+                      onAction={handleAction}
+                      onViewDetails={handleViewDetails}
+                    />
+                  ))}
                 </div>
               </>
             )}
@@ -693,6 +599,98 @@ function InfoRow({ label, value }) {
     </div>
   )
 }
+
+const MarksheetRequestCard = memo(function MarksheetRequestCard({ marksheet, onAction, onViewDetails }) {
+  const swipeActions = useMemo(() => ([
+    {
+      label: 'Details',
+      icon: 'View',
+      className: 'border-slate-300 text-slate-600 hover:border-slate-500 hover:bg-slate-50',
+      onClick: () => onViewDetails(marksheet)
+    },
+    {
+      label: 'Reject',
+      icon: 'Reject',
+      className: 'border-red-300 text-red-600 hover:border-red-500 hover:bg-red-50',
+      onClick: (e) => onAction(e, marksheet, 'rejected')
+    },
+    {
+      label: 'Approve',
+      icon: 'Approve',
+      className: 'border-green-300 text-green-600 hover:border-green-500 hover:bg-green-50',
+      onClick: (e) => onAction(e, marksheet, 'approved')
+    }
+  ]), [marksheet, onAction, onViewDetails])
+
+  return (
+    <SwipeableCard actions={swipeActions}>
+      <div className="bg-white">
+        <div className="p-4 sm:p-6 pb-3 sm:pb-4">
+          <div className="flex items-start justify-between mb-3 gap-2">
+            <div className="flex-1 min-w-0">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-1 truncate">{marksheet.studentDetails?.name}</h3>
+              <p className="text-xs sm:text-sm text-gray-600 flex flex-wrap items-center gap-2">
+                <span className="min-w-0">{marksheet.studentDetails?.regNumber} - {formatClass(marksheet.studentDetails)}</span>
+                {marksheet.studentDetails?.department && (
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase whitespace-nowrap shrink-0 ${departmentColors[marksheet.studentDetails.department] || 'bg-gray-100 text-gray-800'}`}>
+                    {departmentDisplay[marksheet.studentDetails?.department] || (marksheet.studentDetails?.department || '').toUpperCase()}
+                  </span>
+                )}
+              </p>
+            </div>
+            <span className={`px-2 py-1 sm:px-3 sm:py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide flex items-center gap-1 whitespace-nowrap ${statusStyles[marksheet.status] || 'bg-yellow-100 text-yellow-800'}`}>
+              <span className="text-xs sm:text-sm">{statusIcons[marksheet.status] || '📄'}</span>
+              <span className="text-xs">{(marksheet.status || '').replace(/_/g, ' ')}</span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6 text-xs sm:text-sm">
+            <InfoRow label="Staff" value={marksheet.staffName || 'demo staff'} />
+            <InfoRow label="Parent Phone" value={marksheet.studentDetails?.parentPhoneNumber || '-'} />
+            <InfoRow
+              label="Exam Date"
+              value={marksheet.examinationDate
+                ? new Date(marksheet.examinationDate).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+                : '-'}
+            />
+            <InfoRow label="Subjects" value={marksheet.subjects?.length || 0} />
+          </div>
+        </div>
+
+        <div className="border-t border-gray-100"></div>
+
+        <div className="hidden sm:block p-4 sm:p-6 pt-3 sm:pt-4 bg-gray-50">
+          <div className="grid grid-cols-4 gap-3">
+            <button
+              onClick={(e) => onAction(e, marksheet, 'approved')}
+              className="px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1"
+            >
+              Approve Dispatch
+            </button>
+            <button
+              onClick={(e) => onAction(e, marksheet, 'rejected')}
+              className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-sm font-medium rounded-lg transition-all duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-1"
+            >
+              Reject Request
+            </button>
+            <button
+              onClick={() => onViewDetails(marksheet)}
+              className="px-4 py-2.5 bg-white hover:bg-gray-50 text-gray-700 text-sm font-medium rounded-lg border border-gray-300 transition-all duration-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-1"
+            >
+              View Details
+            </button>
+          </div>
+        </div>
+
+        <div className="sm:hidden p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-blue-100">
+          <p className="text-xs text-center text-gray-600 flex items-center justify-center gap-2">
+            <span className="font-medium">Swipe left for actions</span>
+          </p>
+        </div>
+      </div>
+    </SwipeableCard>
+  )
+})
 
 function ActionDialog({ open, type, marksheet, anchorRect, onClose, onSubmit, loading, error }) {
   const [comments, setComments] = useState('')
