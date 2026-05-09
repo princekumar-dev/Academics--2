@@ -35,14 +35,14 @@ export function getUserFriendlyMessage(error, fallback = 'Something went wrong. 
 
   const msg = (error.message || '').toLowerCase()
 
+  // Timeout / abort
+  if (msg.includes('timeout') || msg.includes('abort') || error.name === 'AbortError' || error.name === 'TimeoutError' || msg.includes('etimedout')) {
+    return 'The request took too long to process. The operation might still be completing in the background. Please try again or check the status shortly.'
+  }
+
   // Network / connection
   if (msg.includes('fetch') || msg.includes('network') || msg.includes('failed to fetch') || msg.includes('networkerror')) {
     return 'Connection failed. Please check your internet connection and try again.'
-  }
-
-  // Timeout / abort
-  if (msg.includes('timeout') || msg.includes('abort') || error.name === 'AbortError') {
-    return 'Request took too long. Please try again.'
   }
 
   // Raw "HTTP 500" style – don’t show to user
