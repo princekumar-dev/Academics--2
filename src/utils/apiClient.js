@@ -1,4 +1,5 @@
 import { getUserFriendlyMessage } from './apiErrorMessages'
+import { getAuthOrNull } from './auth'
 
 const inFlight = new Map();
 const cache = new Map();
@@ -9,6 +10,17 @@ function buildUrl(url) {
   const origin = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
   const path = url.startsWith('/') ? url : `/${url}`;
   return `${origin}${path}`;
+}
+
+function getAuthHeaders() {
+  const auth = getAuthOrNull();
+  if (!auth) return {};
+  
+  return {
+    'Authorization': `Bearer ${auth.token || auth.id || ''}`,
+    'X-User-Id': auth.id || '',
+    'X-User-Role': auth.role || ''
+  };
 }
 
 async function request(method, url, opts = {}) {
@@ -66,7 +78,8 @@ async function request(method, url, opts = {}) {
           fetchBody = body;
         }
 
-        const mergedHeaders = Object.assign({}, headers || {}, contentTypeHeader);
+        const authHeaders = getAuthHeaders();
+        const mergedHeaders = Object.assign({}, authHeaders, headers || {}, contentTypeHeader);
 
         const res = await fetch(buildUrl(url), {
           method,
