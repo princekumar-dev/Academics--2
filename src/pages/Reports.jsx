@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import apiClient from '../utils/apiClient'
 import { getUserFriendlyMessage } from '../utils/apiErrorMessages'
 import { HelpTooltip } from '../components/ContextualHelp'
@@ -14,12 +14,22 @@ function Reports() {
   const [reportData, setReportData] = useState(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const reportRef = useRef(null)
 
   useEffect(() => {
     if (userData?.role === 'hod') {
       fetchDepartmentMarksheets()
     }
   }, [userData])
+
+  useEffect(() => {
+    if (reportData && reportRef.current) {
+      // Small timeout to ensure DOM is fully painted, especially on mobile devices
+      setTimeout(() => {
+        reportRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      }, 100)
+    }
+  }, [reportData])
 
   const fetchDepartmentMarksheets = async () => {
     try {
@@ -616,7 +626,7 @@ function Reports() {
 
             {/* Report Display */}
             {reportData && (
-              <div className="mt-6 md:mt-8 responsive-card bg-white border-2 border-gray-200">
+              <div ref={reportRef} className="mt-6 md:mt-8 responsive-card bg-white border-2 border-gray-200">
                 <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
                   <div>
                     <h3 className="responsive-heading-2 text-gray-900 mb-1">
