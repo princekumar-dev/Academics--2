@@ -141,28 +141,37 @@ function GlobalExecutionLoader() {
         /* Micro Glassmorphic Processing Tag */
         .processing-tag {
           position: fixed;
-          top: 16px;
+          bottom: 32px;
           left: 50%;
           transform: translateX(-50%);
           z-index: 99999;
           display: flex;
           align-items: center;
           gap: 8px;
-          padding: 6px 16px;
+          padding: 8px 18px;
           border-radius: 9999px;
-          background: rgba(255, 255, 255, 0.7);
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-          border: 1px solid rgba(212, 175, 55, 0.35);
-          box-shadow: 0 4px 20px rgba(212, 175, 55, 0.12);
-          font-size: 12px;
+          background: rgba(255, 255, 255, 0.85);
+          backdrop-filter: blur(12px);
+          -webkit-backdrop-filter: blur(12px);
+          border: 1px solid rgba(212, 175, 55, 0.4);
+          box-shadow: 0 8px 32px rgba(212, 175, 55, 0.18), 0 2px 10px rgba(0,0,0,0.06);
+          font-size: 13px;
           font-weight: 600;
           color: #8c6b12;
-          animation: slideDownIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+          animation: slideUpFade 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
-        @keyframes slideDownIn {
-          from { transform: translate(-50%, -20px); opacity: 0; }
+        /* Float above BottomNav on mobile */
+        @media (max-width: 768px) {
+          .processing-tag {
+            bottom: 84px;
+            padding: 6px 16px;
+            font-size: 12px;
+          }
+        }
+
+        @keyframes slideUpFade {
+          from { transform: translate(-50%, 20px); opacity: 0; }
           to { transform: translate(-50%, 0); opacity: 1; }
         }
         

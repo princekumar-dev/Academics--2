@@ -4,6 +4,12 @@ import App from './App.jsx'
 import './index.css'
 import './performance.css'
 
+// SECURITY: Suppress all standard logs to hide success messages and sensitive data
+// Only errors (console.error) and warnings (console.warn) will remain visible.
+console.log = () => {};
+console.info = () => {};
+console.debug = () => {};
+
 // Suppress browser extension errors
 window.addEventListener('unhandledrejection', (event) => {
   const msg = event.reason && (event.reason.message || event.reason.error || event.reason)
