@@ -6,6 +6,8 @@ import multer from 'multer'
 import webpush from 'web-push'
 import { getUserSubscriptions, storeNotification } from '../lib/notificationService.js'
 import { sendBroadcastNotification } from '../lib/broadcastNotification.js'
+import { normalizeSubject } from '../shared/subjectCatalog.js'
+
 
 const PASS_MARK_THRESHOLD = 40
 
@@ -740,8 +742,21 @@ export default async function handler(req, res) {
         }
       }
 
+      const dept = studentDetails?.department || existingMarksheet?.studentDetails?.department || ''
+      const year = studentDetails?.year || studentDetails?.class || existingMarksheet?.studentDetails?.year || existingMarksheet?.studentDetails?.class || ''
+      const semester = req.body.semester || existingMarksheet?.semester || ''
+
       if (Array.isArray(subjects) && subjects.length > 0) {
-        const normalizedSubjects = normalizeSubjectsWithResult(subjects)
+        // Run subjects through standard subject normalizer first to fix typos and standardize codes/names
+        const catalogNormalized = subjects.map((sub) => {
+          const norm = normalizeSubject(sub.subjectName || sub.name || '', dept, year, semester)
+          return {
+            ...sub,
+            subjectCode: norm.subjectCode,
+            subjectName: norm.subjectName
+          }
+        })
+        const normalizedSubjects = normalizeSubjectsWithResult(catalogNormalized)
         update.subjects = normalizedSubjects
         update.overallResult = getOverallResult(normalizedSubjects)
         // If edited, move back to draft until verified again
@@ -776,7 +791,16 @@ export default async function handler(req, res) {
         try {
           const existing = existingMarksheet
           if (existing && Array.isArray(existing.subjects)) {
-            const normalized = normalizeSubjectsWithResult(existing.subjects || [])
+            // Re-normalize name and code against subjectCatalog first on recomputation/regeneration
+            const catalogNormalized = (existing.subjects || []).map((sub) => {
+              const norm = normalizeSubject(sub.subjectName || sub.name || '', dept, year, semester)
+              return {
+                ...sub,
+                subjectCode: norm.subjectCode,
+                subjectName: norm.subjectName
+              }
+            })
+            const normalized = normalizeSubjectsWithResult(catalogNormalized)
             update.subjects = normalized
             update.overallResult = getOverallResult(normalized)
           }
