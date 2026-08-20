@@ -358,6 +358,27 @@ export default async function handler(req, res) {
     res.status(200).json({ success: true, lastEvolutionError })
   }
 
+  // Connection diagnostics endpoint (for troubleshooting)
+  if (req.method === 'GET' && req.query.action === 'diagnostics') {
+    try {
+      const staffIdForInstance = req.query?.staffId || null
+      const evo = staffIdForInstance ? getEvolutionApiForStaff(staffIdForInstance) : evolutionApi
+
+      const diagnostics = await evo.getConnectionDiagnostics()
+      
+      return res.status(200).json({
+        success: true,
+        diagnostics,
+        lastEvolutionError
+      })
+    } catch (error) {
+      return res.status(500).json({ 
+        success: false, 
+        error: error.message 
+      })
+    }
+  }
+
   // Create/Initialize Evolution API instance
   if (req.method === 'POST' && req.query.action === 'create-instance') {
     try {
@@ -692,6 +713,7 @@ export default async function handler(req, res) {
           // Check for common Evolution API errors
           let errorMessage = evolutionErr.message || 'Evolution API error'
           let statusCode = 500
+          let needsReconnect = false
 
           const providerStatus = Number(evolutionErr.response?.status || evolutionErr.status || evolutionErr.code)
 
@@ -705,7 +727,12 @@ export default async function handler(req, res) {
             statusCode = 502
           }
 
-          if (evolutionErr.code === 401 || evolutionErr.message?.toLowerCase().includes('authenticate')) {
+          // Check for device_removed / connection lost errors first
+          if (evolutionErr.isConnectionError || evolutionErr.code === 'DEVICE_REMOVED' || evolutionErr.code === 'INSTANCE_NOT_CONNECTED') {
+            errorMessage = 'WhatsApp connection lost. The device session was removed or invalidated. Please reconnect by scanning the QR code again.'
+            statusCode = 503
+            needsReconnect = true
+          } else if (evolutionErr.code === 401 || evolutionErr.message?.toLowerCase().includes('authenticate')) {
             errorMessage = 'Evolution API authentication failed. Please verify your EVOLUTION_API_KEY and related config in .env file.'
             statusCode = 401
           } else if (evolutionErr.code === 400 && evolutionErr.message?.toLowerCase().includes('phone')) {
@@ -716,6 +743,10 @@ export default async function handler(req, res) {
             statusCode = 403
           } else if (/invalid phone|phone number format|not a valid whatsapp|recipient/i.test(errorMessage)) {
             statusCode = 400
+          } else if (/connection closed|connection reset|device_removed|conflict/i.test(errorMessage)) {
+            errorMessage = 'WhatsApp connection lost (device_removed). Please reconnect by scanning the QR code again.'
+            statusCode = 503
+            needsReconnect = true
           }
 
           // Update marksheet with error status
@@ -765,7 +796,8 @@ export default async function handler(req, res) {
             evolutionCode: evolutionErr.code ?? null,
             evolutionStatus,
             evolutionResponse,
-            evolutionHeaders
+            evolutionHeaders,
+            needsReconnect
           })
         }
       }
