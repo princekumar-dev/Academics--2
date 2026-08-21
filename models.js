@@ -279,14 +279,18 @@ export const AccessPolicy = mongoose.model('AccessPolicy', AccessPolicySchema)
 
 // WhatsApp Instance Schema - track per-staff Evolution instances
 const WhatsappInstanceSchema = new mongoose.Schema({
-  instanceName: { type: String, required: true, index: true },
-  staffId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  instanceName: { type: String, required: true, unique: true, index: true },
+  // A staff member owns exactly one Evolution session. Sparse keeps the
+  // optional legacy/global instance compatible with the collection.
+  staffId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', unique: true, sparse: true },
   ownerJid: { type: String },
   configured: { type: Boolean, default: true },
   metadata: { type: mongoose.Schema.Types.Mixed },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 })
+
+WhatsappInstanceSchema.index({ staffId: 1 }, { unique: true, sparse: true })
 
 WhatsappInstanceSchema.pre('save', function(next) {
   this.updatedAt = new Date()

@@ -812,11 +812,7 @@ export default async function handler(req, res) {
           })
         }
 
-        // For bulk, support staffId in body to pick the correct instance
-        const bulkStaffId = req.body.staffId || req.query.staffId || null
-        const evo = bulkStaffId ? getEvolutionApiForStaff(String(bulkStaffId)) : evolutionApi
-
-        if (!evo.isConfigured()) {
+        if (!evolutionApi.isConfigured()) {
           return res.status(500).json({ 
             success: false, 
             error: 'Evolution WhatsApp API not configured' 
@@ -886,9 +882,21 @@ Best regards,
 MSEC Academics Department`
 
 
+            // Always send from the marksheet owner's unique staff instance.
+            // Never reuse a caller-supplied bulk sender for another staff
+            // member's marksheet: that is what can mix account sessions.
+            const marksheetStaffId = normalizedMarksheet.staffId || marksheet.staffId
+            const marksheetEvo = marksheetStaffId
+              ? getEvolutionApiForStaff(String(marksheetStaffId))
+              : evolutionApi
+
+            if (!marksheetEvo.isConfigured()) {
+              throw new Error('Evolution WhatsApp API not configured for this staff instance')
+            }
+
             // Use staff-scoped Evolution API to send marksheet notification
             try {
-              await evo.sendMarksheetNotification({
+              await marksheetEvo.sendMarksheetNotification({
                 studentName: normalizedMarksheet.studentDetails.name,
                 registerNumber: normalizedMarksheet.studentDetails.regNumber,
                 parentPhoneNumber: phoneNumber,
