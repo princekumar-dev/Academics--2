@@ -15,6 +15,7 @@ const PORT = process.env.PORT || 3001; // Use environment PORT or default to 300
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:5173',
+  'https://academics-2.onrender.com',
   'https://academics-5bf1.onrender.com',
   'https://academics-su1d.onrender.com',
   'https://academics-kxqc.onrender.com', // Old URL for backward compatibility

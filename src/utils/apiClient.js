@@ -7,7 +7,7 @@ const cache = new Map();
 function buildUrl(url) {
   if (!url) return url;
   if (url.startsWith('http://') || url.startsWith('https://')) return url;
-  const origin = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+  const origin = (import.meta.env.VITE_API_URL || import.meta.env.VITE_BASE_URL || '').replace(/\/$/, '');
   const path = url.startsWith('/') ? url : `/${url}`;
   return `${origin}${path}`;
 }

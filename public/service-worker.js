@@ -1,5 +1,5 @@
 // Service Worker for Push Notifications
-const CACHE_NAME = 'msec-connect-v2';
+const CACHE_NAME = 'msec-connect-v3';
 const urlsToCache = [
   '/',
   '/manifest.json'
@@ -49,8 +49,12 @@ self.addEventListener('activate', (event) => {
 
 // Fetch Event - with error handling
 self.addEventListener('fetch', (event) => {
-  // Skip non-GET requests and chrome-extension requests
-  if (event.request.method !== 'GET' || event.request.url.startsWith('chrome-extension://')) {
+  // Skip non-GET requests, chrome-extension requests, and API requests
+  if (
+    event.request.method !== 'GET' ||
+    event.request.url.startsWith('chrome-extension://') ||
+    event.request.url.includes('/api/')
+  ) {
     return;
   }
   

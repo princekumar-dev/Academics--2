@@ -20,7 +20,7 @@ export default function WhatsAppStatus() {
   const [confirmAction, setConfirmAction] = useState(null);
   
   const { showSuccess, showError, showInfo } = useAlert();
-  const origin = import.meta.env.VITE_API_URL || '';
+  const origin = import.meta.env.VITE_API_URL || import.meta.env.VITE_BASE_URL || '';
 
   const CACHE_KEY_BASE = 'whatsapp_status_cache_v1';
   const CACHE_KEY = `${CACHE_KEY_BASE}_${staffId || 'anon'}`;
