@@ -1,4 +1,19 @@
-# MSEC Academics - Academic Management System
+<div align="center">
+
+# 🎓 MSEC Academics
+
+### Academic Management System — marksheets, approvals & WhatsApp dispatch
+
+[![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev)
+[![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
+[![Node.js](https://img.shields.io/badge/Node.js-Express-339933?style=flat-square&logo=nodedotjs&logoColor=white)](https://expressjs.com)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose-47A248?style=flat-square&logo=mongodb&logoColor=white)](https://www.mongodb.com)
+[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](#-license)
+
+**[🔗 Live App](https://msec-academics.vercel.app)**
+
+</div>
 
 ![MSEC Logo](public/images/mseclogo.png)
 
@@ -59,7 +74,9 @@
 ### Libraries & Tools
 - **ExcelJS**: Excel file processing and generation
 - **PDFKit**: PDF document generation
-- **Twilio**: WhatsApp API integration
+- **Evolution API**: WhatsApp messaging bridge
+- **Cloudinary**: Image & media storage
+- **Web Push (VAPID)**: Browser push notifications
 - **Multer**: File upload handling
 - **CORS**: Cross-origin resource sharing
 - **Dotenv**: Environment variable management
@@ -99,8 +116,8 @@ MSEC Academics/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/msec-academics.git
-   cd msec-academics
+   git clone https://github.com/princekumar-dev/Academics--2.git
+   cd Academics--2
    ```
 
 2. **Install dependencies**
@@ -109,22 +126,35 @@ MSEC Academics/
    ```
 
 3. **Environment Configuration**
-   Create a `.env` file in the root directory:
+   Copy the sample env file and fill in your own values:
+   ```bash
+   cp .env.example .env
+   ```
    ```env
-   # Database
-   MONGODB_URI=mongodb+srv://your-connection-string
-
-   # JWT
-   JWT_SECRET=your-super-secure-jwt-secret-key
-
    # Server
    PORT=3001
    NODE_ENV=development
+   PUBLIC_BASE_URL=http://localhost:3000
 
-   # Twilio (for WhatsApp - optional)
-   TWILIO_ACCOUNT_SID=your-twilio-account-sid
-   TWILIO_AUTH_TOKEN=your-twilio-auth-token
-   TWILIO_WHATSAPP_NUMBER=your-twilio-whatsapp-number
+   # Database
+   MONGODB_URI=your-mongodb-connection-string
+
+   # Auth
+   JWT_SECRET=your-super-secure-jwt-secret-key
+
+   # WhatsApp (Evolution API bridge)
+   EVOLUTION_API_URL=your-evolution-api-url
+   EVOLUTION_API_KEY=your-evolution-api-key
+   EVOLUTION_INSTANCE_NAME=your-instance-name
+
+   # Cloudinary (image storage)
+   CLOUDINARY_CLOUD_NAME=your-cloud-name
+   CLOUDINARY_API_KEY=your-api-key
+   CLOUDINARY_API_SECRET=your-api-secret
+
+   # Web push notifications
+   VAPID_PUBLIC_KEY=your-vapid-public-key
+   VAPID_PRIVATE_KEY=your-vapid-private-key
    ```
 
 4. **Seed initial data** (optional)
@@ -151,7 +181,7 @@ MSEC Academics/
 
 6. **Access the application**
    - Frontend: `http://localhost:3000`
-   - Backend API: `https://academics-kxqc.onrender.com/`
+   - Backend API: `http://localhost:3001`
 
 ## 📁 Project Structure
 
@@ -384,11 +414,12 @@ npm run warm-tunnel      # Warm up tunnel connection
 ### Environment Variables (Production)
 ```env
 NODE_ENV=production
-MONGODB_URI=mongodb+srv://production-connection
+MONGODB_URI=production-connection-string
 JWT_SECRET=secure-production-jwt-secret
-TWILIO_ACCOUNT_SID=production-twilio-sid
-TWILIO_AUTH_TOKEN=production-twilio-token
-TWILIO_WHATSAPP_NUMBER=production-whatsapp-number
+PUBLIC_BASE_URL=https://msec-academics.vercel.app
+EVOLUTION_API_URL=production-evolution-url
+EVOLUTION_API_KEY=production-evolution-key
+EVOLUTION_INSTANCE_NAME=production-instance
 ```
 
 ### Enabling compressed build artifacts in CI (Brotli/Gzip)
@@ -453,7 +484,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Mohamed Sathak Engineering College** for institutional support
 - **React Community** for the excellent framework
 - **MongoDB** for the flexible database solution
-- **Twilio** for WhatsApp integration capabilities
+- **Evolution API** for WhatsApp messaging capabilities
 - **Tailwind CSS** for the utility-first CSS framework
 - **Vite** for the lightning-fast development experience
 
